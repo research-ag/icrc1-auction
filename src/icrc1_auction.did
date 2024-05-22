@@ -1,0 +1,120 @@
+type Token = principal;
+type Amount = nat;
+
+type TokenInfo = record {
+  min_deposit : Amount;
+  min_withdrawal : Amount;
+  deposit_fee : Amount;
+  withdrawal_fee : Amount;
+};
+
+type Subaccount = blob;
+
+type NotifyArg = record {
+  token : Token;
+};
+
+type NotifyResult = record {
+  deposit_inc : Amount;
+  credit_inc : Amount;
+};
+
+type NotifyResponse = variant {
+  Ok : NotifyResult;
+  Err : variant {
+    CallLedgerError : text;
+    NotAvailable : text;
+  };
+};
+
+type BalanceResponse = variant {
+  Ok : Amount;
+  Err : variant {
+    NotAvailable : text;
+  };
+};
+
+type WithdrawArgs = record {
+  to_subaccount : opt Subaccount;
+  amount : Amount;
+  token : Token;
+};
+
+type WithdrawResponse = variant {
+  Ok : record {
+    txid : nat;
+    amount : Amount;
+  };
+  Err : variant {
+    CallLedgerError : text;
+    InsufficientCredit;
+    AmountBelowMinimum;
+  };
+};
+
+type Order = record {
+  icrc1Ledger : Token;
+  price : float64;
+  volume : nat;
+};
+
+type PlaceOrderResult = variant {
+  Ok;
+  Err : variant {
+    NoCredit;
+    TooLowOrder;
+    UnknownAsset;
+    UnknownPrincipal;
+  };
+};
+type CancelOrderResult = variant {
+  Ok : bool;
+  Err : variant {
+    UnknownAsset;
+    UnknownPrincipal;
+  };
+};
+
+service : () -> {
+  // ICRCX API
+  // helper function
+  principalToSubaccount : (principal) -> (opt blob) query;
+
+  // public queries
+  icrcX_supported_tokens : () -> (vec Token) query;
+  icrcX_token_info : (Token) -> (TokenInfo) query;
+
+  // private queries
+  icrcX_credit : (Token) -> (int) query;
+  icrcX_all_credits : () -> (vec record { Token; int }) query;
+  icrcX_trackedDeposit : (Token) -> (BalanceResponse) query;
+
+  // updates
+  icrcX_notify : (NotifyArg) -> (NotifyResponse);
+  icrcX_withdraw : (WithdrawArgs) -> (WithdrawResponse);
+
+  // auction API
+  // system queries
+  getTrustedLedger : () -> (principal) query;
+  sessionsCounter : () -> (nat) query;
+  sessionRemainingTime : () -> (nat) query;
+  // user queries
+  queryBid : (Token) -> (opt Order) query;
+  queryBids : () -> (vec Order) query;
+  queryAsk : (Token) -> (opt Order) query;
+  queryAsks : () -> (vec Order) query;
+  queryHistory : (nat, nat) -> (vec record { nat64; variant { ask; bid }; Token; nat; float64 }) query;
+  // update
+  placeAsk : (Token, nat, float64) -> (PlaceOrderResult);
+  placeBid : (Token, nat, float64) -> (PlaceOrderResult);
+  cancelAsk : (Token) -> (CancelOrderResult);
+  cancelBid : (Token) -> (CancelOrderResult);
+
+  // ADMIN API
+  // query
+  listAdmins : () -> (vec principal) query;
+  // update
+  addAdmin : (principal) -> ();
+  removeAdmin : (principal) -> ();
+  registerAsset : (principal, nat) -> (variant { Ok : nat; Err : variant { AlreadyRegistered : nat } });
+};

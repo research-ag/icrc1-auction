@@ -1,0 +1,53 @@
+{
+  "private": "true",
+  "name": "icrc1-auction",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "https://github.com/research-ag/icrc1-auction.git",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "setup": "dfx canister create --all && mkdir -p .dfx/local/canisters/frontend && wget https://raw.githubusercontent.com/jamesbeadle/OpenFPL/master/candid/assetstorage.did -O .dfx/local/canisters/frontend/assetstorage.did && dfx generate && dfx deploy",
+    "dev:frontend": "vite --port 3993 --host",
+    "build:frontend": "tsc && vite build",
+    "prettier-format": "prettier --config frontend/.prettierrc 'frontend/**/*.ts' --write"
+  },
+  "devDependencies": {
+    "@dfinity/agent": "^1.0.1",
+    "@dfinity/candid": "^1.0.1",
+    "@dfinity/identity": "^1.0.1",
+    "@dfinity/principal": "^1.0.1",
+    "@hadronous/pic": "^0.6.0",
+    "@types/node": "^20.11.19",
+    "@types/react": "^18.2.55",
+    "@types/react-dom": "^18.2.19",
+    "@vitejs/plugin-react": "^4.2.1",
+    "dotenv": "^16.4.4",
+    "mo-dev": "^0.12.0",
+    "npm-run-all": "^4.1.5",
+    "prettier": "^2.8.8",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3",
+    "vite": "^5.1.3",
+    "vite-plugin-environment": "^1.1.3",
+    "vite-tsconfig-paths": "^4.3.1",
+    "vitest": "^1.3.0"
+  },
+  "dependencies": {
+    "@dfinity/auth-client": "^1.0.1",
+    "@emotion/react": "^11.11.3",
+    "@emotion/styled": "^11.11.0",
+    "@fontsource/inter": "^5.0.16",
+    "@hookform/resolvers": "^3.3.4",
+    "@mui/icons-material": "^5.15.10",
+    "@mui/joy": "^5.0.0-beta.28",
+    "@mui/material": "^5.15.10",
+    "date-fns": "^3.3.1",
+    "notistack": "^3.0.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-hook-form": "^7.50.1",
+    "react-query": "^3.39.3",
+    "zod": "^3.22.4"
+  }
+}
