@@ -1,10 +1,26 @@
 {
   "canisters": {
+    "icrc1_ledger_mock": {
+      "main": "test/mocks/icrc1_ledger_mock.mo",
+      "type": "motoko",
+      "optimize": "cycles",
+      "declarations": {
+        "bindings": ["js", "ts"],
+        "output": "./declarations/icrc1_ledger_mock"
+      }
+    },
+    "icrc1_ledger_mock_2": {
+      "dependencies": ["icrc1_ledger_mock"],
+      "wasm": "./.dfx/local/canisters/icrc1_ledger_mock/icrc1_ledger_mock.wasm",
+      "candid": "./.dfx/local/canisters/icrc1_ledger_mock/icrc1_ledger_mock.did",
+      "type": "custom"
+    },
     "icrc1_auction": {
+      "dependencies": ["icrc1_ledger_mock"],
       "main": "src/icrc1_auction_api.mo",
       "did": "src/icrc1_auction.did",
       "type": "motoko",
-      "init_arg": "(opt principal \"amt7h-hiaaa-aaaap-abqza-cai\", opt principal \"2vxsx-fae\")",
+      "init_arg": "(opt principal \"be2us-64aaa-aaaaa-qaabq-cai\", opt principal \"2vxsx-fae\")",
       "declarations": {
         "bindings": ["js", "ts"],
         "output": "./declarations/icrc1_auction"
