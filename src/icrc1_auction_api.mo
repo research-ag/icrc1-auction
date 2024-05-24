@@ -130,11 +130,11 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
   public shared query func icrcX_token_info(token : Principal) : async TokenInfo {
     for ((assetInfo, i) in Vec.items(assets)) {
       if (Principal.equal(assetInfo.ledgerPrincipal, token)) {
-        return assetInfo.handler.fee() |> {
-          min_deposit = _ + 1;
-          min_withdrawal = _ + 1;
-          deposit_fee = _;
-          withdrawal_fee = _;
+        return (assetInfo.handler.fee(#deposit), assetInfo.handler.fee(#withdrawal)) |> {
+          min_deposit = _.0 + 1;
+          min_withdrawal = _.1 + 1;
+          deposit_fee = _.0;
+          withdrawal_fee = _.1;
         };
       };
     };
@@ -185,7 +185,6 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     };
     switch (result) {
       case (?(delta, usableBalance)) {
-        await* assetInfo.handler.trigger();
         ignore a.setCredit(caller, assetId, Int.abs(usableBalance));
         #Ok({ deposit_inc = delta; credit_inc = delta });
       };
@@ -201,18 +200,14 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
   public shared ({ caller }) func icrcX_withdraw(args : { to_subaccount : ?Blob; amount : Nat; token : Principal }) : async WithdrawResult {
     let ?assetId = getAssetId(args.token) else throw Error.reject("Unknown token");
     let handler = Vec.get(assets, assetId).handler;
-    if (not handler.debitStrict(caller, args.amount)) {
-      return #Err(#InsufficientCredit);
-    };
     let rollbackCredit = switch (U.unwrapUninit(auction).deductCredit(caller, assetId, args.amount)) {
       case (#err err) return #Err(#InsufficientCredit);
       case (#ok(_, r)) r;
     };
-    let res = await* handler.withdraw({ owner = caller; subaccount = args.to_subaccount }, args.amount);
+    let res = await* handler.withdrawFromCredit(caller, { owner = caller; subaccount = args.to_subaccount }, args.amount);
     switch (res) {
       case (#ok(txid, amount)) #Ok({ txid; amount });
       case (#err err) {
-        handler.credit(caller, args.amount);
         rollbackCredit();
         switch (err) {
           case (#TooLowQuantity) #Err(#AmountBelowMinimum);
@@ -234,11 +229,12 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
           balance_of = _.icrc1_balance_of;
           fee = _.icrc1_fee;
           transfer = _.icrc1_transfer;
+          transfer_from = _.icrc2_transfer_from;
         }
         |> {
           ledgerPrincipal = x.ledgerPrincipal;
           minAskVolume = x.minAskVolume;
-          handler = TokenHandler.TokenHandler(_, Principal.fromActor(self), JOURNAL_SIZE, 0);
+          handler = TokenHandler.TokenHandler(_, Principal.fromActor(self), JOURNAL_SIZE, 0, true);
         };
         r.handler.unshare(x.handler);
         r;
@@ -268,7 +264,7 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     #seconds 60,
     func() : async () {
       for (asset in Vec.vals(assets)) {
-        await* asset.handler.trigger();
+        await* asset.handler.trigger(1);
       };
     },
   );
@@ -376,11 +372,12 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
       balance_of = _.icrc1_balance_of;
       fee = _.icrc1_fee;
       transfer = _.icrc1_transfer;
+      transfer_from = _.icrc2_transfer_from;
     }
     |> {
       ledgerPrincipal = ledger;
       minAskVolume = minAskVolume;
-      handler = TokenHandler.TokenHandler(_, Principal.fromActor(self), JOURNAL_SIZE, 0);
+      handler = TokenHandler.TokenHandler(_, Principal.fromActor(self), JOURNAL_SIZE, 0, true);
     }
     |> Vec.add<AssetInfo>(assets, _);
     U.unwrapUninit(auction).registerAssets(1);
