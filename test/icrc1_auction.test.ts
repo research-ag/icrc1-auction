@@ -454,10 +454,11 @@ describe('ICRC1 Auction', () => {
       expect(await auction.icrcX_credit(ledger1Principal)).toEqual(2_000n);
       // check history
       const historyItem = (await auction.queryHistory(1n, 0n))[0];
-      expect(historyItem[1]).toEqual({ bid: null });
-      expect(historyItem[2]).toEqual(ledger1Principal);
-      expect(historyItem[3]).toEqual(2_000n);
-      expect(historyItem[4]).toEqual(15_000);
+      expect(historyItem[1]).toEqual(2n);
+      expect(historyItem[2]).toEqual({bid: null});
+      expect(historyItem[3]).toEqual(ledger1Principal);
+      expect(historyItem[4]).toEqual(2_000n);
+      expect(historyItem[5]).toEqual(15_000);
     });
 
     test('should fulfil many bids at once', async () => {
@@ -584,10 +585,11 @@ describe('ICRC1 Auction', () => {
       expect(bid[0]!.volume).toBe(1_000n);
       // check that partial bid recorded in history
       const historyItem = (await auction.queryHistory(1n, 0n))[0];
-      expect(historyItem[1]).toEqual({ bid: null });
-      expect(historyItem[2]).toEqual(ledger1Principal);
-      expect(historyItem[3]).toEqual(500n);
-      expect(historyItem[4]).toEqual(100_000);
+      expect(historyItem[1]).toEqual(2n);
+      expect(historyItem[2]).toEqual({bid: null});
+      expect(historyItem[3]).toEqual(ledger1Principal);
+      expect(historyItem[4]).toEqual(500n);
+      expect(historyItem[5]).toEqual(100_000);
     });
 
     test('should carry partially fulfilled bid over to the next session', async () => {
@@ -912,8 +914,8 @@ describe('ICRC1 Auction', () => {
       await auction.placeBid(ledger2Principal, 1_000n, 100_000);
       await startNewAuctionSession();
       const history = await auction.queryHistory(2n, 0n);
-      expect(history[0][2].toText()).toBe(ledger2Principal.toText());
-      expect(history[1][2].toText()).toBe(ledger1Principal.toText());
+      expect(history[0][3].toText()).toBe(ledger2Principal.toText());
+      expect(history[1][3].toText()).toBe(ledger1Principal.toText());
     });
   });
 

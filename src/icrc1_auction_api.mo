@@ -77,7 +77,8 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     };
   };
 
-  type OrderHistoryItem = (timestamp : Nat64, kind : { #ask; #bid }, ledgerPrincipal : Principal, volume : Nat, price : Float);
+  type AssetHistoryItem = (timestamp : Nat64, sessionNumber : Nat, ledgerPrincipal : Principal, volume : Nat, price : Float);
+  type OrderHistoryItem = (timestamp : Nat64, sessionNumber : Nat, kind : { #ask; #bid }, ledgerPrincipal : Principal, volume : Nat, price : Float);
 
   type TokenInfo = {
     min_deposit : Nat;
@@ -299,6 +300,19 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
 
   public shared query ({ caller }) func queryHistory(limit : Nat, skip : Nat) : async [OrderHistoryItem] {
     U.unwrapUninit(auction).queryHistory(caller, limit, skip) |> Array.tabulate<OrderHistoryItem>(
+      _.size(),
+      func(i) = (
+        _ [i].0,
+        _ [i].1,
+        _ [i].2,
+        Vec.get(assets, _ [i].3).ledgerPrincipal,
+        _ [i].4,
+        _ [i].5,
+      ),
+    );
+  };
+  public shared query func queryTokenHistory(limit : Nat, skip : Nat) : async [AssetHistoryItem] {
+    U.unwrapUninit(auction).queryAssetHistory(limit, skip) |> Array.tabulate<AssetHistoryItem>(
       _.size(),
       func(i) = (
         _ [i].0,

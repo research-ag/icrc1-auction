@@ -26,12 +26,14 @@ module {
     sessionsCounter : Nat;
     assets : Vec.Vector<StableAssetInfo>;
     users : RBTree.Tree<Principal, UserInfo>;
+    history : List.List<AssetHistoryItem>;
   };
 
   public func defaultStableData() : StableData = {
     sessionsCounter = 0;
     assets = Vec.new();
     users = #leaf;
+    history = null;
   };
 
   public type Account = {
@@ -41,7 +43,8 @@ module {
     var lockedCredit : Nat;
   };
 
-  public type OrderHistoryItem = (timestamp : Nat64, kind : { #ask; #bid }, assetId : AssetId, volume : Nat, price : Float);
+  public type AssetHistoryItem = (timestamp : Nat64, sessionNumber : Nat, assetId : AssetId, volume : Nat, price : Float);
+  public type OrderHistoryItem = (timestamp : Nat64, sessionNumber : Nat, kind : { #ask; #bid }, assetId : AssetId, volume : Nat, price : Float);
 
   public type Order = {
     user : Principal;
@@ -113,6 +116,8 @@ module {
     public var assets : Vec.Vector<AssetInfo> = Vec.new();
     // user info
     public let users : RBTree.RBTree<Principal, UserInfo> = RBTree.RBTree<Principal, UserInfo>(Principal.compare);
+    // asset history
+    public var history : List.List<AssetHistoryItem> = null;
 
     metrics.addSystemValues();
     ignore metrics.addPullValue("sessions_counter", "", func() = sessionsCounter);
@@ -219,16 +224,15 @@ module {
     public func queryAsks(p : Principal) : [SharedOrder] = queryOrders_(p, func(info) = info.currentAsks);
     public func queryBids(p : Principal) : [SharedOrder] = queryOrders_(p, func(info) = info.currentBids);
 
-    public func queryHistory(p : Principal, limit : Nat, skip : Nat) : [OrderHistoryItem] {
-      let ?userInfo = users.get(p) else return [];
-      var tail = userInfo.history;
+    private func sliceList<T>(list : List.List<T>, limit : Nat, skip : Nat) : [T] {
+      var tail = list;
       var i = 0;
       while (i < skip) {
         let ?(_, next) = tail else return [];
         tail := next;
         i += 1;
       };
-      let ret : Vec.Vector<OrderHistoryItem> = Vec.new();
+      let ret : Vec.Vector<T> = Vec.new();
       i := 0;
       label l while (i < limit) {
         let ?(item, next) = tail else break l;
@@ -238,6 +242,13 @@ module {
       };
       Vec.toArray(ret);
     };
+
+    public func queryHistory(p : Principal, limit : Nat, skip : Nat) : [OrderHistoryItem] {
+      let ?userInfo = users.get(p) else return [];
+      sliceList(userInfo.history, limit, skip);
+    };
+
+    public func queryAssetHistory(limit : Nat, skip : Nat) : [AssetHistoryItem] = sliceList(history, limit, skip);
 
     public func appendCredit(p : Principal, assetId : AssetId, amount : Nat) : Nat {
       let userInfo = switch (users.get(p)) {
@@ -546,7 +557,7 @@ module {
           // update metrics
           assetInfo.metrics.totalAskVolume.sub(volume);
           // append to history
-          userInfo.history := List.push((Prim.time(), #ask, assetId, volume, price), userInfo.history);
+          userInfo.history := List.push((Prim.time(), sessionsCounter, #ask, assetId, volume, price), userInfo.history);
           i += 1;
         };
         assetInfo.asks := asksTail;
@@ -587,12 +598,14 @@ module {
           // update metrics
           assetInfo.metrics.totalBidVolume.sub(volume);
           // append to history
-          userInfo.history := List.push((Prim.time(), #bid, assetId, volume, price), userInfo.history);
+          userInfo.history := List.push((Prim.time(), sessionsCounter, #bid, assetId, volume, price), userInfo.history);
           i += 1;
         };
         assetInfo.bids := bidsTail;
 
         assetInfo.lastSwapRate := price;
+        // append to asset history
+        history := List.push((Prim.time(), sessionsCounter, assetId, dealVolume, price), history);
 
         let curPerfCounter = Prim.performanceCounter(0);
         assetInfo.metrics.lastProcessingInstructions.set(Nat64.toNat(curPerfCounter - assetStartInstructions));
@@ -662,6 +675,7 @@ module {
         },
       );
       users = users.share();
+      history = history;
     };
 
     public func unshare(data : StableData) {
@@ -681,6 +695,7 @@ module {
         },
       );
       users.unshare(data.users);
+      history := data.history;
     };
 
   };

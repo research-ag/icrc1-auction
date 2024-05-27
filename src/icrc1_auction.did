@@ -103,7 +103,8 @@ service : () -> {
   queryBids : () -> (vec Order) query;
   queryAsk : (Token) -> (opt Order) query;
   queryAsks : () -> (vec Order) query;
-  queryHistory : (nat, nat) -> (vec record { nat64; variant { ask; bid }; Token; nat; float64 }) query;
+  queryHistory : (nat, nat) -> (vec record { nat64; nat; variant { ask; bid }; Token; nat; float64 }) query;
+  queryTokenHistory : (nat, nat) -> (vec record { nat64; nat; AssetId; nat; float64 }) query;
   // update
   placeAsk : (Token, nat, float64) -> (PlaceOrderResult);
   placeBid : (Token, nat, float64) -> (PlaceOrderResult);
