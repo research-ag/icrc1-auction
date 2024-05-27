@@ -9,6 +9,7 @@ import RBTree "mo:base/RBTree";
 import Text "mo:base/Text";
 import Timer "mo:base/Timer";
 
+import AccountManager "mo:mrr/TokenHandler/AccountManager";
 import ICRC1 "mo:mrr/TokenHandler/ICRC1";
 import PT "mo:promtracker";
 import TokenHandler "mo:mrr/TokenHandler";
@@ -195,6 +196,23 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
           credit_inc = 0;
         });
       };
+    };
+  };
+
+  public shared ({ caller }) func deposit_from_allowance(args : { account : ICRC1.Account; amount : Nat; token : Principal }) : async UpperResult<AccountManager.DepositFromAllowanceResult, AccountManager.DepositFromAllowanceError> {
+    let a = U.unwrapUninit(auction);
+    let assetId = switch (getAssetId(args.token)) {
+      case (?aid) aid;
+      case (_) throw Error.reject("Unknown token");
+    };
+    let assetInfo = Vec.get(assets, assetId);
+    let res = await* assetInfo.handler.depositFromAllowance(args.account, args.amount);
+    switch (res) {
+      case (#ok(credited)) {
+        ignore a.setCredit(caller, assetId, Int.abs(assetInfo.handler.userCredit(caller)));
+        #Ok(credited);
+      };
+      case (#err x) #Err(x);
     };
   };
 
