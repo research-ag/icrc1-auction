@@ -27,6 +27,34 @@ type NotifyResponse = variant {
   };
 };
 
+type DepositFromAllowanceArg = record {
+  account : record {
+    owner : principal;
+    subaccount : opt Subaccount;
+  };
+  amount : nat;
+  token : principal;
+};
+
+type DepositFromAllowanceResponse = variant {
+  Ok : nat;
+  Err : variant {
+    BadBurn : record { min_burn_amount : nat };
+    BadFee : record { expected_fee : nat };
+    CallIcrc1LedgerError;
+    CreatedInFuture : record { ledger_time : nat64 };
+    Duplicate : record { duplicate_of : nat };
+    GenericError : record {
+      error_code : nat;
+      message : text;
+    };
+    InsufficientAllowance : record { allowance : nat };
+    InsufficientFunds : record { balance : nat };
+    TemporarilyUnavailable;
+    TooLowQuantity;
+  };
+};
+
 type BalanceResponse = variant {
   Ok : Amount;
   Err : variant {
@@ -91,6 +119,7 @@ service : () -> {
 
   // updates
   icrcX_notify : (NotifyArg) -> (NotifyResponse);
+  deposit_from_allowance : (DepositFromAllowanceArg) -> (DepositFromAllowanceResponse);
   icrcX_withdraw : (WithdrawArgs) -> (WithdrawResponse);
 
   // auction API
