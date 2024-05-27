@@ -8,7 +8,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 export default defineConfig({
-  root: "frontend",
+  root: "frontend-new/src",
   build: {
     outDir: "../dist",
     emptyOutDir: true,

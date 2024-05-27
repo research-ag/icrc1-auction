@@ -7,6 +7,7 @@
     "skipLibCheck": true,
     "esModuleInterop": false,
     "allowSyntheticDefaultImports": true,
+    "allowImportingTsExtensions": true,
     "strict": true,
     "forceConsistentCasingInFileNames": true,
     "module": "ESNext",
@@ -24,5 +25,5 @@
       "@fe/*": ["./frontend/*"]
     }
   },
-  "include": ["frontend"]
+  "include": ["frontend/**/*", "frontend-new/**/*"]
 }
