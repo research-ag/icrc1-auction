@@ -80,6 +80,8 @@ type WithdrawResponse = variant {
   };
 };
 
+type OrderId = nat;
+
 type Order = record {
   icrc1Ledger : Token;
   price : float64;
@@ -87,7 +89,7 @@ type Order = record {
 };
 
 type PlaceOrderResult = variant {
-  Ok;
+  Ok : OrderId;
   Err : variant {
     NoCredit;
     TooLowOrder;
@@ -98,7 +100,6 @@ type PlaceOrderResult = variant {
 type CancelOrderResult = variant {
   Ok : bool;
   Err : variant {
-    UnknownAsset;
     UnknownPrincipal;
   };
 };
@@ -128,17 +129,17 @@ service : () -> {
   sessionsCounter : () -> (nat) query;
   sessionRemainingTime : () -> (nat) query;
   // user queries
-  queryBid : (Token) -> (opt Order) query;
-  queryBids : () -> (vec Order) query;
-  queryAsk : (Token) -> (opt Order) query;
-  queryAsks : () -> (vec Order) query;
+  queryTokenBids : (Token) -> (vec record { OrderId; Order }) query;
+  queryBids : () -> (vec record { OrderId; Order }) query;
+  queryTokenAsks : (Token) -> (vec record { OrderId; Order }) query;
+  queryAsks : () -> (vec record { OrderId; Order }) query;
   queryHistory : (nat, nat) -> (vec record { nat64; nat; variant { ask; bid }; Token; nat; float64 }) query;
   queryTokenHistory : (nat, nat) -> (vec record { nat64; nat; AssetId; nat; float64 }) query;
   // update
   placeAsk : (Token, nat, float64) -> (PlaceOrderResult);
   placeBid : (Token, nat, float64) -> (PlaceOrderResult);
-  cancelAsk : (Token) -> (CancelOrderResult);
-  cancelBid : (Token) -> (CancelOrderResult);
+  cancelAsk : (OrderId) -> (CancelOrderResult);
+  cancelBid : (OrderId) -> (CancelOrderResult);
 
   // ADMIN API
   // query

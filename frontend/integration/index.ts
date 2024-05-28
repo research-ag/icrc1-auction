@@ -157,7 +157,7 @@ export const useCancelOrder = (kind: 'ask' | 'bid') => {
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
   return useMutation(
-    (icrc1Ledger: Principal) => (kind === 'bid' ? auction.cancelBid(icrc1Ledger) : auction.cancelAsk(icrc1Ledger)),
+    (orderId: bigint) => (kind === 'bid' ? auction.cancelBid(orderId) : auction.cancelAsk(orderId)),
     {
       onSuccess: res => {
         if ('Err' in res) {

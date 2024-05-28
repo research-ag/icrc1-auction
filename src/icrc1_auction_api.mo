@@ -62,12 +62,14 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     price : Float;
     volume : Nat;
   };
-  func mapOrder(order : Auction.SharedOrder) : Order = {
-    icrc1Ledger = Vec.get(assets, order.assetId).ledgerPrincipal;
-    price = order.price;
-    volume = order.volume;
-  };
-  func mapOrderOpt(order : ?Auction.SharedOrder) : ?Order = Option.map<Auction.SharedOrder, Order>(order, mapOrder);
+  func mapOrder(order : (Auction.OrderId, Auction.SharedOrder)) : (Auction.OrderId, Order) = (
+    order.0,
+    {
+      icrc1Ledger = Vec.get(assets, order.1.assetId).ledgerPrincipal;
+      price = order.1.price;
+      volume = order.1.volume;
+    },
+  );
 
   type UpperResult<Ok, Err> = { #Ok : Ok; #Err : Err };
   // TODO use resultToUpper after upgrading motoko-base (0.11.2?)
@@ -187,7 +189,8 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     };
     switch (result) {
       case (?(delta, usableBalance)) {
-        ignore a.setCredit(caller, assetId, Int.abs(usableBalance));
+        assert assetInfo.handler.debitUser(caller, delta);
+        ignore a.appendCredit(caller, assetId, delta);
         #Ok({ deposit_inc = delta; credit_inc = delta });
       };
       case (null) {
@@ -209,7 +212,8 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     let res = await* assetInfo.handler.depositFromAllowance(args.account, args.amount);
     switch (res) {
       case (#ok(credited)) {
-        ignore a.setCredit(caller, assetId, Int.abs(assetInfo.handler.userCredit(caller)));
+        assert assetInfo.handler.debitUser(caller, credited);
+        ignore a.appendCredit(caller, assetId, credited);
         #Ok(credited);
       };
       case (#err x) #Err(x);
@@ -223,7 +227,7 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
       case (#err err) return #Err(#InsufficientCredit);
       case (#ok(_, r)) r;
     };
-    let res = await* handler.withdrawFromCredit(caller, { owner = caller; subaccount = args.to_subaccount }, args.amount);
+    let res = await* handler.withdrawFromPool({ owner = caller; subaccount = args.to_subaccount }, args.amount);
     switch (res) {
       case (#ok(txid, amount)) #Ok({ txid; amount });
       case (#err err) {
@@ -302,19 +306,26 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     return null;
   };
 
-  public shared query ({ caller }) func queryBid(ledger : Principal) : async ?Order = async switch (getAssetId(ledger)) {
-    case (?aid) U.unwrapUninit(auction).queryBid(caller, aid) |> mapOrderOpt(_);
-    case (_) null;
+  public shared query ({ caller }) func queryTokenBids(ledger : Principal) : async [(Auction.OrderId, Order)] = async switch (getAssetId(ledger)) {
+    case (?aid) {
+      U.unwrapUninit(auction).queryAssetBids(caller, aid)
+      |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = mapOrder(_ [i]));
+    };
+    case (_) [];
   };
-  public shared query ({ caller }) func queryBids() : async [Order] = async U.unwrapUninit(auction).queryBids(caller)
-  |> Array.tabulate<Order>(_.size(), func(i) = mapOrder(_ [i]));
 
-  public shared query ({ caller }) func queryAsk(ledger : Principal) : async ?Order = async switch (getAssetId(ledger)) {
-    case (?aid) U.unwrapUninit(auction).queryAsk(caller, aid) |> mapOrderOpt(_);
-    case (_) null;
+  public shared query ({ caller }) func queryBids() : async [(Auction.OrderId, Order)] = async U.unwrapUninit(auction).queryBids(caller)
+  |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = mapOrder(_ [i]));
+
+  public shared query ({ caller }) func queryTokenAsks(ledger : Principal) : async [(Auction.OrderId, Order)] = async switch (getAssetId(ledger)) {
+    case (?aid) {
+      U.unwrapUninit(auction).queryAssetAsks(caller, aid)
+      |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = mapOrder(_ [i]));
+    };
+    case (_) [];
   };
-  public shared query ({ caller }) func queryAsks() : async [Order] = async U.unwrapUninit(auction).queryAsks(caller)
-  |> Array.tabulate<Order>(_.size(), func(i) = mapOrder(_ [i]));
+  public shared query ({ caller }) func queryAsks() : async [(Auction.OrderId, Order)] = async U.unwrapUninit(auction).queryAsks(caller)
+  |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = mapOrder(_ [i]));
 
   public shared query ({ caller }) func queryHistory(limit : Nat, skip : Nat) : async [OrderHistoryItem] {
     U.unwrapUninit(auction).queryHistory(caller, limit, skip) |> Array.tabulate<OrderHistoryItem>(
@@ -342,32 +353,26 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     );
   };
 
-  public shared ({ caller }) func placeBid(ledger : Principal, volume : Nat, price : Float) : async UpperResult<(), Auction.PlaceOrderError> {
+  public shared ({ caller }) func placeBid(ledger : Principal, volume : Nat, price : Float) : async UpperResult<Auction.OrderId, Auction.PlaceOrderError> {
     switch (getAssetId(ledger)) {
       case (?aid) U.unwrapUninit(auction).placeBid(caller, aid, volume, price) |> resultToUpper(_);
       case (_) #Err(#UnknownAsset);
     };
   };
 
-  public shared ({ caller }) func placeAsk(ledger : Principal, volume : Nat, price : Float) : async UpperResult<(), Auction.PlaceOrderError> {
+  public shared ({ caller }) func placeAsk(ledger : Principal, volume : Nat, price : Float) : async UpperResult<Auction.OrderId, Auction.PlaceOrderError> {
     switch (getAssetId(ledger)) {
       case (?aid) U.unwrapUninit(auction).placeAsk(caller, aid, volume, price) |> resultToUpper(_);
       case (_) #Err(#UnknownAsset);
     };
   };
 
-  public shared ({ caller }) func cancelBid(ledger : Principal) : async UpperResult<Bool, Auction.OrderError> {
-    switch (getAssetId(ledger)) {
-      case (?aid) U.unwrapUninit(auction).cancelBid(caller, aid) |> resultToUpper(_);
-      case (_) #Err(#UnknownAsset);
-    };
+  public shared ({ caller }) func cancelBid(orderId : Auction.OrderId) : async UpperResult<Bool, Auction.CancelOrderError> {
+    U.unwrapUninit(auction).cancelBid(caller, orderId) |> resultToUpper(_);
   };
 
-  public shared ({ caller }) func cancelAsk(ledger : Principal) : async UpperResult<Bool, Auction.OrderError> {
-    switch (getAssetId(ledger)) {
-      case (?aid) U.unwrapUninit(auction).cancelAsk(caller, aid) |> resultToUpper(_);
-      case (_) #Err(#UnknownAsset);
-    };
+  public shared ({ caller }) func cancelAsk(orderId : Auction.OrderId) : async UpperResult<Bool, Auction.CancelOrderError> {
+    U.unwrapUninit(auction).cancelAsk(caller, orderId) |> resultToUpper(_);
   };
 
   public query func listAdmins() : async [Principal] = async adminsMap.entries()

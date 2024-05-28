@@ -196,7 +196,7 @@ describe('ICRC1 Auction', () => {
       expect(await auction.sessionsCounter()).toEqual(3n);
       expect(await auction.icrcX_credit(trustedLedgerPrincipal)).toEqual(340_000_000n); // 500m - 150m paid - 10m locked
       expect(await auction.icrcX_credit(ledger1Principal)).toEqual(1_500n);
-      expect(await auction.queryBid(ledger2Principal)).toHaveLength(1);
+      expect(await auction.queryTokenBids(ledger2Principal)).toHaveLength(1);
       let metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
@@ -215,7 +215,7 @@ describe('ICRC1 Auction', () => {
       expect(await auction.sessionsCounter()).toEqual(3n);
       expect(await auction.icrcX_credit(trustedLedgerPrincipal)).toEqual(340_000_000n);
       expect(await auction.icrcX_credit(ledger1Principal)).toEqual(1_500n);
-      expect(await auction.queryBid(ledger2Principal)).toHaveLength(1);
+      expect(await auction.queryTokenBids(ledger2Principal)).toHaveLength(1);
       metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
@@ -315,12 +315,12 @@ describe('ICRC1 Auction', () => {
 
     const assertBidFulfilled = async (identity: Identity, ledger: Principal) => {
       auction.setIdentity(identity);
-      expect(await auction.queryBid(ledger)).toHaveLength(0); // bid is gone
+      expect(await auction.queryTokenBids(ledger)).toHaveLength(0); // bid is gone
       expect(await auction.icrcX_credit(ledger)).toBeGreaterThan(0n);
     };
     const assertBidNotFulfilled = async (identity: Identity, ledger: Principal) => {
       auction.setIdentity(identity);
-      expect(await auction.queryBid(ledger)).toHaveLength(1); // bid is still there
+      expect(await auction.queryTokenBids(ledger)).toHaveLength(1); // bid is still there
       expect(await auction.icrcX_credit(ledger)).toEqual(0n);
     };
 
@@ -329,7 +329,7 @@ describe('ICRC1 Auction', () => {
       const ft = createIdentity('fakeFt').getPrincipal();
       const res = await auction.placeBid(ft, 2_000n, 100_000);
       expect(res).toEqual({ Err: { UnknownAsset: null } });
-      expect(await auction.queryBid(ft)).toHaveLength(0);
+      expect(await auction.queryTokenBids(ft)).toHaveLength(0);
     });
 
     test('should not be able to place bid on trusted token', async () => {
@@ -337,7 +337,7 @@ describe('ICRC1 Auction', () => {
       await prepareDeposit(user);
       const res = await auction.placeBid(trustedLedgerPrincipal, 2_000n, 100_000);
       expect(res).toEqual({ Err: { UnknownAsset: null } });
-      expect(await auction.queryBid(trustedLedgerPrincipal)).toHaveLength(0);
+      expect(await auction.queryTokenBids(trustedLedgerPrincipal)).toHaveLength(0);
     });
 
     test('should not be able to place bid with non-sufficient deposit', async () => {
@@ -345,7 +345,7 @@ describe('ICRC1 Auction', () => {
       await prepareDeposit(user);
       const res = await auction.placeBid(ledger1Principal, 2_000n, 1_000_000);
       expect(res).toEqual({ Err: { NoCredit: null } });
-      expect(await auction.queryBid(ledger1Principal)).toHaveLength(0);
+      expect(await auction.queryTokenBids(ledger1Principal)).toHaveLength(0);
     });
 
     test('should not be able to place bid with too low volume', async () => {
@@ -353,7 +353,7 @@ describe('ICRC1 Auction', () => {
       await prepareDeposit(user);
       const res = await auction.placeBid(ledger1Principal, 20n, 10_000);
       expect(res).toEqual({ Err: { TooLowOrder: null } });
-      expect(await auction.queryBid(ledger1Principal)).toHaveLength(0);
+      expect(await auction.queryTokenBids(ledger1Principal)).toHaveLength(0);
     });
 
     test('should be able to place a bid', async () => {
@@ -361,11 +361,11 @@ describe('ICRC1 Auction', () => {
       await prepareDeposit(user);
       const res = await auction.placeBid(ledger1Principal, 2_000n, 1_000);
       expect(res).toHaveProperty('Ok');
-      const bid = await auction.queryBid(ledger1Principal);
-      expect(bid).toHaveLength(1);
-      expect(bid[0]!.icrc1Ledger.toText()).toBe(ledger1Principal.toText());
-      expect(bid[0]!.price).toBe(1_000);
-      expect(bid[0]!.volume).toBe(2_000n);
+      const bids = await auction.queryTokenBids(ledger1Principal);
+      expect(bids).toHaveLength(1);
+      expect(bids[0][1]!.icrc1Ledger.toText()).toBe(ledger1Principal.toText());
+      expect(bids[0][1]!.price).toBe(1_000);
+      expect(bids[0][1]!.volume).toBe(2_000n);
       expect(await auction.icrcX_credit(trustedLedgerPrincipal)).toEqual(498_000_000n); // available deposit went down
     });
 
@@ -386,7 +386,7 @@ describe('ICRC1 Auction', () => {
       auction.setIdentity(user);
       await startNewAuctionSession();
 
-      expect(await auction.queryBid(ledger1Principal)).toHaveLength(0);
+      expect(await auction.queryTokenBids(ledger1Principal)).toHaveLength(0);
       metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
@@ -403,20 +403,18 @@ describe('ICRC1 Auction', () => {
       expect(res2).toEqual({ Err: { NoCredit: null } });
     });
 
-    test('should be able to replace a bid', async () => {
+    test('should be able to place few bids on the same token', async () => {
       await startNewAuctionSession();
       await prepareDeposit(user);
       expect(await auction.icrcX_credit(trustedLedgerPrincipal)).toEqual(500_000_000n);
-      await auction.placeBid(ledger1Principal, 2_000n, 125_000);
-      expect(await auction.icrcX_credit(trustedLedgerPrincipal)).toEqual(250_000_000n);
+      await auction.placeBid(ledger1Principal, 2_000n, 100_000);
+      expect(await auction.icrcX_credit(trustedLedgerPrincipal)).toEqual(300_000_000n);
 
-      let res = await auction.placeBid(ledger1Principal, 2_000n, 250_000);
+      let res = await auction.placeBid(ledger1Principal, 2_000n, 150_000);
       expect(res).toHaveProperty('Ok');
       expect(await auction.icrcX_credit(trustedLedgerPrincipal)).toEqual(0n);
 
-      res = await auction.placeBid(ledger1Principal, 2_000n, 60_000);
-      expect(res).toHaveProperty('Ok');
-      expect(await auction.icrcX_credit(trustedLedgerPrincipal)).toEqual(380_000_000n);
+      expect(await auction.queryTokenBids(ledger1Principal)).toHaveLength(2);
     });
 
     test('non-sufficient deposit should not cancel old bid', async () => {
@@ -427,11 +425,11 @@ describe('ICRC1 Auction', () => {
       let res = await auction.placeBid(ledger1Principal, 2_000_000n, 250_000_000);
       expect(res).toEqual({ Err: { NoCredit: null } });
 
-      let bid = await auction.queryBid(ledger1Principal);
-      expect(bid).toHaveLength(1);
-      expect(bid[0]!.icrc1Ledger.toText()).toBe(ledger1Principal.toText());
-      expect(bid[0]!.price).toBe(125_000);
-      expect(bid[0]!.volume).toBe(2_000n);
+      let bids = await auction.queryTokenBids(ledger1Principal);
+      expect(bids).toHaveLength(1);
+      expect(bids[0][1]!.icrc1Ledger.toText()).toBe(ledger1Principal.toText());
+      expect(bids[0][1]!.price).toBe(125_000);
+      expect(bids[0][1]!.volume).toBe(2_000n);
     });
 
     test('should fulfil the only bid', async () => {
@@ -439,7 +437,7 @@ describe('ICRC1 Auction', () => {
       await prepareDeposit(user);
       const res = await auction.placeBid(ledger1Principal, 2_000n, 15_000);
       expect(res).toHaveProperty('Ok');
-      expect(await auction.queryBid(ledger1Principal)).toHaveLength(1);
+      expect(await auction.queryTokenBids(ledger1Principal)).toHaveLength(1);
 
       const seller = createIdentity('seller');
       await prepareDeposit(seller, ledger1Principal);
@@ -448,7 +446,7 @@ describe('ICRC1 Auction', () => {
       await startNewAuctionSession();
 
       // test that bid disappeared
-      expect(await auction.queryBid(ledger1Principal)).toHaveLength(0);
+      expect(await auction.queryTokenBids(ledger1Principal)).toHaveLength(0);
       // test that tokens were decremented from deposit, credit added
       expect(await auction.icrcX_credit(trustedLedgerPrincipal)).toEqual(470_000_000n);
       expect(await auction.icrcX_credit(ledger1Principal)).toEqual(2_000n);
@@ -508,7 +506,7 @@ describe('ICRC1 Auction', () => {
       await assertBidFulfilled(user2, ledger1Principal);
 
       auction.setIdentity(user3);
-      expect(await auction.queryBid(ledger1Principal)).toHaveLength(1);
+      expect(await auction.queryTokenBids(ledger1Principal)).toHaveLength(1);
       expect(await auction.icrcX_credit(ledger1Principal)).toEqual(1n);
     });
 
@@ -578,11 +576,11 @@ describe('ICRC1 Auction', () => {
       expect(await auction.icrcX_credit(ledger1Principal)).toEqual(500n);
       expect(await auction.icrcX_credit(trustedLedgerPrincipal)).toEqual(350_000_000n); // 100m is locked in the bid, 50m were charged
       // check bid. Volume should be lowered by 500
-      const bid = await auction.queryBid(ledger1Principal);
-      expect(bid).toHaveLength(1);
-      expect(bid[0]!.icrc1Ledger.toText()).toBe(ledger1Principal.toText());
-      expect(bid[0]!.price).toBe(100_000);
-      expect(bid[0]!.volume).toBe(1_000n);
+      const bids = await auction.queryTokenBids(ledger1Principal);
+      expect(bids).toHaveLength(1);
+      expect(bids[0][1]!.icrc1Ledger.toText()).toBe(ledger1Principal.toText());
+      expect(bids[0][1]!.price).toBe(100_000);
+      expect(bids[0][1]!.volume).toBe(1_000n);
       // check that partial bid recorded in history
       const historyItem = (await auction.queryHistory(1n, 0n))[0];
       expect(historyItem[1]).toEqual(2n);
@@ -596,7 +594,7 @@ describe('ICRC1 Auction', () => {
       await prepareDeposit(user);
       const res = await auction.placeBid(ledger1Principal, 2_000n, 100_000);
       expect(res).toHaveProperty('Ok');
-      expect(await auction.queryBid(ledger1Principal)).toHaveLength(1);
+      expect(await auction.queryTokenBids(ledger1Principal)).toHaveLength(1);
       // add ask later, auction session already launched
       const seller = createIdentity('seller');
       await prepareDeposit(seller, ledger1Principal);
@@ -604,7 +602,7 @@ describe('ICRC1 Auction', () => {
       auction.setIdentity(user);
       await startNewAuctionSession();
       // bid is still there
-      expect(await auction.queryBid(ledger1Principal)).toHaveLength(1);
+      expect(await auction.queryTokenBids(ledger1Principal)).toHaveLength(1);
       expect(await auction.icrcX_credit(trustedLedgerPrincipal)).toEqual(300_000_000n);
       expect(await auction.icrcX_credit(ledger1Principal)).toEqual(1_000n); // was partially fulfilled
       // add another ask
@@ -613,7 +611,7 @@ describe('ICRC1 Auction', () => {
       auction.setIdentity(user);
       await startNewAuctionSession();
       // bid should be fully fulfilled now
-      expect(await auction.queryBid(ledger1Principal)).toHaveLength(0);
+      expect(await auction.queryTokenBids(ledger1Principal)).toHaveLength(0);
       expect(await auction.icrcX_credit(trustedLedgerPrincipal)).toEqual(300_000_000n);
       expect(await auction.icrcX_credit(ledger1Principal)).toEqual(2_000n);
     });
@@ -622,7 +620,6 @@ describe('ICRC1 Auction', () => {
       // ask enough only for one bid
       const seller = createIdentity('seller');
       await prepareDeposit(seller, ledger1Principal);
-      await auction.placeAsk(ledger1Principal, 1_500n, 0);
 
       await startNewAuctionSession();
       const mediumBidder = createIdentity('mediumBidder');
@@ -703,13 +700,13 @@ describe('ICRC1 Auction', () => {
 
     const assertAskFulfilled = async (identity: Identity, ledger: Principal) => {
       auction.setIdentity(identity);
-      const a = await auction.queryAsk(ledger);
-      expect(await auction.queryAsk(ledger)).toHaveLength(0); // ask is gone
+      const a = await auction.queryTokenAsks(ledger);
+      expect(await auction.queryTokenAsks(ledger)).toHaveLength(0); // ask is gone
       expect(await auction.icrcX_credit(trustedLedgerPrincipal)).toBeGreaterThan(0n);
     };
     const assertAskNotFulfilled = async (identity: Identity, ledger: Principal, expectedTrustedCredit: number = 0) => {
       auction.setIdentity(identity);
-      expect(await auction.queryAsk(ledger)).toHaveLength(1); // ask is still there
+      expect(await auction.queryTokenAsks(ledger)).toHaveLength(1); // ask is still there
       expect(await auction.icrcX_credit(trustedLedgerPrincipal)).toEqual(BigInt(expectedTrustedCredit));
     };
 
@@ -718,7 +715,7 @@ describe('ICRC1 Auction', () => {
       const ft = createIdentity('fakeFt').getPrincipal();
       const res = await auction.placeAsk(ft, 2_000n, 100_000);
       expect(res).toEqual({ Err: { UnknownAsset: null } });
-      expect(await auction.queryAsk(ft)).toHaveLength(0);
+      expect(await auction.queryTokenAsks(ft)).toHaveLength(0);
     });
 
     test('should not be able to place ask on trusted token', async () => {
@@ -726,7 +723,7 @@ describe('ICRC1 Auction', () => {
       await prepareDeposit(user);
       const res = await auction.placeAsk(trustedLedgerPrincipal, 2_000n, 100_000);
       expect(res).toEqual({ Err: { UnknownAsset: null } });
-      expect(await auction.queryAsk(trustedLedgerPrincipal)).toHaveLength(0);
+      expect(await auction.queryTokenAsks(trustedLedgerPrincipal)).toHaveLength(0);
     });
 
     test('should not be able to place ask with non-sufficient deposit', async () => {
@@ -734,7 +731,7 @@ describe('ICRC1 Auction', () => {
       await prepareDeposit(user, ledger1Principal);
       const res = await auction.placeAsk(ledger1Principal, 500_000_001n, 0);
       expect(res).toEqual({ Err: { NoCredit: null } });
-      expect(await auction.queryBid(ledger1Principal)).toHaveLength(0);
+      expect(await auction.queryTokenBids(ledger1Principal)).toHaveLength(0);
     });
 
     test('should not be able to place an ask with too low volume', async () => {
@@ -742,7 +739,7 @@ describe('ICRC1 Auction', () => {
       await prepareDeposit(user, ledger1Principal);
       const res = await auction.placeAsk(ledger1Principal, 20n, 0);
       expect(res).toEqual({ Err: { TooLowOrder: null } });
-      expect(await auction.queryAsk(ledger1Principal)).toHaveLength(0);
+      expect(await auction.queryTokenAsks(ledger1Principal)).toHaveLength(0);
     });
 
     test('should be able to place an ask', async () => {
@@ -750,11 +747,11 @@ describe('ICRC1 Auction', () => {
       await prepareDeposit(user, ledger1Principal);
       const res = await auction.placeAsk(ledger1Principal, 2_000_000n, 10);
       expect(res).toHaveProperty('Ok');
-      const ask = await auction.queryAsk(ledger1Principal);
-      expect(ask).toHaveLength(1);
-      expect(ask[0]!.icrc1Ledger.toText()).toBe(ledger1Principal.toText());
-      expect(ask[0]!.price).toBe(10);
-      expect(ask[0]!.volume).toBe(2_000_000n);
+      const asks = await auction.queryTokenAsks(ledger1Principal);
+      expect(asks).toHaveLength(1);
+      expect(asks[0][1]!.icrc1Ledger.toText()).toBe(ledger1Principal.toText());
+      expect(asks[0][1]!.price).toBe(10);
+      expect(asks[0][1]!.volume).toBe(2_000_000n);
       expect(await auction.icrcX_credit(ledger1Principal)).toEqual(498_000_000n); // available deposit went down
     });
 
@@ -778,7 +775,7 @@ describe('ICRC1 Auction', () => {
 
       await startNewAuctionSession();
 
-      expect(await auction.queryAsk(ledger1Principal)).toHaveLength(0);
+      expect(await auction.queryTokenAsks(ledger1Principal)).toHaveLength(0);
       metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
@@ -786,20 +783,18 @@ describe('ICRC1 Auction', () => {
       expect(metrics).toContain(`asks_volume{canister="${shortP}",asset_id="1"} 0 `);
     });
 
-    test('should be able to replace an ask', async () => {
+    test('should be able to place few asks on the same token', async () => {
       await startNewAuctionSession();
       await prepareDeposit(user, ledger1Principal);
       expect(await auction.icrcX_credit(ledger1Principal)).toEqual(500_000_000n);
       await auction.placeAsk(ledger1Principal, 125_000_000n, 125_000);
       expect(await auction.icrcX_credit(ledger1Principal)).toEqual(375_000_000n);
 
-      let res = await auction.placeAsk(ledger1Principal, 500_000_000n, 250_000);
+      let res = await auction.placeAsk(ledger1Principal, 175_000_000n, 250_000);
       expect(res).toHaveProperty('Ok');
-      expect(await auction.icrcX_credit(ledger1Principal)).toEqual(0n);
+      expect(await auction.icrcX_credit(ledger1Principal)).toEqual(200_000_000n);
 
-      res = await auction.placeAsk(ledger1Principal, 120_000_000n, 60_000);
-      expect(res).toHaveProperty('Ok');
-      expect(await auction.icrcX_credit(ledger1Principal)).toEqual(380_000_000n);
+      expect(await auction.queryTokenAsks(ledger1Principal)).toHaveLength(2);
     });
 
     test('non-sufficient deposit should not cancel old ask', async () => {
@@ -810,11 +805,11 @@ describe('ICRC1 Auction', () => {
       let res = await auction.placeAsk(ledger1Principal, 600_000_000n, 50_000);
       expect(res).toEqual({ Err: { NoCredit: null } });
 
-      let ask = await auction.queryAsk(ledger1Principal);
-      expect(ask).toHaveLength(1);
-      expect(ask[0]!.icrc1Ledger.toText()).toBe(ledger1Principal.toText());
-      expect(ask[0]!.price).toBe(125_000);
-      expect(ask[0]!.volume).toBe(125_000_000n);
+      let asks = await auction.queryTokenAsks(ledger1Principal);
+      expect(asks).toHaveLength(1);
+      expect(asks[0][1]!.icrc1Ledger.toText()).toBe(ledger1Principal.toText());
+      expect(asks[0][1]!.price).toBe(125_000);
+      expect(asks[0][1]!.volume).toBe(125_000_000n);
     });
 
     test('should fulfil the only ask', async () => {
@@ -822,7 +817,7 @@ describe('ICRC1 Auction', () => {
       await prepareDeposit(user, ledger1Principal);
       const res = await auction.placeAsk(ledger1Principal, 100_000_000n, 3);
       expect(res).toHaveProperty('Ok');
-      expect(await auction.queryAsk(ledger1Principal)).toHaveLength(1);
+      expect(await auction.queryTokenAsks(ledger1Principal)).toHaveLength(1);
 
       const buyer = createIdentity('buyer');
       await prepareDeposit(buyer);
@@ -832,7 +827,7 @@ describe('ICRC1 Auction', () => {
       await startNewAuctionSession();
       auction.setIdentity(user);
       // test that ask disappeared
-      expect(await auction.queryAsk(ledger1Principal)).toHaveLength(0);
+      expect(await auction.queryTokenAsks(ledger1Principal)).toHaveLength(0);
       // test that tokens were decremented from deposit, credit added
       expect(await auction.icrcX_credit(ledger1Principal)).toEqual(400_000_000n);
       expect(await auction.icrcX_credit(trustedLedgerPrincipal)).toEqual(300_000_000n);
