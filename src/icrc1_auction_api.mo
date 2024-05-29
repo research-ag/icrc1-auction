@@ -193,12 +193,7 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
         ignore a.appendCredit(caller, assetId, delta);
         #Ok({ deposit_inc = delta; credit_inc = delta });
       };
-      case (null) {
-        #Ok({
-          deposit_inc = 0;
-          credit_inc = 0;
-        });
-      };
+      case (null) #Err(#NotAvailable("Deposit was not detected"));
     };
   };
 
