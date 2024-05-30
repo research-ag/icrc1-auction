@@ -131,13 +131,15 @@ export const usePlaceOrder = (kind: 'ask' | 'bid') => {
   const { enqueueSnackbar } = useSnackbar();
   return useMutation(
     (formObj: { ledger: string; volume: number; price: number }) =>
-      (kind === 'bid' ? auction.placeBid : auction.placeAsk).bind(auction)(
-        Principal.fromText(formObj.ledger),
-        BigInt(formObj.volume),
-        Number(formObj.price),
+        (kind === 'bid' ? auction.placeBids : auction.placeAsks).bind(auction)(
+            [[
+              Principal.fromText(formObj.ledger),
+              BigInt(formObj.volume),
+              Number(formObj.price),
+            ]]
       ),
     {
-      onSuccess: res => {
+      onSuccess: ([res]) => {
         if ('Err' in res) {
           enqueueSnackbar(`Failed to place a ${kind}: ${JSON.stringify(res.Err)}`, { variant: 'error' });
         } else {
@@ -157,9 +159,9 @@ export const useCancelOrder = (kind: 'ask' | 'bid') => {
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
   return useMutation(
-    (orderId: bigint) => (kind === 'bid' ? auction.cancelBid(orderId) : auction.cancelAsk(orderId)),
+      (orderId: bigint) => (kind === 'bid' ? auction.cancelBids([orderId]) : auction.cancelAsks([orderId])),
     {
-      onSuccess: res => {
+      onSuccess: ([res]) => {
         if ('Err' in res) {
           enqueueSnackbar(`Failed to cancel the ${kind}: ${JSON.stringify(res.Err)}`, { variant: 'error' });
         } else {
@@ -180,7 +182,7 @@ export const useHistory = () => {
   return useQuery(
     'history',
     async () => {
-      return auction.queryHistory(BigInt(10000), BigInt(0));
+      return auction.queryTransactionHistory(BigInt(10000), BigInt(0));
     },
     {
       onError: err => {
