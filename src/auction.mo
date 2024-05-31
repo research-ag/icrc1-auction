@@ -89,12 +89,14 @@ module {
 
   public type CancelOrderError = { #UnknownPrincipal };
   public type PlaceOrderError = {
+    #ConflictingOrder : OrderId;
     #NoCredit;
     #TooLowOrder;
     #UnknownPrincipal;
     #UnknownAsset;
   };
   public type ReplaceOrderError = {
+    #ConflictingOrder : OrderId;
     #NoCredit;
     #TooLowOrder;
     #UnknownOrder;
@@ -117,6 +119,8 @@ module {
 
     userList : (userInfo : UserInfo) -> AssocList.AssocList<OrderId, Order>;
     userListSet : (userInfo : UserInfo, list : AssocList.AssocList<OrderId, Order>) -> ();
+    userOppositeList : (userInfo : UserInfo) -> AssocList.AssocList<OrderId, Order>;
+    oppositeOrderConflictCriteria : (orderPrice : Float, oppositeOrderPrice : Float) -> Bool;
 
     chargeToken : (orderAssetId : AssetId) -> AssetId;
     chargeAmount : (volume : Nat, price : Float) -> Nat;
@@ -384,6 +388,8 @@ module {
       assetListSet = func(assetInfo, list) { assetInfo.asks := list };
       userList = func(userInfo) = userInfo.currentAsks;
       userListSet = func(userInfo, list) { userInfo.currentAsks := list };
+      userOppositeList = func(userInfo) = userInfo.currentBids;
+      oppositeOrderConflictCriteria = func(orderPrice, oppositeOrderPrice) = oppositeOrderPrice >= orderPrice;
 
       chargeToken = func(assetId) = assetId;
       chargeAmount = func(volume, _) = volume;
@@ -398,6 +404,8 @@ module {
       assetListSet = func(assetInfo, list) { assetInfo.bids := list };
       userList = func(userInfo) = userInfo.currentBids;
       userListSet = func(userInfo, list) { userInfo.currentBids := list };
+      userOppositeList = func(userInfo) = userInfo.currentAsks;
+      oppositeOrderConflictCriteria = func(orderPrice, oppositeOrderPrice) = oppositeOrderPrice <= orderPrice;
 
       chargeToken = func(_) = trustedAssetId;
       chargeAmount = getTotalPrice;
@@ -437,6 +445,11 @@ module {
       if ((sourceAcc.credit - sourceAcc.lockedCredit) : Nat < ctx.chargeAmount(volume, price)) {
         return #err(#NoCredit);
       };
+      for ((oppOrderId, oppOrder) in List.toIter(ctx.userOppositeList(userInfo))) {
+        if (oppOrder.assetId == assetId and ctx.oppositeOrderConflictCriteria(price, oppOrder.price)) {
+          return #err(#ConflictingOrder(oppOrderId));
+        };
+      };
       let order : Order = {
         user = p;
         userInfoRef = userInfo;
@@ -460,6 +473,11 @@ module {
         let ?sourceAcc = AssocList.find<AssetId, Account>(userInfo.credits, ctx.chargeToken(oldOrder.assetId), Nat.equal) else return #err(#NoCredit);
         if ((sourceAcc.credit - sourceAcc.lockedCredit) : Nat + oldPrice < newPrice) {
           return #err(#NoCredit);
+        };
+      };
+      for ((oppOrderId, oppOrder) in List.toIter(ctx.userOppositeList(userInfo))) {
+        if (oppOrder.assetId == oldOrder.assetId and ctx.oppositeOrderConflictCriteria(price, oppOrder.price)) {
+          return #err(#ConflictingOrder(oppOrderId));
         };
       };
       // actually replace the order

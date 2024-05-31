@@ -933,6 +933,54 @@ describe('ICRC1 Auction', () => {
     });
   });
 
+  describe('orders', () => {
+
+    test('should be able to place both bid and ask on the same asset', async () => {
+      await startNewAuctionSession();
+      await prepareDeposit(user);
+      await prepareDeposit(user, ledger1Principal);
+      const [res1] = await auction.placeBids([[ledger1Principal, 2_000n, 250]]);
+      expect(res1).toHaveProperty('Ok');
+      const [res2] = await auction.placeAsks([[ledger1Principal, 2_000_000n, 300]]);
+      expect(res2).toHaveProperty('Ok');
+      expect(await auction.queryTokenAsks(ledger1Principal)).toHaveLength(1);
+      expect(await auction.queryTokenBids(ledger1Principal)).toHaveLength(1);
+    });
+
+    test('should return error when placing ask with lower price than own bid price for the same asset', async () => {
+      await startNewAuctionSession();
+      await prepareDeposit(user);
+      await prepareDeposit(user, ledger1Principal);
+      const [res1] = await auction.placeBids([[ledger1Principal, 2_000n, 250]]);
+      expect(res1).toHaveProperty('Ok');
+      const [res2] = await auction.placeAsks([[ledger1Principal, 2_000_000n, 200]]);
+      expect(res2).toEqual({
+        Err: {
+          ConflictingOrder: (res1 as any).Ok,
+        }
+      });
+      expect(await auction.queryTokenBids(ledger1Principal)).toHaveLength(1);
+      expect(await auction.queryTokenAsks(ledger1Principal)).toHaveLength(0);
+    });
+
+    test('should return error when placing bid with higher price than own ask price for the same asset', async () => {
+      await startNewAuctionSession();
+      await prepareDeposit(user);
+      await prepareDeposit(user, ledger1Principal);
+      const [res1] = await auction.placeAsks([[ledger1Principal, 2_000_000n, 200]]);
+      expect(res1).toHaveProperty('Ok');
+      const [res2] = await auction.placeBids([[ledger1Principal, 2_000n, 250]]);
+      expect(res2).toEqual({
+        Err: {
+          ConflictingOrder: (res1 as any).Ok,
+        }
+      });
+      expect(await auction.queryTokenAsks(ledger1Principal)).toHaveLength(1);
+      expect(await auction.queryTokenBids(ledger1Principal)).toHaveLength(0);
+    });
+
+  })
+
   describe('history', () => {
 
     test('should return price history with descending order', async () => {
