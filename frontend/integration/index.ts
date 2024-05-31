@@ -217,7 +217,7 @@ export const useTransactionHistory = () => {
   return useQuery(
     'transaction-history',
     async () => {
-      return auction.queryTransactionHistory(BigInt(10000), BigInt(0));
+      return auction.queryTransactionHistory([], BigInt(10000), BigInt(0));
     },
     {
       onError: err => {
@@ -233,7 +233,7 @@ export const usePriceHistory = () => {
   return useQuery(
     'price-history',
     async () => {
-      return auction.queryPriceHistory(BigInt(10000), BigInt(0));
+      return auction.queryPriceHistory([], BigInt(10000), BigInt(0));
     },
     {
       onError: err => {

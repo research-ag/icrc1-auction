@@ -340,40 +340,18 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
   public shared query ({ caller }) func queryAsks() : async [(Auction.OrderId, Order)] = async U.unwrapUninit(auction).queryAsks(caller)
   |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = mapOrder(_ [i]));
 
-  private func castTransactionHistoryEntry(x : Auction.TransactionHistoryItem) : TransactionHistoryItem = x
-  |> (_.0, _.1, _.2, Vec.get(assets, _.3).ledgerPrincipal, _.4, _.5);
-
-  public shared query ({ caller }) func queryTransactionHistory(limit : Nat, skip : Nat) : async [TransactionHistoryItem] {
-    U.unwrapUninit(auction).queryTransactionHistory(caller, limit, skip) |> Array.tabulate<TransactionHistoryItem>(
-      _.size(),
-      func(i) = castTransactionHistoryEntry(_ [i]),
-    );
+  public shared query ({ caller }) func queryTransactionHistory(token : ?Principal, limit : Nat, skip : Nat) : async [TransactionHistoryItem] {
+    Option.map<Principal, ?Auction.AssetId>(token, getAssetId)
+    |> Option.flatten(_)
+    |> U.unwrapUninit(auction).queryTransactionHistory(caller, _, limit, skip)
+    |> Array.tabulate<TransactionHistoryItem>(_.size(), func(i) = (_ [i].0, _ [i].1, _ [i].2, Vec.get(assets, _ [i].3).ledgerPrincipal, _ [i].4, _ [i].5));
   };
 
-  public shared query ({ caller }) func queryTransactionHistoryPerToken(token : Principal, limit : Nat, skip : Nat) : async [TransactionHistoryItem] = async switch (getAssetId(token)) {
-    case (?aid) U.unwrapUninit(auction).queryTransactionHistoryPerAsset(caller, aid, limit, skip) |> Array.tabulate<TransactionHistoryItem>(
-      _.size(),
-      func(i) = castTransactionHistoryEntry(_ [i]),
-    );
-    case (_) [];
-  };
-
-  private func castPriceHistoryEntry(x : Auction.PriceHistoryItem) : PriceHistoryItem = x
-  |> (_.0, _.1, Vec.get(assets, _.2).ledgerPrincipal, _.3, _.4);
-
-  public shared query func queryPriceHistory(limit : Nat, skip : Nat) : async [PriceHistoryItem] {
-    U.unwrapUninit(auction).queryPriceHistory(limit, skip) |> Array.tabulate<PriceHistoryItem>(
-      _.size(),
-      func(i) = castPriceHistoryEntry(_ [i]),
-    );
-  };
-
-  public shared query func queryPriceHistoryPerToken(token : Principal, limit : Nat, skip : Nat) : async [PriceHistoryItem] = async switch (getAssetId(token)) {
-    case (?aid) U.unwrapUninit(auction).queryPriceHistoryPerAsset(aid, limit, skip) |> Array.tabulate<PriceHistoryItem>(
-      _.size(),
-      func(i) = castPriceHistoryEntry(_ [i]),
-    );
-    case (_) [];
+  public shared query func queryPriceHistory(token : ?Principal, limit : Nat, skip : Nat) : async [PriceHistoryItem] {
+    Option.map<Principal, ?Auction.AssetId>(token, getAssetId)
+    |> Option.flatten(_)
+    |> U.unwrapUninit(auction).queryPriceHistory(_, limit, skip)
+    |> Array.tabulate<PriceHistoryItem>(_.size(), func(i) = (_ [i].0, _ [i].1, Vec.get(assets, _ [i].2).ledgerPrincipal, _ [i].3, _ [i].4));
   };
 
   public shared ({ caller }) func placeBids(arg : [(ledger : Principal, volume : Nat, price : Float)]) : async [UpperResult<Auction.OrderId, Auction.PlaceOrderError>] {

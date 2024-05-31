@@ -305,29 +305,20 @@ module {
       Vec.toArray(ret);
     };
 
-    public func queryTransactionHistory(p : Principal, limit : Nat, skip : Nat) : [TransactionHistoryItem] {
+    public func queryTransactionHistory(p : Principal, assetId : ?AssetId, limit : Nat, skip : Nat) : [TransactionHistoryItem] {
       let ?userInfo = users.get(p) else return [];
-      sliceList(userInfo.history, limit, skip);
+      switch (assetId) {
+        case (?aid) sliceListWithFilter(userInfo.history, func(item : TransactionHistoryItem) : Bool = item.3 == aid, limit, skip);
+        case (null) sliceList(userInfo.history, limit, skip);
+      };
     };
 
-    public func queryTransactionHistoryPerAsset(p : Principal, assetId : AssetId, limit : Nat, skip : Nat) : [TransactionHistoryItem] {
-      let ?userInfo = users.get(p) else return [];
-      sliceListWithFilter(
-        userInfo.history,
-        func(item : TransactionHistoryItem) : Bool = item.3 == assetId,
-        limit,
-        skip,
-      );
+    public func queryPriceHistory(assetId : ?AssetId, limit : Nat, skip : Nat) : [PriceHistoryItem] {
+      switch (assetId) {
+        case (?aid) sliceListWithFilter(history, func(item : PriceHistoryItem) : Bool = item.2 == aid, limit, skip);
+        case (null) sliceList(history, limit, skip);
+      };
     };
-
-    public func queryPriceHistory(limit : Nat, skip : Nat) : [PriceHistoryItem] = sliceList(history, limit, skip);
-
-    public func queryPriceHistoryPerAsset(assetId : AssetId, limit : Nat, skip : Nat) : [PriceHistoryItem] = sliceListWithFilter(
-      history,
-      func(item : PriceHistoryItem) : Bool = item.2 == assetId,
-      limit,
-      skip,
-    );
 
     public func appendCredit(p : Principal, assetId : AssetId, amount : Nat) : Nat {
       let userInfo = switch (users.get(p)) {
