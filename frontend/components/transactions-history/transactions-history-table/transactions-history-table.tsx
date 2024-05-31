@@ -1,10 +1,10 @@
 import { Box, Table } from '@mui/joy';
 
-import { useHistory } from '@fe/integration';
+import { useTransactionHistory } from '@fe/integration';
 import InfoItem from '../../root/info-item';
 
-const OrdersHistoryTable = () => {
-  const { data: data } = useHistory();
+const TransactionsHistoryTable = () => {
+  const { data: data } = useTransactionHistory();
 
   return (
     <Box sx={{ width: '100%', overflow: 'auto' }}>
@@ -48,4 +48,4 @@ const OrdersHistoryTable = () => {
   );
 };
 
-export default OrdersHistoryTable;
+export default TransactionsHistoryTable;

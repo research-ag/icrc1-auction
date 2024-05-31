@@ -81,9 +81,20 @@ type Order = record {
 type PlaceOrderResult = variant {
   Ok : OrderId;
   Err : variant {
+    ConflictingOrder : OrderId;
     NoCredit;
     TooLowOrder;
     UnknownAsset;
+    UnknownPrincipal;
+  };
+};
+type ReplaceOrderResult = variant {
+  Ok : OrderId;
+  Err : variant {
+    ConflictingOrder : OrderId;
+    NoCredit;
+    TooLowOrder;
+    UnknownOrder;
     UnknownPrincipal;
   };
 };
@@ -129,13 +140,16 @@ service : () -> {
   queryTransactionHistory : (nat, nat) -> (vec record { nat64; nat; variant { ask; bid }; Token; nat; float64 }) query;
   queryTransactionHistoryPerToken : (Token, nat, nat) -> (vec record { nat64; nat; variant { ask; bid }; Token; nat; float64 }) query;
 
-  queryPriceHistory : (nat, nat) -> (vec record { nat64; nat; AssetId; nat; float64 }) query;
-  queryPriceHistoryPerToken : (Token, nat, nat) -> (vec record { nat64; nat; AssetId; nat; float64 }) query;
+  queryPriceHistory : (nat, nat) -> (vec record { nat64; nat; Token; nat; float64 }) query;
+  queryPriceHistoryPerToken : (Token, nat, nat) -> (vec record { nat64; nat; Token; nat; float64 }) query;
 
   // update
   placeAsks : (vec record { Token; nat; float64 }) -> (vec PlaceOrderResult);
-  placeBids : (vec record { Token; nat; float64 }) -> (vec PlaceOrderResult);
+  replaceAsk : (OrderId, nat, float64) -> (ReplaceOrderResult);
   cancelAsks : (vec OrderId) -> (vec CancelOrderResult);
+
+  placeBids : (vec record { Token; nat; float64 }) -> (vec PlaceOrderResult);
+  replaceBid : (OrderId, nat, float64) -> (ReplaceOrderResult);
   cancelBids : (vec OrderId) -> (vec CancelOrderResult);
 
   // ADMIN API

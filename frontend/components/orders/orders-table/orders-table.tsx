@@ -1,6 +1,6 @@
 import { Box, Button, Table } from '@mui/joy';
 
-import { useCancelOrder, useListOrders } from '../../../integration';
+import { useCancelOrder, useListOrders } from '@fe/integration';
 import InfoItem from '../../root/info-item';
 
 export type OrdersTableProps = { kind: 'ask' | 'bid' };
@@ -14,9 +14,9 @@ const OrdersTable = ({ kind }: OrdersTableProps) => {
       <Table>
         <colgroup>
           <col style={{ width: '200px' }} />
-          <col style={{ width: '120px' }} />
-          <col style={{ width: '120px' }} />
-          <col style={{ width: '60px' }} />
+          <col style={{ width: '110px' }} />
+          <col style={{ width: '110px' }} />
+          <col style={{ width: '80px' }} />
         </colgroup>
         <thead>
           <tr>
