@@ -27,6 +27,24 @@ type NotifyResponse = variant {
   };
 };
 
+type DepositArg = record {
+  token : Token;
+  amount : Amount;
+  subaccount : opt Subaccount; // subaccount of the caller which has the allowance
+};
+
+type DepositResponse = variant {
+  Ok : record {
+    txid : nat;
+    credit_inc : Amount;
+  };
+  Err : variant {
+    AmountBelowMinimum;
+    CallLedgerError : text;
+    TransferError : text; // insufficient allowance or insufficient funds
+  };
+};
+
 type BalanceResponse = variant {
   Ok : Amount;
   Err : variant {
@@ -52,6 +70,8 @@ type WithdrawResponse = variant {
   };
 };
 
+type OrderId = nat;
+
 type Order = record {
   icrc1Ledger : Token;
   price : float64;
@@ -59,7 +79,7 @@ type Order = record {
 };
 
 type PlaceOrderResult = variant {
-  Ok;
+  Ok : OrderId;
   Err : variant {
     NoCredit;
     TooLowOrder;
@@ -70,7 +90,6 @@ type PlaceOrderResult = variant {
 type CancelOrderResult = variant {
   Ok : bool;
   Err : variant {
-    UnknownAsset;
     UnknownPrincipal;
   };
 };
@@ -91,24 +110,33 @@ service : () -> {
 
   // updates
   icrcX_notify : (NotifyArg) -> (NotifyResponse);
+  icrcX_deposit : (DepositArg) -> (DepositResponse);
   icrcX_withdraw : (WithdrawArgs) -> (WithdrawResponse);
 
   // auction API
+
   // system queries
   getTrustedLedger : () -> (principal) query;
   sessionsCounter : () -> (nat) query;
   sessionRemainingTime : () -> (nat) query;
+
   // user queries
-  queryBid : (Token) -> (opt Order) query;
-  queryBids : () -> (vec Order) query;
-  queryAsk : (Token) -> (opt Order) query;
-  queryAsks : () -> (vec Order) query;
-  queryHistory : (nat, nat) -> (vec record { nat64; variant { ask; bid }; Token; nat; float64 }) query;
+  queryTokenBids : (Token) -> (vec record { OrderId; Order }) query;
+  queryBids : () -> (vec record { OrderId; Order }) query;
+  queryTokenAsks : (Token) -> (vec record { OrderId; Order }) query;
+  queryAsks : () -> (vec record { OrderId; Order }) query;
+
+  queryTransactionHistory : (nat, nat) -> (vec record { nat64; nat; variant { ask; bid }; Token; nat; float64 }) query;
+  queryTransactionHistoryPerToken : (Token, nat, nat) -> (vec record { nat64; nat; variant { ask; bid }; Token; nat; float64 }) query;
+
+  queryPriceHistory : (nat, nat) -> (vec record { nat64; nat; AssetId; nat; float64 }) query;
+  queryPriceHistoryPerToken : (Token, nat, nat) -> (vec record { nat64; nat; AssetId; nat; float64 }) query;
+
   // update
-  placeAsk : (Token, nat, float64) -> (PlaceOrderResult);
-  placeBid : (Token, nat, float64) -> (PlaceOrderResult);
-  cancelAsk : (Token) -> (CancelOrderResult);
-  cancelBid : (Token) -> (CancelOrderResult);
+  placeAsks : (vec record { Token; nat; float64 }) -> (vec PlaceOrderResult);
+  placeBids : (vec record { Token; nat; float64 }) -> (vec PlaceOrderResult);
+  cancelAsks : (vec OrderId) -> (vec CancelOrderResult);
+  cancelBids : (vec OrderId) -> (vec CancelOrderResult);
 
   // ADMIN API
   // query

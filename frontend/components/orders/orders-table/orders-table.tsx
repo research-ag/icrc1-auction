@@ -27,7 +27,7 @@ const OrdersTable = ({ kind }: OrdersTableProps) => {
           </tr>
         </thead>
         <tbody>
-          {(orders ?? []).map((order, i) => {
+          {(orders ?? []).map(([orderId, order], i) => {
             return (
               <tr key={i}>
                 <td>
@@ -36,7 +36,7 @@ const OrdersTable = ({ kind }: OrdersTableProps) => {
                 <td>{String(order.price)}</td>
                 <td>{String(order.volume)}</td>
                 <td>
-                  <Button onClick={() => cancelOrder(order.icrc1Ledger)} color="danger" size="sm">
+                  <Button onClick={() => cancelOrder(orderId)} color="danger" size="sm">
                     Cancel {kind}
                   </Button>
                 </td>
