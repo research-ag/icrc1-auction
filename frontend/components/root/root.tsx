@@ -1,18 +1,19 @@
-import {Box, Tab, TabList, Tabs} from '@mui/joy';
+import { Box, Tab, TabList, Tabs } from '@mui/joy';
 
 import Orders from '../orders';
 import ConnectButton from '../../components/connect-button';
 import ThemeButton from '../../components/theme-button';
-import {useIdentity} from '@fe/integration/identity';
+import { useIdentity } from '@fe/integration/identity';
 
 import InfoItem from './info-item';
-import {useSessionsCounter, useTrustedLedger} from '@fe/integration';
-import {useState} from 'react';
+import { useSessionsCounter, useTrustedLedger } from '@fe/integration';
+import { useState } from 'react';
 import Credits from '../credits';
-import OrdersHistory from '../orders-history';
+import TransactionsHistory from '@fe/components/transactions-history';
 import Assets from '../assets';
 import Owners from '../owners';
-import {canisterId} from "@declarations/icrc1_auction";
+import { canisterId } from '@declarations/icrc1_auction';
+import PriceHistory from '@fe/components/price-history';
 
 const Root = () => {
     const {identity} = useIdentity();
@@ -25,7 +26,7 @@ const Root = () => {
         <Box
             sx={{
                 width: '100%',
-                maxWidth: '990px',
+                maxWidth: '1200px',
                 p: 4,
                 mx: 'auto',
             }}>
@@ -59,7 +60,8 @@ const Root = () => {
                         <Tab color="neutral">My credits</Tab>
                         <Tab color="neutral">Active Bids</Tab>
                         <Tab color="neutral">Active Asks</Tab>
-                        <Tab color="neutral">History</Tab>
+                        <Tab color="neutral">Transaction history</Tab>
+                        <Tab color="neutral">Price history</Tab>
                         <Tab color="neutral">Admins</Tab>
                     </TabList>
                     <ConnectButton/>
@@ -69,8 +71,9 @@ const Root = () => {
                 {tabValue === 1 && <Credits/>}
                 {tabValue === 2 && <Orders kind="bid"/>}
                 {tabValue === 3 && <Orders kind="ask"/>}
-                {tabValue === 4 && <OrdersHistory/>}
-                {tabValue === 5 && <Owners/>}
+                {tabValue === 4 && <TransactionsHistory />}
+                {tabValue === 5 && <PriceHistory />}
+                {tabValue === 6 && <Owners />}
             </Tabs>
         </Box>
     );

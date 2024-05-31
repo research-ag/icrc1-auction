@@ -6,6 +6,14 @@ import { Principal } from '@dfinity/principal';
 import { useMemo } from 'react';
 import { canisterId, createActor } from '@declarations/icrc1_auction';
 
+// Custom replacer function for JSON.stringify
+const bigIntReplacer = (key: string, value: any): any => {
+  if (typeof value === 'bigint') {
+    return `${value.toString()}n`; // Serialize BigInts as strings with 'n' suffix
+  }
+  return value;
+};
+
 export const useAuction = () => {
   const { identity } = useIdentity();
   const auction = createActor(canisterId, {
@@ -45,7 +53,7 @@ export const useAddAsset = () => {
     {
       onSuccess: (res, { principal, minAskVolume }) => {
         if ('Err' in res) {
-          enqueueSnackbar(`Failed to add ledger: ${JSON.stringify(res.Err)}`, { variant: 'error' });
+          enqueueSnackbar(`Failed to add ledger: ${JSON.stringify(res.Err, bigIntReplacer)}`, { variant: 'error' });
         } else {
           queryClient.invalidateQueries('assets');
           enqueueSnackbar(`Ledger ${principal.toText()} added. Asset index: ${minAskVolume}`, { variant: 'success' });
@@ -113,10 +121,10 @@ export const useNotify = () => {
   return useMutation((icrc1Ledger: Principal) => auction.icrcX_notify({ token: icrc1Ledger }), {
     onSuccess: res => {
       if ('Err' in res) {
-        enqueueSnackbar(`Failed to deposit: ${JSON.stringify(res.Err)}`, { variant: 'error' });
+        enqueueSnackbar(`Failed to deposit: ${JSON.stringify(res.Err, bigIntReplacer)}`, { variant: 'error' });
       } else {
         queryClient.invalidateQueries('myCredits');
-        enqueueSnackbar(`Deposited ${Number(res.Ok)} tokens successfully`, { variant: 'success' });
+        enqueueSnackbar(`Deposited ${Number(res.Ok.credit_inc)} tokens successfully`, { variant: 'success' });
       }
     },
     onError: err => {
@@ -125,23 +133,48 @@ export const useNotify = () => {
   });
 };
 
+export const useDeposit = () => {
+  const { auction } = useAuction();
+  const queryClient = useQueryClient();
+  const { enqueueSnackbar } = useSnackbar();
+  return useMutation(
+    (arg: { token: Principal; amount: number; subaccount: number[] | null }) =>
+      auction.icrcX_deposit({
+        token: arg.token,
+        amount: BigInt(arg.amount),
+        subaccount: arg.subaccount ? [arg.subaccount] : [],
+      }),
+    {
+      onSuccess: res => {
+        if ('Err' in res) {
+          enqueueSnackbar(`Failed to deposit: ${JSON.stringify(res.Err, bigIntReplacer)}`, { variant: 'error' });
+        } else {
+          queryClient.invalidateQueries('myCredits');
+          enqueueSnackbar(`Deposited ${Number(res.Ok.credit_inc)} tokens successfully`, { variant: 'success' });
+        }
+      },
+      onError: err => {
+        enqueueSnackbar(`Failed to deposit: ${err}`, { variant: 'error' });
+      },
+    },
+  );
+};
+
 export const usePlaceOrder = (kind: 'ask' | 'bid') => {
   const { auction } = useAuction();
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
   return useMutation(
     (formObj: { ledger: string; volume: number; price: number }) =>
-        (kind === 'bid' ? auction.placeBids : auction.placeAsks).bind(auction)(
-            [[
-              Principal.fromText(formObj.ledger),
-              BigInt(formObj.volume),
-              Number(formObj.price),
-            ]]
-      ),
+      (kind === 'bid' ? auction.placeBids : auction.placeAsks).bind(auction)([
+        [Principal.fromText(formObj.ledger), BigInt(formObj.volume), Number(formObj.price)],
+      ]),
     {
       onSuccess: ([res]) => {
         if ('Err' in res) {
-          enqueueSnackbar(`Failed to place a ${kind}: ${JSON.stringify(res.Err)}`, { variant: 'error' });
+          enqueueSnackbar(`Failed to place a ${kind}: ${JSON.stringify(res.Err, bigIntReplacer)}`, {
+            variant: 'error',
+          });
         } else {
           queryClient.invalidateQueries(kind === 'bid' ? 'myBids' : 'myAsks');
           enqueueSnackbar(`${kind} placed`, { variant: 'success' });
@@ -159,11 +192,13 @@ export const useCancelOrder = (kind: 'ask' | 'bid') => {
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
   return useMutation(
-      (orderId: bigint) => (kind === 'bid' ? auction.cancelBids([orderId]) : auction.cancelAsks([orderId])),
+    (orderId: bigint) => (kind === 'bid' ? auction.cancelBids([orderId]) : auction.cancelAsks([orderId])),
     {
       onSuccess: ([res]) => {
         if ('Err' in res) {
-          enqueueSnackbar(`Failed to cancel the ${kind}: ${JSON.stringify(res.Err)}`, { variant: 'error' });
+          enqueueSnackbar(`Failed to cancel the ${kind}: ${JSON.stringify(res.Err, bigIntReplacer)}`, {
+            variant: 'error',
+          });
         } else {
           queryClient.invalidateQueries(kind === 'bid' ? 'myBids' : 'myAsks');
           enqueueSnackbar(`${kind} cancelled`, { variant: 'success' });
@@ -176,17 +211,33 @@ export const useCancelOrder = (kind: 'ask' | 'bid') => {
   );
 };
 
-export const useHistory = () => {
+export const useTransactionHistory = () => {
   const { auction } = useAuction();
   const { enqueueSnackbar } = useSnackbar();
   return useQuery(
-    'history',
+    'transaction-history',
     async () => {
       return auction.queryTransactionHistory(BigInt(10000), BigInt(0));
     },
     {
       onError: err => {
-        enqueueSnackbar(`Failed to fetch history: ${err}`, { variant: 'error' });
+        enqueueSnackbar(`Failed to fetch transaction history: ${err}`, { variant: 'error' });
+      },
+    },
+  );
+};
+
+export const usePriceHistory = () => {
+  const { auction } = useAuction();
+  const { enqueueSnackbar } = useSnackbar();
+  return useQuery(
+    'price-history',
+    async () => {
+      return auction.queryPriceHistory(BigInt(10000), BigInt(0));
+    },
+    {
+      onError: err => {
+        enqueueSnackbar(`Failed to fetch price history: ${err}`, { variant: 'error' });
       },
     },
   );
@@ -206,7 +257,9 @@ export const useWithdrawCredit = () => {
     {
       onSuccess: res => {
         if ('Err' in res) {
-          enqueueSnackbar(`Failed to withdraw credit: ${JSON.stringify(res.Err)}`, { variant: 'error' });
+          enqueueSnackbar(`Failed to withdraw credit: ${JSON.stringify(res.Err, bigIntReplacer)}`, {
+            variant: 'error',
+          });
         } else {
           queryClient.invalidateQueries('myCredits');
           enqueueSnackbar(`Credit withdrawn successfully`, { variant: 'success' });
