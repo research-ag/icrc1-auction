@@ -1,4 +1,4 @@
-import {Actor, createIdentity, PocketIc} from '@hadronous/pic';
+import { Actor, createIdentity, PocketIc } from '@hadronous/pic';
 
 import {
   _SERVICE as LService,
@@ -10,10 +10,10 @@ import {
   idlFactory as A_IDL,
   init as aInit,
 } from '../declarations/icrc1_auction/icrc1_auction.did';
-import {IDL} from '@dfinity/candid';
-import {resolve} from 'node:path';
-import {Principal} from '@dfinity/principal';
-import {Identity} from '@dfinity/agent';
+import { IDL } from '@dfinity/candid';
+import { resolve } from 'node:path';
+import { Principal } from '@dfinity/principal';
+import { Identity } from '@dfinity/agent';
 
 describe('ICRC1 Auction', () => {
   let pic: PocketIc;
@@ -467,7 +467,7 @@ describe('ICRC1 Auction', () => {
       expect(await auction.icrcX_credit(trustedLedgerPrincipal)).toEqual(470_000_000n);
       expect(await auction.icrcX_credit(ledger1Principal)).toEqual(2_000n);
       // check history
-      const historyItem = (await auction.queryTransactionHistory(1n, 0n))[0];
+      const historyItem = (await auction.queryTransactionHistory([], 1n, 0n))[0];
       expect(historyItem[1]).toEqual(2n);
       expect(historyItem[2]).toEqual({bid: null});
       expect(historyItem[3]).toEqual(ledger1Principal);
@@ -598,7 +598,7 @@ describe('ICRC1 Auction', () => {
       expect(bids[0][1]!.price).toBe(100_000);
       expect(bids[0][1]!.volume).toBe(1_000n);
       // check that partial bid recorded in history
-      const historyItem = (await auction.queryTransactionHistory(1n, 0n))[0];
+      const historyItem = (await auction.queryTransactionHistory([], 1n, 0n))[0];
       expect(historyItem[1]).toEqual(2n);
       expect(historyItem[2]).toEqual({bid: null});
       expect(historyItem[3]).toEqual(ledger1Principal);
@@ -993,7 +993,7 @@ describe('ICRC1 Auction', () => {
       await auction.placeBids([[ledger1Principal, 1_000n, 100_000]]);
       await auction.placeBids([[ledger2Principal, 1_000n, 100_000]]);
       await startNewAuctionSession();
-      const history = await auction.queryPriceHistory(2n, 0n);
+      const history = await auction.queryPriceHistory([], 2n, 0n);
       expect(history[0][2].toText()).toBe(ledger2Principal.toText());
       expect(history[0][3]).toBe(1_000n);
       expect(history[0][4]).toBe(100_000);
@@ -1012,7 +1012,7 @@ describe('ICRC1 Auction', () => {
       await auction.placeBids([[ledger1Principal, 1_000n, 100_000]]);
       await auction.placeBids([[ledger2Principal, 1_000n, 100_000]]);
       await startNewAuctionSession();
-      const history = await auction.queryTransactionHistory(2n, 0n);
+      const history = await auction.queryTransactionHistory([], 2n, 0n);
       expect(history[0][3].toText()).toBe(ledger2Principal.toText());
       expect(history[1][3].toText()).toBe(ledger1Principal.toText());
     });

@@ -137,11 +137,12 @@ service : () -> {
   queryTokenAsks : (Token) -> (vec record { OrderId; Order }) query;
   queryAsks : () -> (vec record { OrderId; Order }) query;
 
-  queryTransactionHistory : (nat, nat) -> (vec record { nat64; nat; variant { ask; bid }; Token; nat; float64 }) query;
-  queryTransactionHistoryPerToken : (Token, nat, nat) -> (vec record { nat64; nat; variant { ask; bid }; Token; nat; float64 }) query;
+  // Providing token in the arguments to history queries will filter results by token
 
-  queryPriceHistory : (nat, nat) -> (vec record { nat64; nat; Token; nat; float64 }) query;
-  queryPriceHistoryPerToken : (Token, nat, nat) -> (vec record { nat64; nat; Token; nat; float64 }) query;
+  // return values are: timestamp in nanoseconds; number of auction session; transaction type; ICRC1 ledger principal; transaction volume; transaction price
+  queryTransactionHistory : (opt Token, nat, nat) -> (vec record { nat64; nat; variant { ask; bid }; Token; nat; float64 }) query;
+  // return values are: timestamp in nanoseconds; number of auction session; ICRC1 ledger principal; volume sold; price
+  queryPriceHistory : (opt Token, nat, nat) -> (vec record { nat64; nat; Token; nat; float64 }) query;
 
   // update
   placeAsks : (vec record { Token; nat; float64 }) -> (vec PlaceOrderResult);
