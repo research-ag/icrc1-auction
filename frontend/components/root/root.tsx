@@ -6,7 +6,7 @@ import ThemeButton from '../../components/theme-button';
 import { useIdentity } from '@fe/integration/identity';
 
 import InfoItem from './info-item';
-import { useSessionsCounter, useTrustedLedger } from '@fe/integration';
+import { useIsAdmin, useSessionsCounter, useTrustedLedger } from '@fe/integration';
 import { useState } from 'react';
 import Credits from '../credits';
 import TransactionsHistory from '@fe/components/transactions-history';
@@ -14,6 +14,7 @@ import Assets from '../assets';
 import Owners from '../owners';
 import { canisterId } from '@declarations/icrc1_auction';
 import PriceHistory from '@fe/components/price-history';
+import RunAuctionButton from '@fe/components/run-auction-button';
 
 const Root = () => {
     const {identity} = useIdentity();
@@ -21,6 +22,8 @@ const Root = () => {
     const [tabValue, setTabValue] = useState(0);
 
     const userPrincipal = identity.getPrincipal().toText();
+
+  const isAdmin = useIsAdmin();
 
     return (
         <Box
@@ -43,6 +46,7 @@ const Root = () => {
                             gap: 0.5,
                             marginBottom: 1,
                         }}>
+                      {isAdmin && (<RunAuctionButton></RunAuctionButton>)}
                         <InfoItem label="Sessions counter" content={String(useSessionsCounter().data)}/>
                         <InfoItem label="Your principal" content={userPrincipal} withCopy/>
                         <InfoItem label="Trusted ledger" content={useTrustedLedger().data?.toText() || ""} withCopy/>
