@@ -412,6 +412,24 @@ describe('ICRC1 Auction', () => {
       expect(await auction.queryTokenBids(ledger1Principal)).toHaveLength(2);
     });
 
+    test('should not be able to place few bids on the same token with the same price', async () => {
+      await startNewAuctionSession();
+      await prepareDeposit(user);
+      expect(await auction.icrcX_credit(trustedLedgerPrincipal)).toEqual(500_000_000n);
+      let [res1] = await auction.placeBids([[ledger1Principal, 2_000n, 100_000]]);
+      expect(await auction.icrcX_credit(trustedLedgerPrincipal)).toEqual(300_000_000n);
+
+      let [res2] = await auction.placeBids([[ledger1Principal, 2_000n, 100_000]]);
+      expect(res2).toEqual({
+        Err: {
+          ConflictingOrder: [{ bid: null }, (res1 as any).Ok],
+        },
+      });
+
+      expect(await auction.icrcX_credit(trustedLedgerPrincipal)).toEqual(300_000_000n);
+      expect(await auction.queryBids()).toHaveLength(1);
+    });
+
     test('should be able to replace a bid', async () => {
       await startNewAuctionSession();
       await prepareDeposit(user);
@@ -753,9 +771,17 @@ describe('ICRC1 Auction', () => {
     test('should not be able to place an ask with too low volume', async () => {
       await startNewAuctionSession();
       await prepareDeposit(user, ledger1Principal);
-      const [res] = await auction.placeAsks([[ledger1Principal, 20n, 0]]);
+      const [res] = await auction.placeAsks([[ledger1Principal, 20n, 1]]);
       expect(res).toEqual({ Err: { TooLowOrder: null } });
       expect(await auction.queryTokenAsks(ledger1Principal)).toHaveLength(0);
+    });
+
+    test('should be able to place a market ask', async () => {
+      await startNewAuctionSession();
+      await prepareDeposit(user, ledger1Principal);
+      const [res] = await auction.placeAsks([[ledger1Principal, 20n, 0]]);
+      expect(res).toHaveProperty('Ok');
+      expect(await auction.queryTokenAsks(ledger1Principal)).toHaveLength(1);
     });
 
     test('should be able to place an ask', async () => {
@@ -811,6 +837,23 @@ describe('ICRC1 Auction', () => {
       expect(await auction.icrcX_credit(ledger1Principal)).toEqual(200_000_000n);
 
       expect(await auction.queryTokenAsks(ledger1Principal)).toHaveLength(2);
+    });
+
+    test('should not be able to place few asks on the same token with the same price', async () => {
+      await startNewAuctionSession();
+      await prepareDeposit(user, ledger1Principal);
+      expect(await auction.icrcX_credit(ledger1Principal)).toEqual(500_000_000n);
+      let [res1] = await auction.placeAsks([[ledger1Principal, 125_000_000n, 125_000]]);
+      expect(await auction.icrcX_credit(ledger1Principal)).toEqual(375_000_000n);
+
+      let [res2] = await auction.placeAsks([[ledger1Principal, 175_000_000n, 125_000]]);
+      expect(res2).toEqual({
+        Err: {
+          ConflictingOrder: [{ ask: null }, (res1 as any).Ok],
+        },
+      });
+      expect(await auction.icrcX_credit(ledger1Principal)).toEqual(375_000_000n);
+      expect(await auction.queryTokenAsks(ledger1Principal)).toHaveLength(1);
     });
 
     test('should be able to replace an ask', async () => {
@@ -956,7 +999,7 @@ describe('ICRC1 Auction', () => {
       const [res2] = await auction.placeAsks([[ledger1Principal, 2_000_000n, 200]]);
       expect(res2).toEqual({
         Err: {
-          ConflictingOrder: (res1 as any).Ok,
+          ConflictingOrder: [{ bid: null }, (res1 as any).Ok],
         }
       });
       expect(await auction.queryTokenBids(ledger1Principal)).toHaveLength(1);
@@ -972,7 +1015,7 @@ describe('ICRC1 Auction', () => {
       const [res2] = await auction.placeBids([[ledger1Principal, 2_000n, 250]]);
       expect(res2).toEqual({
         Err: {
-          ConflictingOrder: (res1 as any).Ok,
+          ConflictingOrder: [{ ask: null }, (res1 as any).Ok],
         }
       });
       expect(await auction.queryTokenAsks(ledger1Principal)).toHaveLength(1);

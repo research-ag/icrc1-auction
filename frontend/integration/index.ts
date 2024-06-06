@@ -124,6 +124,7 @@ export const useExecuteAuction = () => {
       queryClient.invalidateQueries('myCredits');
       queryClient.invalidateQueries('myBids');
       queryClient.invalidateQueries('myAsks');
+      queryClient.invalidateQueries('transaction-history');
       queryClient.invalidateQueries('sessionsCounter');
     },
     onError: err => {

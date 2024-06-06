@@ -89,14 +89,14 @@ module {
 
   public type CancelOrderError = { #UnknownPrincipal };
   public type PlaceOrderError = {
-    #ConflictingOrder : OrderId;
+    #ConflictingOrder : ({ #ask; #bid }, OrderId);
     #NoCredit;
     #TooLowOrder;
     #UnknownPrincipal;
     #UnknownAsset;
   };
   public type ReplaceOrderError = {
-    #ConflictingOrder : OrderId;
+    #ConflictingOrder : ({ #ask; #bid }, OrderId);
     #NoCredit;
     #TooLowOrder;
     #UnknownOrder;
@@ -108,7 +108,7 @@ module {
   let BID_PROCESSING_INSTRUCTIONS_THRESHOLD : Nat64 = 1_000_000_000;
   // minimum price*volume for placing a bid or an ask. Assuming that trusted token is ICP with 8 decimals,
   // it gives 0.005 ICP: For ICP price $20 it is $0.10
-  let MINIMUM_ORDER = 500_000;
+  public let MINIMUM_ORDER : Nat = 500_000;
 
   public func getTotalPrice(volume : Nat, unitPrice : Float) : Nat = Int.abs(Float.toInt(Float.ceil(unitPrice * Float.fromInt(volume))));
 
@@ -117,8 +117,11 @@ module {
     assetList : (assetInfo : AssetInfo) -> AssocList.AssocList<OrderId, Order>;
     assetListSet : (assetInfo : AssetInfo, list : AssocList.AssocList<OrderId, Order>) -> ();
 
+    kind : { #ask; #bid };
     userList : (userInfo : UserInfo) -> AssocList.AssocList<OrderId, Order>;
     userListSet : (userInfo : UserInfo, list : AssocList.AssocList<OrderId, Order>) -> ();
+
+    oppositeKind : { #ask; #bid };
     userOppositeList : (userInfo : UserInfo) -> AssocList.AssocList<OrderId, Order>;
     oppositeOrderConflictCriteria : (orderPrice : Float, oppositeOrderPrice : Float) -> Bool;
 
@@ -375,26 +378,32 @@ module {
     private func getUserTrustedAccount_(userInfo : UserInfo) : ?Account = AssocList.find<AssetId, Account>(userInfo.credits, trustedAssetId, Nat.equal);
 
     let askCtx : OrderCtx = {
+      kind = #ask;
       assetList = func(assetInfo) = assetInfo.asks;
       assetListSet = func(assetInfo, list) { assetInfo.asks := list };
       userList = func(userInfo) = userInfo.currentAsks;
       userListSet = func(userInfo, list) { userInfo.currentAsks := list };
+
+      oppositeKind = #bid;
       userOppositeList = func(userInfo) = userInfo.currentBids;
       oppositeOrderConflictCriteria = func(orderPrice, oppositeOrderPrice) = oppositeOrderPrice >= orderPrice;
 
       chargeToken = func(assetId) = assetId;
       chargeAmount = func(volume, _) = volume;
       priorityComparator = func(order, newOrder) = order.price > newOrder.price;
-      lowOrderSign = func(assetId, assetInfo, volume, _) = volume < settings.minAskVolume(assetId, assetInfo);
+      lowOrderSign = func(assetId, assetInfo, volume, price) = price > 0 and volume < settings.minAskVolume(assetId, assetInfo);
 
       amountMetric = func(assetInfo) = assetInfo.metrics.asksAmount;
       volumeMetric = func(assetInfo) = assetInfo.metrics.totalAskVolume;
     };
     let bidCtx : OrderCtx = {
+      kind = #bid;
       assetList = func(assetInfo) = assetInfo.bids;
       assetListSet = func(assetInfo, list) { assetInfo.bids := list };
       userList = func(userInfo) = userInfo.currentBids;
       userListSet = func(userInfo, list) { userInfo.currentBids := list };
+
+      oppositeKind = #ask;
       userOppositeList = func(userInfo) = userInfo.currentAsks;
       oppositeOrderConflictCriteria = func(orderPrice, oppositeOrderPrice) = oppositeOrderPrice <= orderPrice;
 
@@ -436,9 +445,14 @@ module {
       if ((sourceAcc.credit - sourceAcc.lockedCredit) : Nat < ctx.chargeAmount(volume, price)) {
         return #err(#NoCredit);
       };
+      for ((orderId, order) in List.toIter(ctx.userList(userInfo))) {
+        if (order.assetId == assetId and price == order.price) {
+          return #err(#ConflictingOrder(ctx.kind, orderId));
+        };
+      };
       for ((oppOrderId, oppOrder) in List.toIter(ctx.userOppositeList(userInfo))) {
         if (oppOrder.assetId == assetId and ctx.oppositeOrderConflictCriteria(price, oppOrder.price)) {
-          return #err(#ConflictingOrder(oppOrderId));
+          return #err(#ConflictingOrder(ctx.oppositeKind, oppOrderId));
         };
       };
       let order : Order = {
@@ -466,9 +480,14 @@ module {
           return #err(#NoCredit);
         };
       };
+      for ((otherOrderId, otherOrder) in List.toIter(ctx.userList(userInfo))) {
+        if (orderId != otherOrderId and oldOrder.assetId == otherOrder.assetId and price == otherOrder.price) {
+          return #err(#ConflictingOrder(ctx.kind, otherOrderId));
+        };
+      };
       for ((oppOrderId, oppOrder) in List.toIter(ctx.userOppositeList(userInfo))) {
         if (oppOrder.assetId == oldOrder.assetId and ctx.oppositeOrderConflictCriteria(price, oppOrder.price)) {
-          return #err(#ConflictingOrder(oppOrderId));
+          return #err(#ConflictingOrder(ctx.oppositeKind, oppOrderId));
         };
       };
       // actually replace the order
