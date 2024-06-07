@@ -607,11 +607,15 @@ module {
         var asksVolume = 0;
         var bidsVolume = 0;
 
+        var lastBidToFulfil = nextBid;
+        var lastAskToFulfil = nextAsk;
+
         let (asksAmount, bidsAmount) = label L : (Nat, Nat) loop {
           let orig = (a, b);
           let inc_ask = asksVolume <= bidsVolume;
           let inc_bid = bidsVolume <= asksVolume;
-          let prevAsk = nextAsk;
+          lastAskToFulfil := nextAsk;
+          lastBidToFulfil := nextBid;
           if (inc_ask) {
             a += 1;
             let ?(na, at) = asksTail else break L orig;
@@ -620,14 +624,7 @@ module {
           };
           if (inc_bid) {
             b += 1;
-            let ?(nb, bt) = bidsTail else {
-              if (inc_ask) {
-                // revert inc_ask, new one will not be fulfilled
-                a -= 1;
-                nextAsk := prevAsk;
-              };
-              break L orig;
-            };
+            let ?(nb, bt) = bidsTail else break L orig;
             nextBid := nb;
             bidsTail := bt;
           };
@@ -645,15 +642,15 @@ module {
 
         let dealVolume = Nat.min(asksVolume, bidsVolume);
 
-        let price : Float = switch (nextAsk.1.price == 0.0, nextBid.1.price == inf) {
+        let price : Float = switch (lastAskToFulfil.1.price == 0.0, lastBidToFulfil.1.price == inf) {
           case (true, true) {
             // market sell against market buy => no execution
             history := List.push((Prim.time(), sessionsCounter, assetId, 0, 0.0), history);
             continue l;
           };
-          case (true, _) nextBid.1.price; // market sell against highest bid => use bid price
-          case (_, true) nextAsk.1.price; // market buy against lowest ask => use ask price
-          case (_) (nextAsk.1.price + nextBid.1.price) / 2; // limit sell against limit buy => use middle price
+          case (true, _) lastBidToFulfil.1.price; // market sell against highest bid => use bid price
+          case (_, true) lastAskToFulfil.1.price; // market buy against lowest ask => use ask price
+          case (_) (lastAskToFulfil.1.price + lastBidToFulfil.1.price) / 2; // limit sell against limit buy => use middle price
         };
 
         // process fulfilled asks

@@ -32,20 +32,6 @@ describe('ICRC1 Auction', () => {
   const admin = createIdentity('admin');
   const user = createIdentity('user');
 
-  const startNewAuctionSession = async () => {
-    const expectedCounter = await auction.sessionsCounter() + 1n;
-    await pic.advanceTime(24 * 60 * 60_000);
-    await pic.tick();
-    let retries = 20;
-    while (await auction.sessionsCounter() < expectedCounter) {
-      await pic.tick();
-      retries--;
-      if (retries == 0) {
-        throw new Error('Could not start new auction session');
-      }
-    }
-  };
-
   const ledgerByPrincipal = (p: Principal): Actor<LService> => {
     switch (p.toText()) {
       case (trustedLedgerPrincipal.toText()):
@@ -115,7 +101,7 @@ describe('ICRC1 Auction', () => {
 
     auction.setIdentity(user);
 
-    await startNewAuctionSession();
+    await auction.runAuctionImmediately();
   });
 
   afterEach(async () => {
@@ -180,7 +166,7 @@ describe('ICRC1 Auction', () => {
 
     test('should preserve info during upgrade', async () => {
       const shortP = auctionPrincipal.toText().substring(0, auctionPrincipal.toString().indexOf('-'));
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
 
       await prepareDeposit(user);
       await auction.placeBids([[ledger1Principal, 1_500n, 100_000]]);
@@ -189,7 +175,7 @@ describe('ICRC1 Auction', () => {
       await prepareDeposit(seller, ledger1Principal);
       await auction.placeAsks([[ledger1Principal, 1_500_000n, 100_000]]);
 
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
 
       // check info before upgrade
       auction.setIdentity(user);
@@ -232,6 +218,19 @@ describe('ICRC1 Auction', () => {
       expect(await auction.sessionRemainingTime()).toBe(35000n);
     });
     test('should conduct new session after 24h', async () => {
+      const startNewAuctionSession = async () => {
+        const expectedCounter = await auction.sessionsCounter() + 1n;
+        await pic.advanceTime(24 * 60 * 60_000);
+        await pic.tick();
+        let retries = 20;
+        while (await auction.sessionsCounter() < expectedCounter) {
+          await pic.tick();
+          retries--;
+          if (retries == 0) {
+            throw new Error('Could not start new auction session');
+          }
+        }
+      };
       expect(await auction.sessionsCounter()).toBe(1n);
       await startNewAuctionSession();
       expect(await auction.sessionsCounter()).toBe(2n);
@@ -328,7 +327,7 @@ describe('ICRC1 Auction', () => {
     });
 
     test('should not be able to place bid on trusted token', async () => {
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       await prepareDeposit(user);
       const [res] = await auction.placeBids([[trustedLedgerPrincipal, 2_000n, 100_000]]);
       expect(res).toEqual({ Err: { UnknownAsset: null } });
@@ -336,7 +335,7 @@ describe('ICRC1 Auction', () => {
     });
 
     test('should not be able to place bid with non-sufficient deposit', async () => {
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       await prepareDeposit(user);
       const [res] = await auction.placeBids([[ledger1Principal, 2_000n, 1_000_000]]);
       expect(res).toEqual({ Err: { NoCredit: null } });
@@ -344,7 +343,7 @@ describe('ICRC1 Auction', () => {
     });
 
     test('should not be able to place bid with too low volume', async () => {
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       await prepareDeposit(user);
       const [res] = await auction.placeBids([[ledger1Principal, 20n, 100]]);
       expect(res).toEqual({ Err: { TooLowOrder: null } });
@@ -352,7 +351,7 @@ describe('ICRC1 Auction', () => {
     });
 
     test('should be able to place a bid', async () => {
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       await prepareDeposit(user);
       const [res] = await auction.placeBids([[ledger1Principal, 2_000n, 1_000]]);
       expect(res).toHaveProperty('Ok');
@@ -365,7 +364,7 @@ describe('ICRC1 Auction', () => {
     });
 
     test('should affect metrics', async () => {
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       await prepareDeposit(user);
       await auction.placeBids([[ledger1Principal, 2_000n, 15_000]]);
       const shortP = auctionPrincipal.toText().substring(0, auctionPrincipal.toString().indexOf('-'));
@@ -379,7 +378,7 @@ describe('ICRC1 Auction', () => {
       await prepareDeposit(seller, ledger1Principal);
       await auction.placeAsks([[ledger1Principal, 200_000_000n, 15_000]]);
       auction.setIdentity(user);
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
 
       expect(await auction.queryTokenBids(ledger1Principal)).toHaveLength(0);
       metrics = await auction
@@ -390,7 +389,7 @@ describe('ICRC1 Auction', () => {
     });
 
     test('unfulfilled bids should affect deposit', async () => {
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       await prepareDeposit(user);
       const [res] = await auction.placeBids([[ledger1Principal, 1_000n, 400_000]]);
       expect(res).toHaveProperty('Ok');
@@ -399,7 +398,7 @@ describe('ICRC1 Auction', () => {
     });
 
     test('should be able to place few bids on the same token', async () => {
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       await prepareDeposit(user);
       expect(await auction.icrcX_credit(trustedLedgerPrincipal)).toEqual(500_000_000n);
       await auction.placeBids([[ledger1Principal, 2_000n, 100_000]]);
@@ -413,7 +412,7 @@ describe('ICRC1 Auction', () => {
     });
 
     test('should not be able to place few bids on the same token with the same price', async () => {
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       await prepareDeposit(user);
       expect(await auction.icrcX_credit(trustedLedgerPrincipal)).toEqual(500_000_000n);
       let [res1] = await auction.placeBids([[ledger1Principal, 2_000n, 100_000]]);
@@ -431,7 +430,7 @@ describe('ICRC1 Auction', () => {
     });
 
     test('should be able to replace a bid', async () => {
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       await prepareDeposit(user);
       expect(await auction.icrcX_credit(trustedLedgerPrincipal)).toEqual(500_000_000n);
       let orderId = (await auction.placeBids([[ledger1Principal, 2_000n, 125_000]]) as any)[0].Ok;
@@ -451,7 +450,7 @@ describe('ICRC1 Auction', () => {
     });
 
     test('non-sufficient deposit should not cancel old bid when replacing', async () => {
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       await prepareDeposit(user);
       const orderId = (await auction.placeBids([[ledger1Principal, 2_000n, 125_000]]) as any)[0].Ok;
 
@@ -467,7 +466,7 @@ describe('ICRC1 Auction', () => {
     });
 
     test('should fulfil the only bid', async () => {
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       await prepareDeposit(user);
       const [res] = await auction.placeBids([[ledger1Principal, 2_000n, 15_000]]);
       expect(res).toHaveProperty('Ok');
@@ -477,7 +476,7 @@ describe('ICRC1 Auction', () => {
       await prepareDeposit(seller, ledger1Principal);
       await auction.placeAsks([[ledger1Principal, 200_000_000n, 15_000]]);
       auction.setIdentity(user);
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
 
       // test that bid disappeared
       expect(await auction.queryTokenBids(ledger1Principal)).toHaveLength(0);
@@ -500,7 +499,7 @@ describe('ICRC1 Auction', () => {
       await auction.placeAsks([[ledger1Principal, 200_000_000n, 100_000]]);
       await auction.placeAsks([[ledger2Principal, 200_000_000n, 100_000]]);
       auction.setIdentity(user);
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
 
       await prepareDeposit(user);
       await auction.placeBids([[ledger1Principal, 1_500n, 100_000]]);
@@ -511,7 +510,7 @@ describe('ICRC1 Auction', () => {
       await auction.placeBids([[ledger1Principal, 1_500n, 100_000]]);
       await auction.placeBids([[ledger2Principal, 1_500n, 100_000]]);
 
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       await assertBidFulfilled(user, ledger1Principal);
       await assertBidFulfilled(user, ledger2Principal);
       await assertBidFulfilled(user2, ledger1Principal);
@@ -522,7 +521,7 @@ describe('ICRC1 Auction', () => {
       const seller = createIdentity('seller');
       await prepareDeposit(seller, ledger1Principal);
       await auction.placeAsks([[ledger1Principal, 2_000n, 0]]);
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
 
       await prepareDeposit(user);
       await auction.placeBids([[ledger1Principal, 1_000n, 100_000]]);
@@ -535,7 +534,7 @@ describe('ICRC1 Auction', () => {
       await prepareDeposit(user3);
       await auction.placeBids([[ledger1Principal, 1_000n, 100_000]]);
 
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       await assertBidFulfilled(user, ledger1Principal);
       await assertBidFulfilled(user2, ledger1Principal);
 
@@ -548,7 +547,7 @@ describe('ICRC1 Auction', () => {
       const seller = createIdentity('seller');
       await prepareDeposit(seller, ledger1Principal);
       await auction.placeAsks([[ledger1Principal, 3_000n, 0]]);
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
 
       await prepareDeposit(user);
       await auction.placeBids([[ledger1Principal, 1_500n, 200_000]]);
@@ -562,7 +561,7 @@ describe('ICRC1 Auction', () => {
       await prepareDeposit(user3);
       await auction.placeBids([[ledger1Principal, 1_500n, 50_000]]);
 
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       // check that price was 100 (lowest fulfilled bid) for both user and user2
       auction.setIdentity(user);
       expect(await auction.icrcX_credit(ledger1Principal)).toEqual(1_500n);
@@ -576,7 +575,7 @@ describe('ICRC1 Auction', () => {
       const seller = createIdentity('seller');
       await prepareDeposit(seller, ledger1Principal);
       await auction.placeAsks([[ledger1Principal, 3_500n, 0]]);
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
 
       await prepareDeposit(user);
       await auction.placeBids([[ledger1Principal, 1_500n, 200_000]]);
@@ -597,7 +596,7 @@ describe('ICRC1 Auction', () => {
       await prepareDeposit(user4);
       await auction.placeBids([[ledger1Principal, 1_500n, 50_000]]);
 
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       // check that price was 100 (lowest partially fulfilled bid). Queried deposit grew for high bidders
       auction.setIdentity(user);
       expect(await auction.icrcX_credit(ledger1Principal)).toEqual(1_500n);
@@ -634,7 +633,7 @@ describe('ICRC1 Auction', () => {
       await prepareDeposit(seller, ledger1Principal);
       await auction.placeAsks([[ledger1Principal, 1_000n, 0]]);
       auction.setIdentity(user);
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       // bid is still there
       expect(await auction.queryTokenBids(ledger1Principal)).toHaveLength(1);
       expect(await auction.icrcX_credit(trustedLedgerPrincipal)).toEqual(300_000_000n);
@@ -643,7 +642,7 @@ describe('ICRC1 Auction', () => {
       auction.setIdentity(seller);
       await auction.placeAsks([[ledger1Principal, 1_000n, 0]]);
       auction.setIdentity(user);
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       // bid should be fully fulfilled now
       expect(await auction.queryTokenBids(ledger1Principal)).toHaveLength(0);
       expect(await auction.icrcX_credit(trustedLedgerPrincipal)).toEqual(300_000_000n);
@@ -655,7 +654,7 @@ describe('ICRC1 Auction', () => {
       const seller = createIdentity('seller');
       await prepareDeposit(seller, ledger1Principal);
 
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       const mediumBidder = createIdentity('mediumBidder');
       await prepareDeposit(mediumBidder);
       await auction.placeBids([[ledger1Principal, 1_500n, 20_000]]);
@@ -670,7 +669,7 @@ describe('ICRC1 Auction', () => {
       auction.setIdentity(seller);
       await auction.placeAsks([[ledger1Principal, 1_500n, 0]]);
 
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       await assertBidFulfilled(highBidder, ledger1Principal);
       await assertBidNotFulfilled(mediumBidder, ledger1Principal);
       await assertBidNotFulfilled(lowBidder, ledger1Principal);
@@ -679,7 +678,7 @@ describe('ICRC1 Auction', () => {
       auction.setIdentity(seller);
       await auction.placeAsks([[ledger1Principal, 1_500n, 0]]);
 
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       await assertBidFulfilled(mediumBidder, ledger1Principal);
       await assertBidNotFulfilled(lowBidder, ledger1Principal);
 
@@ -691,7 +690,7 @@ describe('ICRC1 Auction', () => {
       auction.setIdentity(seller);
       await auction.placeAsks([[ledger1Principal, 1_500n, 0]]);
 
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       // new bidder joined later, but should be fulfilled since priority greater than priority of low bid
       await assertBidFulfilled(newBidder, ledger1Principal);
       await assertBidNotFulfilled(lowBidder, ledger1Principal);
@@ -699,7 +698,7 @@ describe('ICRC1 Auction', () => {
       auction.setIdentity(seller);
       await auction.placeAsks([[ledger1Principal, 1_500n, 0]]);
 
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       // finally low bid will be fulfilled
       await assertBidFulfilled(lowBidder, ledger1Principal);
     });
@@ -709,13 +708,13 @@ describe('ICRC1 Auction', () => {
       await prepareDeposit(seller, ledger1Principal);
       await auction.placeAsks([[ledger1Principal, 1_000n, 0]]);
 
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       await prepareDeposit(user);
       await auction.placeBids([[ledger1Principal, 1_000n, 100_000]]);
 
       auction.setIdentity(seller);
       await auction.placeAsks([[ledger1Principal, 1_000n, 0]]);
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
 
       await assertBidFulfilled(user, ledger1Principal);
       expect(await auction.icrcX_credit(ledger1Principal)).toEqual(1_000n);
@@ -723,7 +722,7 @@ describe('ICRC1 Auction', () => {
 
       auction.setIdentity(seller);
       await auction.placeAsks([[ledger1Principal, 1_000n, 0]]);
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       await assertBidFulfilled(user, ledger1Principal);
       expect(await auction.icrcX_credit(ledger1Principal)).toEqual(2_000n); // credit builds up
     });
@@ -753,7 +752,7 @@ describe('ICRC1 Auction', () => {
     });
 
     test('should not be able to place ask on trusted token', async () => {
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       await prepareDeposit(user);
       const [res] = await auction.placeAsks([[trustedLedgerPrincipal, 2_000n, 100_000]]);
       expect(res).toEqual({ Err: { UnknownAsset: null } });
@@ -761,7 +760,7 @@ describe('ICRC1 Auction', () => {
     });
 
     test('should not be able to place ask with non-sufficient deposit', async () => {
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       await prepareDeposit(user, ledger1Principal);
       const [res] = await auction.placeAsks([[ledger1Principal, 500_000_001n, 0]]);
       expect(res).toEqual({ Err: { NoCredit: null } });
@@ -769,7 +768,7 @@ describe('ICRC1 Auction', () => {
     });
 
     test('should not be able to place an ask with too low volume', async () => {
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       await prepareDeposit(user, ledger1Principal);
       const [res] = await auction.placeAsks([[ledger1Principal, 20n, 1]]);
       expect(res).toEqual({ Err: { TooLowOrder: null } });
@@ -777,7 +776,7 @@ describe('ICRC1 Auction', () => {
     });
 
     test('should be able to place a market ask', async () => {
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       await prepareDeposit(user, ledger1Principal);
       const [res] = await auction.placeAsks([[ledger1Principal, 20n, 0]]);
       expect(res).toHaveProperty('Ok');
@@ -785,7 +784,7 @@ describe('ICRC1 Auction', () => {
     });
 
     test('should be able to place an ask', async () => {
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       await prepareDeposit(user, ledger1Principal);
       const [res] = await auction.placeAsks([[ledger1Principal, 2_000_000n, 10]]);
       expect(res).toHaveProperty('Ok');
@@ -798,7 +797,7 @@ describe('ICRC1 Auction', () => {
     });
 
     test('should affect metrics', async () => {
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       await prepareDeposit(user, ledger1Principal);
 
       const buyer = createIdentity('buyer');
@@ -815,7 +814,7 @@ describe('ICRC1 Auction', () => {
       expect(metrics).toContain(`asks_amount{canister="${shortP}",asset_id="1"} 1 `);
       expect(metrics).toContain(`asks_volume{canister="${shortP}",asset_id="1"} 2000000 `);
 
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
 
       expect(await auction.queryTokenAsks(ledger1Principal)).toHaveLength(0);
       metrics = await auction
@@ -826,7 +825,7 @@ describe('ICRC1 Auction', () => {
     });
 
     test('should be able to place few asks on the same token', async () => {
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       await prepareDeposit(user, ledger1Principal);
       expect(await auction.icrcX_credit(ledger1Principal)).toEqual(500_000_000n);
       await auction.placeAsks([[ledger1Principal, 125_000_000n, 125_000]]);
@@ -840,7 +839,7 @@ describe('ICRC1 Auction', () => {
     });
 
     test('should not be able to place few asks on the same token with the same price', async () => {
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       await prepareDeposit(user, ledger1Principal);
       expect(await auction.icrcX_credit(ledger1Principal)).toEqual(500_000_000n);
       let [res1] = await auction.placeAsks([[ledger1Principal, 125_000_000n, 125_000]]);
@@ -857,7 +856,7 @@ describe('ICRC1 Auction', () => {
     });
 
     test('should be able to replace an ask', async () => {
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       await prepareDeposit(user, ledger1Principal);
       expect(await auction.icrcX_credit(ledger1Principal)).toEqual(500_000_000n);
       let orderId = (await auction.placeAsks([[ledger1Principal, 125_000_000n, 125_000]]) as any)[0].Ok;
@@ -877,7 +876,7 @@ describe('ICRC1 Auction', () => {
     });
 
     test('non-sufficient deposit should not cancel old ask', async () => {
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       await prepareDeposit(user, ledger1Principal);
       const orderId = (await auction.placeAsks([[ledger1Principal, 125_000_000n, 125_000]]) as any)[0].Ok;
 
@@ -893,7 +892,7 @@ describe('ICRC1 Auction', () => {
     });
 
     test('should fulfil the only ask', async () => {
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       await prepareDeposit(user, ledger1Principal);
       const [res] = await auction.placeAsks([[ledger1Principal, 100_000_000n, 3]]);
       expect(res).toHaveProperty('Ok');
@@ -904,7 +903,7 @@ describe('ICRC1 Auction', () => {
       auction.setIdentity(buyer);
       await auction.placeBids([[ledger1Principal, 100_010_000n, 3]]); // buy all 100m + 10k fees from ledger ask
 
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       auction.setIdentity(user);
       // test that ask disappeared
       expect(await auction.queryTokenAsks(ledger1Principal)).toHaveLength(0);
@@ -918,7 +917,7 @@ describe('ICRC1 Auction', () => {
       for (let i = 0; i < 10; i++) {
         await prepareDeposit(buyer);
       }
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       await auction.placeBids([[ledger1Principal, 1_500_000n, 500]]);
       expect(await auction.icrcX_credit(trustedLedgerPrincipal)).toEqual(BigInt(5_000_000_000 - 1_500_000 * 500));
 
@@ -935,7 +934,7 @@ describe('ICRC1 Auction', () => {
       const newSeller = createIdentity('newSeller');
       await prepareDeposit(newSeller, ledger1Principal);
 
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       auction.setIdentity(buyer);
       await assertAskFulfilled(lowSeller, ledger1Principal);
       await assertAskNotFulfilled(mediumSeller, ledger1Principal);
@@ -948,7 +947,7 @@ describe('ICRC1 Auction', () => {
 
       auction.setIdentity(buyer);// allow one additional ask to be fulfilled
       await auction.placeBids([[ledger1Principal, 1_500_000n, 500]]);
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       await assertAskFulfilled(mediumSeller, ledger1Principal);
       await assertAskNotFulfilled(highSeller, ledger1Principal);
       auction.setIdentity(mediumSeller);
@@ -959,7 +958,7 @@ describe('ICRC1 Auction', () => {
 
       auction.setIdentity(buyer);// allow one additional ask to be fulfilled
       await auction.placeBids([[ledger1Principal, 1_500_000n, 500]]);
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       // new seller joined later, but should be fulfilled since priority greater than priority of high seller
       await assertAskFulfilled(newSeller, ledger1Principal);
       await assertAskNotFulfilled(highSeller, ledger1Principal);
@@ -968,7 +967,7 @@ describe('ICRC1 Auction', () => {
 
       auction.setIdentity(buyer);// allow one additional ask to be fulfilled
       await auction.placeBids([[ledger1Principal, 1_500_000n, 500]]);
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       // finally high ask will be fulfilled
       await assertAskFulfilled(highSeller, ledger1Principal);
       auction.setIdentity(highSeller);
@@ -979,7 +978,7 @@ describe('ICRC1 Auction', () => {
   describe('orders', () => {
 
     test('should be able to place both bid and ask on the same asset', async () => {
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       await prepareDeposit(user);
       await prepareDeposit(user, ledger1Principal);
       const [res1] = await auction.placeBids([[ledger1Principal, 2_000n, 250]]);
@@ -991,7 +990,7 @@ describe('ICRC1 Auction', () => {
     });
 
     test('should return error when placing ask with lower price than own bid price for the same asset', async () => {
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       await prepareDeposit(user);
       await prepareDeposit(user, ledger1Principal);
       const [res1] = await auction.placeBids([[ledger1Principal, 2_000n, 250]]);
@@ -1007,7 +1006,7 @@ describe('ICRC1 Auction', () => {
     });
 
     test('should return error when placing bid with higher price than own ask price for the same asset', async () => {
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       await prepareDeposit(user);
       await prepareDeposit(user, ledger1Principal);
       const [res1] = await auction.placeAsks([[ledger1Principal, 2_000_000n, 200]]);
@@ -1024,6 +1023,146 @@ describe('ICRC1 Auction', () => {
 
   })
 
+  describe('deal price', () => {
+    test('should use correct price when orders are completely fulfilled and there are other unfulfilled orders', async () => {
+      await prepareDeposit(user, trustedLedgerPrincipal);
+      let [res1, res2] = await auction.placeBids([
+        [ledger1Principal, 5_000_000n, 1],      // should be fulfilled
+        [ledger1Principal, 5_000_000n, 0.1],     // should not be fulfilled, too low bid
+      ]);
+      expect(res1).toHaveProperty('Ok');
+      expect(res2).toHaveProperty('Ok');
+
+      const user2 = createIdentity('user2');
+      await prepareDeposit(user2, ledger1Principal);
+      [res1, res2] = await auction.placeAsks([
+        [ledger1Principal, 5_000_000n, 0.8],    // should be fulfilled
+        [ledger1Principal, 5_000_000n, 100],    // should not be fulfilled
+      ]);
+      expect(res1).toHaveProperty('Ok');
+      expect(res2).toHaveProperty('Ok');
+
+      await auction.runAuctionImmediately();
+
+      const [priceHistoryItem] = await auction.queryPriceHistory([ledger1Principal], 1n, 0n);
+      expect(priceHistoryItem[3]).toBe(5_000_000n); // volume
+      expect(priceHistoryItem[4]).toBe(0.9); // average price, ask 0.8, bid 1
+    });
+
+    test('should use correct price when ask completely fulfilled and there are other unfulfilled orders', async () => {
+      await prepareDeposit(user, trustedLedgerPrincipal);
+      let [res1, res2] = await auction.placeBids([
+        [ledger1Principal, 6_000_000n, 1],      // should be fulfilled partially
+        [ledger1Principal, 5_000_000n, 0.1],     // should not be fulfilled, too low bid
+      ]);
+      expect(res1).toHaveProperty('Ok');
+      expect(res2).toHaveProperty('Ok');
+
+      const user2 = createIdentity('user2');
+      await prepareDeposit(user2, ledger1Principal);
+      [res1, res2] = await auction.placeAsks([
+        [ledger1Principal, 5_000_000n, 0.8],    // should be fulfilled
+        [ledger1Principal, 5_000_000n, 100],    // should not be fulfilled
+      ]);
+      expect(res1).toHaveProperty('Ok');
+      expect(res2).toHaveProperty('Ok');
+
+      await auction.runAuctionImmediately();
+
+      const [priceHistoryItem] = await auction.queryPriceHistory([ledger1Principal], 1n, 0n);
+      expect(priceHistoryItem[3]).toBe(5_000_000n); // volume
+      expect(priceHistoryItem[4]).toBe(0.9); // average price, ask 0.8, bid 1
+    });
+
+    test('should use correct price when bid completely fulfilled and there are other unfulfilled orders', async () => {
+      await prepareDeposit(user, trustedLedgerPrincipal);
+      let [res1, res2] = await auction.placeBids([
+        [ledger1Principal, 5_000_000n, 1],      // should be fulfilled partially
+        [ledger1Principal, 5_000_000n, 0.1],     // should not be fulfilled, too low bid
+      ]);
+      expect(res1).toHaveProperty('Ok');
+      expect(res2).toHaveProperty('Ok');
+
+      const user2 = createIdentity('user2');
+      await prepareDeposit(user2, ledger1Principal);
+      [res1, res2] = await auction.placeAsks([
+        [ledger1Principal, 6_000_000n, 0.8],    // should be fulfilled partially
+        [ledger1Principal, 5_000_000n, 100],    // should not be fulfilled
+      ]);
+      expect(res1).toHaveProperty('Ok');
+      expect(res2).toHaveProperty('Ok');
+
+      await auction.runAuctionImmediately();
+
+      const [priceHistoryItem] = await auction.queryPriceHistory([ledger1Principal], 1n, 0n);
+      expect(priceHistoryItem[3]).toBe(5_000_000n); // volume
+      expect(priceHistoryItem[4]).toBe(0.9); // average price, ask 0.8, bid 1
+    });
+
+    test('should have correct credits flow', async () => {
+      const userExpectedCredits: [number, number] = [0, 0];
+      const user2ExpectedCredits: [number, number] = [0, 0];
+      const assertBalances = async (identity: Identity, expectedCredits: [number, number]) => {
+        auction.setIdentity(identity);
+        const cr = await auction.icrcX_all_credits();
+        expect(cr).toHaveLength(2);
+        if (cr[0][0].toText() == trustedLedgerPrincipal.toText()) {
+          expect(cr[0][1]).toEqual(BigInt(expectedCredits[0]));
+          expect(cr[1][1]).toEqual(BigInt(expectedCredits[1]));
+        } else {
+          expect(cr[0][1]).toEqual(BigInt(expectedCredits[1]));
+          expect(cr[1][1]).toEqual(BigInt(expectedCredits[0]));
+        }
+      };
+      await auction.runAuctionImmediately();
+
+      await prepareDeposit(user, trustedLedgerPrincipal);
+      userExpectedCredits[0] += 500_000_000;
+
+      let [res] = await auction.placeBids([[ledger1Principal, 5_000_000n, 0.1]]);
+      expect(res).toHaveProperty('Ok');
+      userExpectedCredits[0] -= 500_000;
+
+      await prepareDeposit(user, ledger1Principal);
+      userExpectedCredits[1] += 500_000_000;
+
+      [res] = await auction.placeAsks([[ledger1Principal, 20_000n, 26]]);
+      expect(res).toHaveProperty('Ok');
+      userExpectedCredits[1] -= 20_000;
+
+      let user2 = createIdentity('user2');
+      await prepareDeposit(user2, trustedLedgerPrincipal);
+      user2ExpectedCredits[0] += 500_000_000;
+      await prepareDeposit(user2, ledger1Principal);
+      user2ExpectedCredits[1] += 500_000_000;
+
+      [res] = await auction.placeAsks([[ledger1Principal, 980_000n, 0.08]]);
+      expect(res).toHaveProperty('Ok');
+      user2ExpectedCredits[1] -= 980_000;
+
+      // check credits
+      await assertBalances(user, userExpectedCredits);
+      await assertBalances(user2, user2ExpectedCredits);
+
+      await auction.runAuctionImmediately();
+
+      // note: user ask was not fulfilled because has too high price
+      userExpectedCredits[0] += 980_000 * 0.1;    // bid fulfilled part funds unlocked
+      userExpectedCredits[0] -= 980_000 * 0.09;   // bid fulfilled part funds charged (lower price)
+      userExpectedCredits[1] += 980_000;          // credited with bought token
+
+      // note user2 [1] balance not changed: whole volume was locked and then charged
+      user2ExpectedCredits[0] += 980_000 * 0.09; // credited from sold token
+
+      const [priceHistoryItem] = await auction.queryPriceHistory([ledger1Principal], 1n, 0n);
+      expect(priceHistoryItem[3]).toBe(980_000n); // volume
+      expect(priceHistoryItem[4]).toBe(0.09); // average price, ask 0.08, bid 0.1
+
+      await assertBalances(user, userExpectedCredits);
+      await assertBalances(user2, user2ExpectedCredits);
+    });
+  });
+
   describe('history', () => {
 
     test('should return price history with descending order', async () => {
@@ -1035,7 +1174,7 @@ describe('ICRC1 Auction', () => {
       await prepareDeposit(user);
       await auction.placeBids([[ledger1Principal, 1_000n, 100_000]]);
       await auction.placeBids([[ledger2Principal, 1_000n, 100_000]]);
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       const history = await auction.queryPriceHistory([], 2n, 0n);
       expect(history[0][2].toText()).toBe(ledger2Principal.toText());
       expect(history[0][3]).toBe(1_000n);
@@ -1054,7 +1193,7 @@ describe('ICRC1 Auction', () => {
       await prepareDeposit(user);
       await auction.placeBids([[ledger1Principal, 1_000n, 100_000]]);
       await auction.placeBids([[ledger2Principal, 1_000n, 100_000]]);
-      await startNewAuctionSession();
+      await auction.runAuctionImmediately();
       const history = await auction.queryTransactionHistory([], 2n, 0n);
       expect(history[0][3].toText()).toBe(ledger2Principal.toText());
       expect(history[1][3].toText()).toBe(ledger1Principal.toText());
