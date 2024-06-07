@@ -346,7 +346,7 @@ describe('ICRC1 Auction', () => {
     test('should not be able to place bid with too low volume', async () => {
       await startNewAuctionSession();
       await prepareDeposit(user);
-      const [res] = await auction.placeBids([[ledger1Principal, 20n, 10_000]]);
+      const [res] = await auction.placeBids([[ledger1Principal, 20n, 100]]);
       expect(res).toEqual({ Err: { TooLowOrder: null } });
       expect(await auction.queryTokenBids(ledger1Principal)).toHaveLength(0);
     });

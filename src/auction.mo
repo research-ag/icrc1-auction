@@ -108,7 +108,8 @@ module {
   let BID_PROCESSING_INSTRUCTIONS_THRESHOLD : Nat64 = 1_000_000_000;
   // minimum price*volume for placing a bid or an ask. Assuming that trusted token is ICP with 8 decimals,
   // it gives 0.005 ICP: For ICP price $20 it is $0.10
-  public let MINIMUM_ORDER : Nat = 500_000;
+  // for testing purposes it is set to 5k for now
+  public let MINIMUM_ORDER : Nat = 5_000;
 
   public func getTotalPrice(volume : Nat, unitPrice : Float) : Nat = Int.abs(Float.toInt(Float.ceil(unitPrice * Float.fromInt(volume))));
 
