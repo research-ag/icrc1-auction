@@ -392,7 +392,7 @@ module {
       chargeToken = func(assetId) = assetId;
       chargeAmount = func(volume, _) = volume;
       priorityComparator = func(order, newOrder) = order.price > newOrder.price;
-      lowOrderSign = func(assetId, assetInfo, volume, price) = price > 0 and volume < settings.minAskVolume(assetId, assetInfo);
+      lowOrderSign = func(assetId, assetInfo, volume, price) = volume == 0 or (price > 0 and volume < settings.minAskVolume(assetId, assetInfo));
 
       amountMetric = func(assetInfo) = assetInfo.metrics.asksAmount;
       volumeMetric = func(assetInfo) = assetInfo.metrics.totalAskVolume;
