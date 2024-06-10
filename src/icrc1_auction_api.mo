@@ -10,6 +10,7 @@ import Text "mo:base/Text";
 import Timer "mo:base/Timer";
 
 import ICRC1 "mo:token_handler/ICRC1";
+import Journal "mo:mrr/TokenHandler/Journal";
 import PT "mo:promtracker";
 import TokenHandler "mo:token_handler";
 import Vec "mo:vector";
@@ -396,6 +397,13 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
       orderIds.size(),
       func(i) = a.cancelAsk(caller, orderIds[i]) |> resultToUpper(_),
     );
+  };
+
+  public query func queryTokenHandlerJournal(ledger : Principal, startFrom : ?Nat) : async UpperResult<([Journal.JournalRecord], Nat), { #UnknownAsset }> {
+    switch (getAssetId(ledger)) {
+      case (?aid) Vec.get(assets, aid) |> _.handler.queryJournal(startFrom) |> #Ok(_);
+      case (_) #Err(#UnknownAsset);
+    };
   };
 
   public query func listAdmins() : async [Principal] = async adminsMap.entries()

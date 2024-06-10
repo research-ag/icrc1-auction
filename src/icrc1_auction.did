@@ -81,7 +81,7 @@ type Order = record {
 type PlaceOrderResult = variant {
   Ok : OrderId;
   Err : variant {
-    ConflictingOrder : OrderId;
+    ConflictingOrder : record { variant { ask; bid }; OrderId };
     NoCredit;
     TooLowOrder;
     UnknownAsset;
@@ -91,7 +91,7 @@ type PlaceOrderResult = variant {
 type ReplaceOrderResult = variant {
   Ok : OrderId;
   Err : variant {
-    ConflictingOrder : OrderId;
+    ConflictingOrder : record { variant { ask; bid }; OrderId };
     NoCredit;
     TooLowOrder;
     UnknownOrder;

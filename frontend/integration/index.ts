@@ -114,6 +114,25 @@ export const useListCredits = () => {
   );
 };
 
+export const useExecuteAuction = () => {
+  const { auction } = useAuction();
+  const queryClient = useQueryClient();
+  const { enqueueSnackbar } = useSnackbar();
+  return useMutation(() => auction.runAuctionImmediately(), {
+    onSuccess: res => {
+      enqueueSnackbar(`Auction executed successfully`, { variant: 'success' });
+      queryClient.invalidateQueries('myCredits');
+      queryClient.invalidateQueries('myBids');
+      queryClient.invalidateQueries('myAsks');
+      queryClient.invalidateQueries('transaction-history');
+      queryClient.invalidateQueries('sessionsCounter');
+    },
+    onError: err => {
+      enqueueSnackbar(`Failed to run auction: ${err}`, { variant: 'error' });
+    },
+  });
+};
+
 export const useNotify = () => {
   const { auction } = useAuction();
   const queryClient = useQueryClient();
