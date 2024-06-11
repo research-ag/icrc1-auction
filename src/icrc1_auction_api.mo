@@ -2,7 +2,9 @@ import Array "mo:base/Array";
 import Error "mo:base/Error";
 import Int "mo:base/Int";
 import Iter "mo:base/Iter";
+import Nat64 "mo:base/Nat64";
 import Option "mo:base/Option";
+import Prim "mo:prim";
 import Principal "mo:base/Principal";
 import R "mo:base/Result";
 import RBTree "mo:base/RBTree";
@@ -281,10 +283,6 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
       {
         minAskVolume = func(assetId, _) = Vec.get(assets, assetId).minAskVolume;
       },
-      {
-        preAuction = null;
-        postAuction = null;
-      },
     );
     a.unshare(auctionData);
     auction := ?a;
@@ -294,18 +292,8 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     metrics.unshare(metricsData);
   };
 
-  // A timer for consolidating backlog subaccounts
-  ignore Timer.recurringTimer<system>(
-    #seconds 60,
-    func() : async () {
-      for (asset in Vec.vals(assets)) {
-        await* asset.handler.trigger(1);
-      };
-    },
-  );
-
   public shared query func getTrustedLedger() : async Principal = async trustedLedgerPrincipal;
-  public shared query func sessionRemainingTime() : async Nat = async U.unwrapUninit(auction).remainingTime();
+  public shared query func sessionRemainingTime() : async Nat = async remainingTime();
   public shared query func sessionsCounter() : async Nat = async U.unwrapUninit(auction).sessionsCounter;
 
   private func getIcrc1Ledger(assetId : Nat) : Principal = Vec.get(assets, assetId).ledgerPrincipal;
@@ -467,7 +455,7 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
   public shared query func debugLastBidProcessingInstructions() : async Nat64 = async U.unwrapUninit(auction).lastBidProcessingInstructions;
 
   public shared func runAuctionImmediately() : async () {
-    await U.unwrapUninit(auction).onTimer();
+    await U.unwrapUninit(auction).runAuction();
   };
 
   public query func http_request(req : HTTP.HttpRequest) : async HTTP.HttpResponse {
@@ -496,5 +484,35 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     };
     stableAdminsMap := adminsMap.share();
   };
+
+  // A timer for consolidating backlog subaccounts
+  ignore Timer.recurringTimer<system>(
+    #seconds 60,
+    func() : async () {
+      for (asset in Vec.vals(assets)) {
+        await* asset.handler.trigger(1);
+      };
+    },
+  );
+
+  let AUCTION_INTERVAL_SECONDS : Nat64 = 86_400; // a day
+  private func remainingTime() : Nat = Nat64.toNat(AUCTION_INTERVAL_SECONDS - (Prim.time() / 1_000_000_000) % AUCTION_INTERVAL_SECONDS);
+
+  // run daily at 12:00 a.m. UTC
+  ignore (
+    func() : async () {
+      ignore Timer.recurringTimer<system>(
+        #seconds(Nat64.toNat(AUCTION_INTERVAL_SECONDS)),
+        func() : async () = async switch (auction) {
+          case (?a) await a.runAuction();
+          case (null) {};
+        },
+      );
+      switch (auction) {
+        case (?a) await a.runAuction();
+        case (null) {};
+      };
+    }
+  ) |> Timer.setTimer<system>(#seconds(remainingTime()), _);
 
 };

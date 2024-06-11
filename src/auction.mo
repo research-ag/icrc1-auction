@@ -141,10 +141,6 @@ module {
     settings : {
       minAskVolume : (AssetId, AssetInfo) -> Int;
     },
-    hooks : {
-      preAuction : ?(() -> async* ());
-      postAuction : ?(() -> async* ());
-    },
   ) {
 
     // a counter of conducted auction sessions
@@ -762,19 +758,9 @@ module {
 
     var nextAssetIdToProcess : Nat = 0;
 
-    public func onTimer() : async () {
-      if (nextAssetIdToProcess == 0) {
-        switch (hooks.preAuction) {
-          case (?hook) await* hook();
-          case (_) {};
-        };
-      };
+    public func runAuction() : async () {
       switch (await* processAssetsChunk(nextAssetIdToProcess)) {
         case (#done) {
-          switch (hooks.postAuction) {
-            case (?hook) await* hook();
-            case (_) {};
-          };
           sessionsCounter += 1;
           nextAssetIdToProcess := 0;
         };
@@ -783,21 +769,10 @@ module {
             Prim.trap("Can never happen: not a single asset processed");
           };
           nextAssetIdToProcess := next;
-          ignore Timer.setTimer<system>(#seconds(1), onTimer);
+          ignore Timer.setTimer<system>(#seconds(1), runAuction);
         };
       };
     };
-
-    let AUCTION_INTERVAL_SECONDS : Nat64 = 86_400; // a day
-    public func remainingTime() : Nat = Nat64.toNat(AUCTION_INTERVAL_SECONDS - (Prim.time() / 1_000_000_000) % AUCTION_INTERVAL_SECONDS);
-
-    // run daily at 12:00 a.m. UTC
-    ignore (
-      func() : async () {
-        ignore Timer.recurringTimer<system>(#seconds(Nat64.toNat(AUCTION_INTERVAL_SECONDS)), onTimer);
-        await onTimer();
-      }
-    ) |> Timer.setTimer<system>(#seconds(remainingTime()), _);
 
     public func share() : StableData = {
       counters = (sessionsCounter, ordersCounter);
