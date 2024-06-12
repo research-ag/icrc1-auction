@@ -556,11 +556,6 @@ module {
       cancelBidInternal(userInfo, orderId) |> #ok(not Option.isNull(_));
     };
 
-    // total instructions sent on last auction processing routine. Accumulated in case processing was splitted to few heartbeat calls
-    public var lastBidProcessingInstructions : Nat64 = 0;
-    // amount of chunks, used for processing all assets
-    public var lastBidProcessingChunks : Nat8 = 0;
-
     // processes auction for given asset
     public func processAsset(assetId : AssetId) : () {
       if (assetId == trustedAssetId) return;

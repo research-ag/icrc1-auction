@@ -452,7 +452,7 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     registerAsset_(ledger, minAskVolume) |> resultToUpper(_);
   };
 
-  public shared query func debugLastBidProcessingInstructions() : async Nat64 = async U.unwrapUninit(auction).lastBidProcessingInstructions;
+  public shared query func debugLastBidProcessingInstructions() : async Nat64 = async lastBidProcessingInstructions;
 
   public shared func runAuctionImmediately() : async () {
     await runAuction();
