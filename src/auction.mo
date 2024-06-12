@@ -2,7 +2,6 @@ import Array "mo:base/Array";
 import AssocList "mo:base/AssocList";
 import Float "mo:base/Float";
 import Int "mo:base/Int";
-import Iter "mo:base/Iter";
 import List "mo:base/List";
 import Nat "mo:base/Nat";
 import Nat64 "mo:base/Nat64";
@@ -11,7 +10,6 @@ import Prim "mo:prim";
 import Principal "mo:base/Principal";
 import R "mo:base/Result";
 import RBTree "mo:base/RBTree";
-import Timer "mo:base/Timer";
 
 import PT "mo:promtracker";
 import Vec "mo:vector";
@@ -103,9 +101,6 @@ module {
     #UnknownPrincipal;
   };
 
-  // when spent instructions on bids processing exceeds this value, we stop iterating over assets and commit processed ones.
-  // Canister will continue processing them on next heartbeat
-  let BID_PROCESSING_INSTRUCTIONS_THRESHOLD : Nat64 = 1_000_000_000;
   // minimum price*volume for placing a bid or an ask. Assuming that trusted token is ICP with 8 decimals,
   // it gives 0.005 ICP: For ICP price $20 it is $0.10
   // for testing purposes it is set to 5k for now
@@ -135,7 +130,7 @@ module {
     volumeMetric : (assetInfo : AssetInfo) -> PT.CounterValue;
   };
 
-  public class Auction<system>(
+  public class Auction(
     trustedAssetId : AssetId,
     metrics : PT.PromTracker,
     settings : {
@@ -566,212 +561,167 @@ module {
     // amount of chunks, used for processing all assets
     public var lastBidProcessingChunks : Nat8 = 0;
 
-    // loops over asset ids, beginning from provided asset id, processes bids and sends rates to the ledger.
-    // stops if we exceed instructions threshold and returns #nextIndex in this case
-    private func processAssetsChunk(startIndex : Nat) : async* {
-      #done;
-      #nextIndex : Nat;
-    } {
+    // processes auction for given asset
+    public func processAsset(assetId : AssetId) : () {
+      if (assetId == trustedAssetId) return;
       let startInstructions = Prim.performanceCounter(0);
-      // process bids
-      let newSwapRates : Vec.Vector<(AssetId, Float)> = Vec.new();
-      Vec.add(newSwapRates, (trustedAssetId, 1.0));
-      var nextAssetId = 0;
       let inf : Float = 1 / 0; // +inf
-      label l for (assetId in Iter.range(startIndex, Vec.size(assets) - 1)) {
-        let assetStartInstructions = Prim.performanceCounter(0);
-        nextAssetId := assetId + 1;
-        if (assetId == trustedAssetId) continue l;
-        let assetInfo = Vec.get(assets, assetId);
+      let assetInfo = Vec.get(assets, assetId);
 
-        var a = 0; // number of executed ask orders (at least partially executed)
-        let ?(na, _) = assetInfo.asks else {
+      var a = 0; // number of executed ask orders (at least partially executed)
+      let ?(na, _) = assetInfo.asks else {
+        history := List.push((Prim.time(), sessionsCounter, assetId, 0, 0.0), history);
+        return;
+      };
+      var asksTail = assetInfo.asks;
+      var nextAsk = na;
+
+      var b = 0; // number of executed buy orders (at least partially executed)
+      let ?(nb, _) = assetInfo.bids else {
+        history := List.push((Prim.time(), sessionsCounter, assetId, 0, 0.0), history);
+        return;
+      };
+      var bidsTail = assetInfo.bids;
+      var nextBid = nb;
+
+      var asksVolume = 0;
+      var bidsVolume = 0;
+
+      var lastBidToFulfil = nextBid;
+      var lastAskToFulfil = nextAsk;
+
+      let (asksAmount, bidsAmount) = label L : (Nat, Nat) loop {
+        let orig = (a, b);
+        let inc_ask = asksVolume <= bidsVolume;
+        let inc_bid = bidsVolume <= asksVolume;
+        lastAskToFulfil := nextAsk;
+        lastBidToFulfil := nextBid;
+        if (inc_ask) {
+          a += 1;
+          let ?(na, at) = asksTail else break L orig;
+          nextAsk := na;
+          asksTail := at;
+        };
+        if (inc_bid) {
+          b += 1;
+          let ?(nb, bt) = bidsTail else break L orig;
+          nextBid := nb;
+          bidsTail := bt;
+        };
+        if (nextAsk.1.price > nextBid.1.price) break L orig;
+        if (inc_ask) asksVolume += nextAsk.1.volume;
+        if (inc_bid) bidsVolume += nextBid.1.volume;
+      };
+
+      if (asksAmount == 0) {
+        // highest bid was lower than lowest ask
+        history := List.push((Prim.time(), sessionsCounter, assetId, 0, 0.0), history);
+        return;
+      };
+      // Note: asksAmount > 0 implies bidsAmount > 0
+
+      let dealVolume = Nat.min(asksVolume, bidsVolume);
+
+      let price : Float = switch (lastAskToFulfil.1.price == 0.0, lastBidToFulfil.1.price == inf) {
+        case (true, true) {
+          // market sell against market buy => no execution
           history := List.push((Prim.time(), sessionsCounter, assetId, 0, 0.0), history);
-          continue l;
+          return;
         };
-        var asksTail = assetInfo.asks;
-        var nextAsk = na;
-
-        var b = 0; // number of executed buy orders (at least partially executed)
-        let ?(nb, _) = assetInfo.bids else {
-          history := List.push((Prim.time(), sessionsCounter, assetId, 0, 0.0), history);
-          continue l;
-        };
-        var bidsTail = assetInfo.bids;
-        var nextBid = nb;
-
-        var asksVolume = 0;
-        var bidsVolume = 0;
-
-        var lastBidToFulfil = nextBid;
-        var lastAskToFulfil = nextAsk;
-
-        let (asksAmount, bidsAmount) = label L : (Nat, Nat) loop {
-          let orig = (a, b);
-          let inc_ask = asksVolume <= bidsVolume;
-          let inc_bid = bidsVolume <= asksVolume;
-          lastAskToFulfil := nextAsk;
-          lastBidToFulfil := nextBid;
-          if (inc_ask) {
-            a += 1;
-            let ?(na, at) = asksTail else break L orig;
-            nextAsk := na;
-            asksTail := at;
-          };
-          if (inc_bid) {
-            b += 1;
-            let ?(nb, bt) = bidsTail else break L orig;
-            nextBid := nb;
-            bidsTail := bt;
-          };
-          if (nextAsk.1.price > nextBid.1.price) break L orig;
-          if (inc_ask) asksVolume += nextAsk.1.volume;
-          if (inc_bid) bidsVolume += nextBid.1.volume;
-        };
-
-        if (asksAmount == 0) {
-          // highest bid was lower than lowest ask
-          history := List.push((Prim.time(), sessionsCounter, assetId, 0, 0.0), history);
-          continue l;
-        };
-        // Note: asksAmount > 0 implies bidsAmount > 0
-
-        let dealVolume = Nat.min(asksVolume, bidsVolume);
-
-        let price : Float = switch (lastAskToFulfil.1.price == 0.0, lastBidToFulfil.1.price == inf) {
-          case (true, true) {
-            // market sell against market buy => no execution
-            history := List.push((Prim.time(), sessionsCounter, assetId, 0, 0.0), history);
-            continue l;
-          };
-          case (true, _) lastBidToFulfil.1.price; // market sell against highest bid => use bid price
-          case (_, true) lastAskToFulfil.1.price; // market buy against lowest ask => use ask price
-          case (_) (lastAskToFulfil.1.price + lastBidToFulfil.1.price) / 2; // limit sell against limit buy => use middle price
-        };
-
-        // process fulfilled asks
-        var i = 0;
-        var dealVolumeLeft = dealVolume;
-        asksTail := assetInfo.asks;
-        label b while (i < asksAmount) {
-          let ?((orderId, order), next) = asksTail else Prim.trap("Can never happen: list shorter than before");
-          let userInfo = order.userInfoRef;
-          // update ask in user info and calculate real ask volume
-          let volume = if (i + 1 == asksAmount and dealVolumeLeft != order.volume) {
-            order.volume -= dealVolumeLeft;
-            dealVolumeLeft;
-          } else {
-            AssocList.replace<OrderId, Order>(userInfo.currentAsks, orderId, Nat.equal, null) |> (userInfo.currentAsks := _.0);
-            asksTail := next;
-            assetInfo.metrics.asksAmount.sub(1);
-            dealVolumeLeft -= order.volume;
-            order.volume;
-          };
-          // remove price from deposit
-          let ?sourceAcc = AssocList.find<AssetId, Account>(userInfo.credits, assetId, Nat.equal) else Prim.trap("Can never happen");
-          sourceAcc.credit -= volume;
-          // unlock locked deposit
-          sourceAcc.lockedCredit -= volume;
-          // credit user with trusted tokens
-          switch (getUserTrustedAccount_(userInfo)) {
-            case (?acc) acc.credit += getTotalPrice(volume, price);
-            case (null) {
-              {
-                var credit = getTotalPrice(volume, price);
-                var lockedCredit = 0;
-              }
-              |> AssocList.replace<AssetId, Account>(userInfo.credits, trustedAssetId, Nat.equal, ?_)
-              |> (userInfo.credits := _.0);
-              metricAccountsAmount.add(1);
-            };
-          };
-          // update metrics
-          assetInfo.metrics.totalAskVolume.sub(volume);
-          // append to history
-          userInfo.history := List.push((Prim.time(), sessionsCounter, #ask, assetId, volume, price), userInfo.history);
-          i += 1;
-        };
-        assetInfo.asks := asksTail;
-
-        // process fulfilled bids
-        i := 0;
-        dealVolumeLeft := dealVolume;
-        bidsTail := assetInfo.bids;
-        label b while (i < bidsAmount) {
-          let ?((orderId, order), next) = bidsTail else Prim.trap("Can never happen: list shorter than before");
-          let userInfo = order.userInfoRef;
-          // update bid in user info and calculate real bid volume
-          let volume = if (i + 1 == bidsAmount and dealVolumeLeft != order.volume) {
-            order.volume -= dealVolumeLeft;
-            dealVolumeLeft;
-          } else {
-            AssocList.replace<OrderId, Order>(userInfo.currentBids, orderId, Nat.equal, null) |> (userInfo.currentBids := _.0);
-            bidsTail := next;
-            assetInfo.metrics.bidsAmount.sub(1);
-            dealVolumeLeft -= order.volume;
-            order.volume;
-          };
-          // remove price from deposit
-          let ?trustedAcc = getUserTrustedAccount_(userInfo) else Prim.trap("Can never happen");
-          trustedAcc.credit -= getTotalPrice(volume, price);
-          // unlock locked deposit (note that it uses bid price)
-          trustedAcc.lockedCredit -= getTotalPrice(volume, order.price);
-          // credit user with tokens
-          switch (AssocList.find<AssetId, Account>(userInfo.credits, assetId, Nat.equal)) {
-            case (?acc) acc.credit += volume;
-            case (null) {
-              { var credit = volume; var lockedCredit = 0 }
-              |> AssocList.replace<AssetId, Account>(userInfo.credits, assetId, Nat.equal, ?_)
-              |> (userInfo.credits := _.0);
-              metricAccountsAmount.add(1);
-            };
-          };
-          // update metrics
-          assetInfo.metrics.totalBidVolume.sub(volume);
-          // append to history
-          userInfo.history := List.push((Prim.time(), sessionsCounter, #bid, assetId, volume, price), userInfo.history);
-          i += 1;
-        };
-        assetInfo.bids := bidsTail;
-
-        assetInfo.lastSwapRate := price;
-        // append to asset history
-        history := List.push((Prim.time(), sessionsCounter, assetId, dealVolume, price), history);
-
-        let curPerfCounter = Prim.performanceCounter(0);
-        assetInfo.metrics.lastProcessingInstructions.set(Nat64.toNat(curPerfCounter - assetStartInstructions));
-        if (curPerfCounter - startInstructions > BID_PROCESSING_INSTRUCTIONS_THRESHOLD) break l;
+        case (true, _) lastBidToFulfil.1.price; // market sell against highest bid => use bid price
+        case (_, true) lastAskToFulfil.1.price; // market buy against lowest ask => use ask price
+        case (_) (lastAskToFulfil.1.price + lastBidToFulfil.1.price) / 2; // limit sell against limit buy => use middle price
       };
-      if (startIndex == 0) {
-        lastBidProcessingInstructions := Prim.performanceCounter(0) - startInstructions;
-        lastBidProcessingChunks := 1;
-      } else {
-        lastBidProcessingInstructions += Prim.performanceCounter(0) - startInstructions;
-        lastBidProcessingChunks += 1;
-      };
-      if (nextAssetId == Vec.size(assets)) {
-        #done();
-      } else {
-        #nextIndex(nextAssetId);
-      };
-    };
 
-    var nextAssetIdToProcess : Nat = 0;
-
-    public func runAuction() : async () {
-      switch (await* processAssetsChunk(nextAssetIdToProcess)) {
-        case (#done) {
-          sessionsCounter += 1;
-          nextAssetIdToProcess := 0;
+      // process fulfilled asks
+      var i = 0;
+      var dealVolumeLeft = dealVolume;
+      asksTail := assetInfo.asks;
+      label b while (i < asksAmount) {
+        let ?((orderId, order), next) = asksTail else Prim.trap("Can never happen: list shorter than before");
+        let userInfo = order.userInfoRef;
+        // update ask in user info and calculate real ask volume
+        let volume = if (i + 1 == asksAmount and dealVolumeLeft != order.volume) {
+          order.volume -= dealVolumeLeft;
+          dealVolumeLeft;
+        } else {
+          AssocList.replace<OrderId, Order>(userInfo.currentAsks, orderId, Nat.equal, null) |> (userInfo.currentAsks := _.0);
+          asksTail := next;
+          assetInfo.metrics.asksAmount.sub(1);
+          dealVolumeLeft -= order.volume;
+          order.volume;
         };
-        case (#nextIndex next) {
-          if (next == nextAssetIdToProcess) {
-            Prim.trap("Can never happen: not a single asset processed");
+        // remove price from deposit
+        let ?sourceAcc = AssocList.find<AssetId, Account>(userInfo.credits, assetId, Nat.equal) else Prim.trap("Can never happen");
+        sourceAcc.credit -= volume;
+        // unlock locked deposit
+        sourceAcc.lockedCredit -= volume;
+        // credit user with trusted tokens
+        switch (getUserTrustedAccount_(userInfo)) {
+          case (?acc) acc.credit += getTotalPrice(volume, price);
+          case (null) {
+            {
+              var credit = getTotalPrice(volume, price);
+              var lockedCredit = 0;
+            }
+            |> AssocList.replace<AssetId, Account>(userInfo.credits, trustedAssetId, Nat.equal, ?_)
+            |> (userInfo.credits := _.0);
+            metricAccountsAmount.add(1);
           };
-          nextAssetIdToProcess := next;
-          ignore Timer.setTimer<system>(#seconds(1), runAuction);
         };
+        // update metrics
+        assetInfo.metrics.totalAskVolume.sub(volume);
+        // append to history
+        userInfo.history := List.push((Prim.time(), sessionsCounter, #ask, assetId, volume, price), userInfo.history);
+        i += 1;
       };
+      assetInfo.asks := asksTail;
+
+      // process fulfilled bids
+      i := 0;
+      dealVolumeLeft := dealVolume;
+      bidsTail := assetInfo.bids;
+      label b while (i < bidsAmount) {
+        let ?((orderId, order), next) = bidsTail else Prim.trap("Can never happen: list shorter than before");
+        let userInfo = order.userInfoRef;
+        // update bid in user info and calculate real bid volume
+        let volume = if (i + 1 == bidsAmount and dealVolumeLeft != order.volume) {
+          order.volume -= dealVolumeLeft;
+          dealVolumeLeft;
+        } else {
+          AssocList.replace<OrderId, Order>(userInfo.currentBids, orderId, Nat.equal, null) |> (userInfo.currentBids := _.0);
+          bidsTail := next;
+          assetInfo.metrics.bidsAmount.sub(1);
+          dealVolumeLeft -= order.volume;
+          order.volume;
+        };
+        // remove price from deposit
+        let ?trustedAcc = getUserTrustedAccount_(userInfo) else Prim.trap("Can never happen");
+        trustedAcc.credit -= getTotalPrice(volume, price);
+        // unlock locked deposit (note that it uses bid price)
+        trustedAcc.lockedCredit -= getTotalPrice(volume, order.price);
+        // credit user with tokens
+        switch (AssocList.find<AssetId, Account>(userInfo.credits, assetId, Nat.equal)) {
+          case (?acc) acc.credit += volume;
+          case (null) {
+            { var credit = volume; var lockedCredit = 0 }
+            |> AssocList.replace<AssetId, Account>(userInfo.credits, assetId, Nat.equal, ?_)
+            |> (userInfo.credits := _.0);
+            metricAccountsAmount.add(1);
+          };
+        };
+        // update metrics
+        assetInfo.metrics.totalBidVolume.sub(volume);
+        // append to history
+        userInfo.history := List.push((Prim.time(), sessionsCounter, #bid, assetId, volume, price), userInfo.history);
+        i += 1;
+      };
+      assetInfo.bids := bidsTail;
+
+      assetInfo.lastSwapRate := price;
+      // append to asset history
+      history := List.push((Prim.time(), sessionsCounter, assetId, dealVolume, price), history);
+      assetInfo.metrics.lastProcessingInstructions.set(Nat64.toNat(Prim.performanceCounter(0) - startInstructions));
     };
 
     public func share() : StableData = {

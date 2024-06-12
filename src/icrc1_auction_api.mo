@@ -277,7 +277,7 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
         r;
       },
     );
-    let a = Auction.Auction<system>(
+    let a = Auction.Auction(
       0,
       metrics,
       {
@@ -455,7 +455,65 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
   public shared query func debugLastBidProcessingInstructions() : async Nat64 = async U.unwrapUninit(auction).lastBidProcessingInstructions;
 
   public shared func runAuctionImmediately() : async () {
-    await U.unwrapUninit(auction).runAuction();
+    await runAuction();
+  };
+
+  // Auction processing functionality
+
+  var nextAssetIdToProcess : Nat = 0;
+  let trustedAssetId : Auction.AssetId = 0;
+  // total instructions sent on last auction processing routine. Accumulated in case processing was splitted to few heartbeat calls
+  var lastBidProcessingInstructions : Nat64 = 0;
+  // amount of chunks, used for processing all assets
+  var lastBidProcessingChunks : Nat8 = 0;
+  // when spent instructions on bids processing exceeds this value, we stop iterating over assets and commit processed ones.
+  // Canister will continue processing them on next heartbeat
+  let BID_PROCESSING_INSTRUCTIONS_THRESHOLD : Nat64 = 1_000_000_000;
+
+  // loops over asset ids, beginning from provided asset id and processes them one by one.
+  // stops if we exceed instructions threshold and returns #nextIndex in this case
+  private func processAssetsChunk(auction : Auction.Auction, startIndex : Nat) : {
+    #done;
+    #nextIndex : Nat;
+  } {
+    let startInstructions = Prim.performanceCounter(0);
+    let newSwapRates : Vec.Vector<(Auction.AssetId, Float)> = Vec.new();
+    Vec.add(newSwapRates, (trustedAssetId, 1.0));
+    var nextAssetId = 0;
+    label l for (assetId in Iter.range(startIndex, Vec.size(assets) - 1)) {
+      nextAssetId := assetId + 1;
+      auction.processAsset(assetId);
+      if (Prim.performanceCounter(0) > startInstructions + BID_PROCESSING_INSTRUCTIONS_THRESHOLD) break l;
+    };
+    if (startIndex == 0) {
+      lastBidProcessingInstructions := Prim.performanceCounter(0) - startInstructions;
+      lastBidProcessingChunks := 1;
+    } else {
+      lastBidProcessingInstructions += Prim.performanceCounter(0) - startInstructions;
+      lastBidProcessingChunks += 1;
+    };
+    if (nextAssetId == Vec.size(assets)) {
+      #done();
+    } else {
+      #nextIndex(nextAssetId);
+    };
+  };
+
+  private func runAuction() : async () {
+    let a = U.requireMsg(auction, "Not initialized");
+    switch (processAssetsChunk(a, nextAssetIdToProcess)) {
+      case (#done) {
+        a.sessionsCounter += 1;
+        nextAssetIdToProcess := 0;
+      };
+      case (#nextIndex next) {
+        if (next == nextAssetIdToProcess) {
+          Prim.trap("Can never happen: not a single asset processed");
+        };
+        nextAssetIdToProcess := next;
+        ignore Timer.setTimer<system>(#seconds(1), runAuction);
+      };
+    };
   };
 
   public query func http_request(req : HTTP.HttpRequest) : async HTTP.HttpResponse {
@@ -504,12 +562,12 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
       ignore Timer.recurringTimer<system>(
         #seconds(Nat64.toNat(AUCTION_INTERVAL_SECONDS)),
         func() : async () = async switch (auction) {
-          case (?a) await a.runAuction();
+          case (?a) await runAuction();
           case (null) {};
         },
       );
       switch (auction) {
-        case (?a) await a.runAuction();
+        case (?a) await runAuction();
         case (null) {};
       };
     }
