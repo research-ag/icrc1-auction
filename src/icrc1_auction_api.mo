@@ -548,15 +548,15 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     #seconds 60,
     func() : async () {
       for (asset in Vec.vals(assets)) {
-        await* asset.handler.trigger(1);
+        await* asset.handler.trigger(10);
       };
     },
   );
 
   let AUCTION_INTERVAL_SECONDS : Nat64 = 86_400; // a day
-  private func remainingTime() : Nat = Nat64.toNat(AUCTION_INTERVAL_SECONDS - (Prim.time() / 1_000_000_000) % AUCTION_INTERVAL_SECONDS);
+  private func remainingTime() : Nat = Nat64.toNat(AUCTION_INTERVAL_SECONDS - (Prim.time() / 1_000_000_000 + 43_200) % AUCTION_INTERVAL_SECONDS);
 
-  // run daily at 12:00 a.m. UTC
+  // run daily at 12:00 p.m. UTC
   ignore (
     func() : async () {
       ignore Timer.recurringTimer<system>(

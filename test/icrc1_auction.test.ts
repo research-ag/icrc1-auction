@@ -212,10 +212,10 @@ describe('ICRC1 Auction', () => {
 
   describe('timer', () => {
     test('should return remaining session time', async () => {
-      expect(await auction.sessionRemainingTime()).toBe(36143n); // 10h (36000) + 2 minutes (120) + 23 seconds
-      await pic.advanceTime(1143_000);
+      expect(await auction.sessionRemainingTime()).toBe(79_343n); // 22h (79200) + 2 minutes (120) + 23 seconds
+      await pic.advanceTime(4_343_000);
       await pic.tick();
-      expect(await auction.sessionRemainingTime()).toBe(35000n);
+      expect(await auction.sessionRemainingTime()).toBe(75_000n);
     });
     test('should conduct new session after 24h', async () => {
       const startNewAuctionSession = async () => {
