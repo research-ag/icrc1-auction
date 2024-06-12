@@ -12,7 +12,6 @@ import Text "mo:base/Text";
 import Timer "mo:base/Timer";
 
 import ICRC1 "mo:token_handler/ICRC1";
-import Journal "mo:mrr/TokenHandler/Journal";
 import PT "mo:promtracker";
 import TokenHandler "mo:token_handler";
 import Vec "mo:vector";
@@ -121,8 +120,6 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
   let metrics = PT.PromTracker("", 65);
   metrics.addSystemValues();
 
-  let JOURNAL_SIZE = 1024;
-
   // ICRCX API
   public shared query func principalToSubaccount(p : Principal) : async ?Blob = async ?TokenHandler.toSubaccount(p);
 
@@ -212,14 +209,14 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
       case (_) throw Error.reject("Unknown token");
     };
     let assetInfo = Vec.get(assets, assetId);
-    let res = await* assetInfo.handler.depositFromAllowance({ owner = caller; subaccount = args.subaccount }, args.amount);
+    let res = await* assetInfo.handler.depositFromAllowance(caller, { owner = caller; subaccount = args.subaccount }, args.amount);
     switch (res) {
-      case (#ok(credited)) {
+      case (#ok(credited, txid)) {
         assert assetInfo.handler.debitUser(caller, credited);
         ignore a.appendCredit(caller, assetId, credited);
         #Ok({
           credit_inc = credited;
-          txid = 0; // TODO provide tx id after implemented in token handler
+          txid = txid;
         });
       };
       case (#err x) #Err(
@@ -271,7 +268,13 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
         |> {
           ledgerPrincipal = x.ledgerPrincipal;
           minAskVolume = x.minAskVolume;
-          handler = TokenHandler.TokenHandler(_, Principal.fromActor(self), JOURNAL_SIZE, 0, true);
+          handler = TokenHandler.TokenHandler({
+            ledgerApi = _;
+            ownPrincipal = Principal.fromActor(self);
+            initialFee = 0;
+            triggerOnNotifications = true;
+            log = func(p : Principal, logEvent : TokenHandler.LogEvent) = ();
+          });
         };
         r.handler.unshare(x.handler);
         r;
@@ -387,10 +390,28 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     );
   };
 
-  public query func queryTokenHandlerJournal(ledger : Principal, startFrom : ?Nat) : async UpperResult<([Journal.JournalRecord], Nat), { #UnknownAsset }> {
+  public query func queryTokenHandlerState(ledger : Principal) : async {
+    balance : {
+      deposited : Nat;
+      underway : Nat;
+      queued : Nat;
+      consolidated : Nat;
+    };
+    flow : {
+      consolidated : Nat;
+      withdrawn : Nat;
+    };
+    credit : {
+      total : Int;
+      pool : Int;
+    };
+    users : {
+      queued : Nat;
+    };
+  } {
     switch (getAssetId(ledger)) {
-      case (?aid) Vec.get(assets, aid) |> _.handler.queryJournal(startFrom) |> #Ok(_);
-      case (_) #Err(#UnknownAsset);
+      case (?aid) Vec.get(assets, aid) |> _.handler.state();
+      case (_) throw Error.reject("Unknown asset");
     };
   };
 
@@ -433,7 +454,13 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     |> {
       ledgerPrincipal = ledger;
       minAskVolume = minAskVolume;
-      handler = TokenHandler.TokenHandler(_, Principal.fromActor(self), JOURNAL_SIZE, 0, true);
+      handler = TokenHandler.TokenHandler({
+        ledgerApi = _;
+        ownPrincipal = Principal.fromActor(self);
+        initialFee = 0;
+        triggerOnNotifications = true;
+        log = func(p : Principal, logEvent : TokenHandler.LogEvent) = ();
+      });
     }
     |> Vec.add<AssetInfo>(assets, _);
     U.unwrapUninit(auction).registerAssets(1);
