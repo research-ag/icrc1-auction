@@ -40,5 +40,4 @@ jobs:
           npm run test
 
       - name: Stop local dfx
-        working-directory: ./test
         run: dfx stop
