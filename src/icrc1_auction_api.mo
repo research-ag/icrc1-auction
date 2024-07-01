@@ -11,6 +11,7 @@ import RBTree "mo:base/RBTree";
 import Text "mo:base/Text";
 import Timer "mo:base/Timer";
 
+import Auction "mo:auction";
 import ICRC1 "mo:token_handler/ICRC1";
 import PT "mo:promtracker";
 import TokenHandler "mo:token_handler";
@@ -18,8 +19,6 @@ import Vec "mo:vector";
 
 import HTTP "./http";
 import U "./utils";
-
-import Auction "./auction";
 
 // arguments have to be provided on first canister install,
 // on upgrade trusted ledger will be ignored
@@ -40,7 +39,7 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
   adminsMap.unshare(stableAdminsMap);
 
   stable var assetsData : Vec.Vector<StableAssetInfo> = Vec.new();
-  stable var auctionData : Auction.StableData = Auction.defaultStableData();
+  stable var auctionData : Auction.StableDataV1 = Auction.defaultStableDataV1();
   stable var metricsData : PT.StableData = null;
 
   type AssetInfo = {
@@ -284,7 +283,9 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
       0,
       metrics,
       {
+        minimumOrder = 5_000;
         minAskVolume = func(assetId, _) = Vec.get(assets, assetId).minAskVolume;
+        performanceCounter = Prim.performanceCounter;
       },
     );
     a.unshare(auctionData);
