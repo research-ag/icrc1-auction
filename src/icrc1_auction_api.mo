@@ -2,23 +2,23 @@ import Array "mo:base/Array";
 import Error "mo:base/Error";
 import Int "mo:base/Int";
 import Iter "mo:base/Iter";
+import Nat64 "mo:base/Nat64";
 import Option "mo:base/Option";
+import Prim "mo:prim";
 import Principal "mo:base/Principal";
 import R "mo:base/Result";
 import RBTree "mo:base/RBTree";
 import Text "mo:base/Text";
 import Timer "mo:base/Timer";
 
+import Auction "mo:auction";
 import ICRC1 "mo:token_handler/ICRC1";
-import Journal "mo:mrr/TokenHandler/Journal";
 import PT "mo:promtracker";
 import TokenHandler "mo:token_handler";
 import Vec "mo:vector";
 
 import HTTP "./http";
 import U "./utils";
-
-import Auction "./auction";
 
 // arguments have to be provided on first canister install,
 // on upgrade trusted ledger will be ignored
@@ -39,7 +39,7 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
   adminsMap.unshare(stableAdminsMap);
 
   stable var assetsData : Vec.Vector<StableAssetInfo> = Vec.new();
-  stable var auctionData : Auction.StableData = Auction.defaultStableData();
+  stable var auctionData : Auction.StableDataV1 = Auction.defaultStableDataV1();
   stable var metricsData : PT.StableData = null;
 
   type AssetInfo = {
@@ -118,8 +118,6 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
 
   let metrics = PT.PromTracker("", 65);
   metrics.addSystemValues();
-
-  let JOURNAL_SIZE = 1024;
 
   // ICRCX API
   public shared query func principalToSubaccount(p : Principal) : async ?Blob = async ?TokenHandler.toSubaccount(p);
@@ -210,14 +208,14 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
       case (_) throw Error.reject("Unknown token");
     };
     let assetInfo = Vec.get(assets, assetId);
-    let res = await* assetInfo.handler.depositFromAllowance({ owner = caller; subaccount = args.subaccount }, args.amount);
+    let res = await* assetInfo.handler.depositFromAllowance(caller, { owner = caller; subaccount = args.subaccount }, args.amount);
     switch (res) {
-      case (#ok(credited)) {
+      case (#ok(credited, txid)) {
         assert assetInfo.handler.debitUser(caller, credited);
         ignore a.appendCredit(caller, assetId, credited);
         #Ok({
           credit_inc = credited;
-          txid = 0; // TODO provide tx id after implemented in token handler
+          txid = txid;
         });
       };
       case (#err x) #Err(
@@ -269,21 +267,25 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
         |> {
           ledgerPrincipal = x.ledgerPrincipal;
           minAskVolume = x.minAskVolume;
-          handler = TokenHandler.TokenHandler(_, Principal.fromActor(self), JOURNAL_SIZE, 0, true);
+          handler = TokenHandler.TokenHandler({
+            ledgerApi = _;
+            ownPrincipal = Principal.fromActor(self);
+            initialFee = 0;
+            triggerOnNotifications = true;
+            log = func(p : Principal, logEvent : TokenHandler.LogEvent) = ();
+          });
         };
         r.handler.unshare(x.handler);
         r;
       },
     );
-    let a = Auction.Auction<system>(
+    let a = Auction.Auction(
       0,
       metrics,
       {
+        minimumOrder = 5_000;
         minAskVolume = func(assetId, _) = Vec.get(assets, assetId).minAskVolume;
-      },
-      {
-        preAuction = null;
-        postAuction = null;
+        performanceCounter = Prim.performanceCounter;
       },
     );
     a.unshare(auctionData);
@@ -294,18 +296,8 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     metrics.unshare(metricsData);
   };
 
-  // A timer for consolidating backlog subaccounts
-  ignore Timer.recurringTimer<system>(
-    #seconds 60,
-    func() : async () {
-      for (asset in Vec.vals(assets)) {
-        await* asset.handler.trigger(1);
-      };
-    },
-  );
-
   public shared query func getTrustedLedger() : async Principal = async trustedLedgerPrincipal;
-  public shared query func sessionRemainingTime() : async Nat = async U.unwrapUninit(auction).remainingTime();
+  public shared query func sessionRemainingTime() : async Nat = async remainingTime();
   public shared query func sessionsCounter() : async Nat = async U.unwrapUninit(auction).sessionsCounter;
 
   private func getIcrc1Ledger(assetId : Nat) : Principal = Vec.get(assets, assetId).ledgerPrincipal;
@@ -399,10 +391,28 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     );
   };
 
-  public query func queryTokenHandlerJournal(ledger : Principal, startFrom : ?Nat) : async UpperResult<([Journal.JournalRecord], Nat), { #UnknownAsset }> {
+  public query func queryTokenHandlerState(ledger : Principal) : async {
+    balance : {
+      deposited : Nat;
+      underway : Nat;
+      queued : Nat;
+      consolidated : Nat;
+    };
+    flow : {
+      consolidated : Nat;
+      withdrawn : Nat;
+    };
+    credit : {
+      total : Int;
+      pool : Int;
+    };
+    users : {
+      queued : Nat;
+    };
+  } {
     switch (getAssetId(ledger)) {
-      case (?aid) Vec.get(assets, aid) |> _.handler.queryJournal(startFrom) |> #Ok(_);
-      case (_) #Err(#UnknownAsset);
+      case (?aid) Vec.get(assets, aid) |> _.handler.state();
+      case (_) throw Error.reject("Unknown asset");
     };
   };
 
@@ -445,7 +455,13 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     |> {
       ledgerPrincipal = ledger;
       minAskVolume = minAskVolume;
-      handler = TokenHandler.TokenHandler(_, Principal.fromActor(self), JOURNAL_SIZE, 0, true);
+      handler = TokenHandler.TokenHandler({
+        ledgerApi = _;
+        ownPrincipal = Principal.fromActor(self);
+        initialFee = 0;
+        triggerOnNotifications = true;
+        log = func(p : Principal, logEvent : TokenHandler.LogEvent) = ();
+      });
     }
     |> Vec.add<AssetInfo>(assets, _);
     U.unwrapUninit(auction).registerAssets(1);
@@ -464,10 +480,68 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     registerAsset_(ledger, minAskVolume) |> resultToUpper(_);
   };
 
-  public shared query func debugLastBidProcessingInstructions() : async Nat64 = async U.unwrapUninit(auction).lastBidProcessingInstructions;
+  public shared query func debugLastBidProcessingInstructions() : async Nat64 = async lastBidProcessingInstructions;
 
   public shared func runAuctionImmediately() : async () {
-    await U.unwrapUninit(auction).onTimer();
+    await runAuction();
+  };
+
+  // Auction processing functionality
+
+  var nextAssetIdToProcess : Nat = 0;
+  let trustedAssetId : Auction.AssetId = 0;
+  // total instructions sent on last auction processing routine. Accumulated in case processing was splitted to few heartbeat calls
+  var lastBidProcessingInstructions : Nat64 = 0;
+  // amount of chunks, used for processing all assets
+  var lastBidProcessingChunks : Nat8 = 0;
+  // when spent instructions on bids processing exceeds this value, we stop iterating over assets and commit processed ones.
+  // Canister will continue processing them on next heartbeat
+  let BID_PROCESSING_INSTRUCTIONS_THRESHOLD : Nat64 = 1_000_000_000;
+
+  // loops over asset ids, beginning from provided asset id and processes them one by one.
+  // stops if we exceed instructions threshold and returns #nextIndex in this case
+  private func processAssetsChunk(auction : Auction.Auction, startIndex : Nat) : {
+    #done;
+    #nextIndex : Nat;
+  } {
+    let startInstructions = Prim.performanceCounter(0);
+    let newSwapRates : Vec.Vector<(Auction.AssetId, Float)> = Vec.new();
+    Vec.add(newSwapRates, (trustedAssetId, 1.0));
+    var nextAssetId = 0;
+    label l for (assetId in Iter.range(startIndex, Vec.size(assets) - 1)) {
+      nextAssetId := assetId + 1;
+      auction.processAsset(assetId);
+      if (Prim.performanceCounter(0) > startInstructions + BID_PROCESSING_INSTRUCTIONS_THRESHOLD) break l;
+    };
+    if (startIndex == 0) {
+      lastBidProcessingInstructions := Prim.performanceCounter(0) - startInstructions;
+      lastBidProcessingChunks := 1;
+    } else {
+      lastBidProcessingInstructions += Prim.performanceCounter(0) - startInstructions;
+      lastBidProcessingChunks += 1;
+    };
+    if (nextAssetId == Vec.size(assets)) {
+      #done();
+    } else {
+      #nextIndex(nextAssetId);
+    };
+  };
+
+  private func runAuction() : async () {
+    let a = U.requireMsg(auction, "Not initialized");
+    switch (processAssetsChunk(a, nextAssetIdToProcess)) {
+      case (#done) {
+        a.sessionsCounter += 1;
+        nextAssetIdToProcess := 0;
+      };
+      case (#nextIndex next) {
+        if (next == nextAssetIdToProcess) {
+          Prim.trap("Can never happen: not a single asset processed");
+        };
+        nextAssetIdToProcess := next;
+        ignore Timer.setTimer<system>(#seconds(1), runAuction);
+      };
+    };
   };
 
   public query func http_request(req : HTTP.HttpRequest) : async HTTP.HttpResponse {
@@ -496,5 +570,35 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     };
     stableAdminsMap := adminsMap.share();
   };
+
+  // A timer for consolidating backlog subaccounts
+  ignore Timer.recurringTimer<system>(
+    #seconds 60,
+    func() : async () {
+      for (asset in Vec.vals(assets)) {
+        await* asset.handler.trigger(10);
+      };
+    },
+  );
+
+  let AUCTION_INTERVAL_SECONDS : Nat64 = 86_400; // a day
+  private func remainingTime() : Nat = Nat64.toNat(AUCTION_INTERVAL_SECONDS - (Prim.time() / 1_000_000_000 + 43_200) % AUCTION_INTERVAL_SECONDS);
+
+  // run daily at 12:00 p.m. UTC
+  ignore (
+    func() : async () {
+      ignore Timer.recurringTimer<system>(
+        #seconds(Nat64.toNat(AUCTION_INTERVAL_SECONDS)),
+        func() : async () = async switch (auction) {
+          case (?a) await runAuction();
+          case (null) {};
+        },
+      );
+      switch (auction) {
+        case (?a) await runAuction();
+        case (null) {};
+      };
+    }
+  ) |> Timer.setTimer<system>(#seconds(remainingTime()), _);
 
 };
