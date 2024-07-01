@@ -26,11 +26,19 @@ jobs:
       - name: Make sure moc is installed
         run: mops toolchain bin moc || mops toolchain use moc latest
 
+      - name: Start local dfx
+        run: dfx start --host 127.0.0.1:4943 --background
+
       - name: Build canisters and prepare tests
         run: |
           npm i
-          dfx generate
+          npm run create
+          npm run setup
 
       - name: Run tests
         run: |
           npm run test
+
+      - name: Stop local dfx
+        working-directory: ./test
+        run: dfx stop
