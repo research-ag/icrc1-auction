@@ -2,6 +2,7 @@ import Array "mo:base/Array";
 import Error "mo:base/Error";
 import Int "mo:base/Int";
 import Iter "mo:base/Iter";
+import Nat "mo:base/Nat";
 import Nat64 "mo:base/Nat64";
 import Option "mo:base/Option";
 import Prim "mo:prim";
@@ -39,8 +40,7 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
   adminsMap.unshare(stableAdminsMap);
 
   stable var assetsData : Vec.Vector<StableAssetInfo> = Vec.new();
-  stable var auctionData : Auction.StableDataV1 = Auction.defaultStableDataV1();
-  stable var metricsData : PT.StableData = null;
+  stable var auctionDataV1 : Auction.StableDataV1 = Auction.defaultStableDataV1();
 
   type AssetInfo = {
     ledgerPrincipal : Principal;
@@ -281,19 +281,27 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     );
     let a = Auction.Auction(
       0,
-      metrics,
       {
         minimumOrder = 5_000;
         minAskVolume = func(assetId, _) = Vec.get(assets, assetId).minAskVolume;
         performanceCounter = Prim.performanceCounter;
       },
     );
-    a.unshare(auctionData);
+    a.unshare(auctionDataV1);
     auction := ?a;
+
+    ignore metrics.addPullValue("sessions_counter", "", func() = a.sessionsCounter);
+    ignore metrics.addPullValue("assets_amount", "", func() = Vec.size(a.assets));
+    ignore metrics.addPullValue("users_amount", "", func() = a.stats.usersAmount);
+    ignore metrics.addPullValue("accounts_amount", "", func() = a.stats.accountsAmount);
+
     if (Vec.size(assets) == 0) {
       ignore U.requireOk(registerAsset_(trustedLedgerPrincipal, 0));
+    } else {
+      for (assetId in Vec.keys(a.assets)) {
+        registerAssetMetrics_(assetId);
+      };
     };
-    metrics.unshare(metricsData);
   };
 
   public shared query func getTrustedLedger() : async Principal = async trustedLedgerPrincipal;
@@ -439,6 +447,15 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     adminsMap.delete(principal);
   };
 
+  private func registerAssetMetrics_(assetId : Auction.AssetId) {
+    let stats = Vec.get(U.unwrapUninit(auction).stats.assets, assetId);
+    ignore metrics.addPullValue("asks_amount", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = stats.asksAmount);
+    ignore metrics.addPullValue("asks_volume", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = stats.totalAskVolume);
+    ignore metrics.addPullValue("bids_amount", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = stats.bidsAmount);
+    ignore metrics.addPullValue("bids_volume", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = stats.totalBidVolume);
+    ignore metrics.addPullValue("processing_instructions", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = stats.lastProcessingInstructions);
+  };
+
   private func registerAsset_(ledger : Principal, minAskVolume : Nat) : R.Result<Nat, RegisterAssetError> {
     for ((assetInfo, i) in Vec.items(assets)) {
       if (Principal.equal(ledger, assetInfo.ledgerPrincipal)) return #err(#AlreadyRegistered(i));
@@ -465,6 +482,7 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     }
     |> Vec.add<AssetInfo>(assets, _);
     U.unwrapUninit(auction).registerAssets(1);
+    registerAssetMetrics_(id);
     #ok(id);
   };
 
@@ -563,8 +581,7 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
             handler = x.handler.share();
           },
         );
-        auctionData := a.share();
-        metricsData := metrics.share();
+        auctionDataV1 := a.share();
       };
       case (null) {};
     };
