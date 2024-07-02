@@ -54,7 +54,7 @@ describe('ICRC1 Auction', () => {
 
   const prepareDeposit = async (identity: Identity, token: Principal = trustedLedgerPrincipal, amount = 500_000_000) => {
     await mintDeposit(identity, amount, token);
-    await auction.icrcX_notify({ token });
+    await auction.icrc84_notify({ token });
   };
 
   beforeEach(async () => {
@@ -123,7 +123,7 @@ describe('ICRC1 Auction', () => {
 
     test('should expose ledger principals', async () => {
       expect((await auction.getTrustedLedger()).toText()).toBe(trustedLedgerPrincipal.toText());
-      let ledgers = await auction.icrcX_supported_tokens();
+      let ledgers = await auction.icrc84_supported_tokens();
       expect(ledgers[0].toText()).toBe(trustedLedgerPrincipal.toText());
       expect(ledgers[1].toText()).toBe(ledger1Principal.toText());
     });
@@ -137,7 +137,7 @@ describe('ICRC1 Auction', () => {
       });
       await auction.init();
       expect((await auction.getTrustedLedger()).toText()).toBe(trustedLedgerPrincipal.toText());
-      let ledgers = await auction.icrcX_supported_tokens();
+      let ledgers = await auction.icrc84_supported_tokens();
       expect(ledgers[0].toText()).toBe(trustedLedgerPrincipal.toText());
       expect(ledgers[1].toText()).toBe(ledger1Principal.toText());
     });
@@ -150,7 +150,7 @@ describe('ICRC1 Auction', () => {
         sender: controller.getPrincipal(),
       });
       await auction.init();
-      expect(await auction.icrcX_credit(trustedLedgerPrincipal)).toEqual(0n);
+      expect(await auction.icrc84_credit(trustedLedgerPrincipal)).toEqual(0n);
     });
 
     test('should ignore arguments on upgrade', async () => {
@@ -180,8 +180,8 @@ describe('ICRC1 Auction', () => {
       // check info before upgrade
       auction.setIdentity(user);
       expect(await auction.sessionsCounter()).toEqual(3n);
-      expect(await auction.icrcX_credit(trustedLedgerPrincipal)).toEqual(340_000_000n); // 500m - 150m paid - 10m locked
-      expect(await auction.icrcX_credit(ledger1Principal)).toEqual(1_500n);
+      expect(await auction.icrc84_credit(trustedLedgerPrincipal)).toEqual(340_000_000n); // 500m - 150m paid - 10m locked
+      expect(await auction.icrc84_credit(ledger1Principal)).toEqual(1_500n);
       expect(await auction.queryTokenBids(ledger2Principal)).toHaveLength(1);
       let metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
@@ -199,8 +199,8 @@ describe('ICRC1 Auction', () => {
 
       // check info after upgrade
       expect(await auction.sessionsCounter()).toEqual(3n);
-      expect(await auction.icrcX_credit(trustedLedgerPrincipal)).toEqual(340_000_000n);
-      expect(await auction.icrcX_credit(ledger1Principal)).toEqual(1_500n);
+      expect(await auction.icrc84_credit(trustedLedgerPrincipal)).toEqual(340_000_000n);
+      expect(await auction.icrc84_credit(ledger1Principal)).toEqual(1_500n);
       expect(await auction.queryTokenBids(ledger2Principal)).toHaveLength(1);
       metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
@@ -242,14 +242,14 @@ describe('ICRC1 Auction', () => {
 
   describe('deposit', () => {
     test('should be able to query deposit when not registered', async () => {
-      expect(await auction.icrcX_credit(trustedLedgerPrincipal)).toEqual(0n);
+      expect(await auction.icrc84_credit(trustedLedgerPrincipal)).toEqual(0n);
     });
 
     test('should accept deposit on notify', async () => {
       await mintDeposit(user, 10_000);
-      expect(await auction.icrcX_credit(trustedLedgerPrincipal)).toEqual(0n);
-      await auction.icrcX_notify({ token: trustedLedgerPrincipal });
-      expect(await auction.icrcX_credit(trustedLedgerPrincipal)).toEqual(10_000n);
+      expect(await auction.icrc84_credit(trustedLedgerPrincipal)).toEqual(0n);
+      await auction.icrc84_notify({ token: trustedLedgerPrincipal });
+      expect(await auction.icrc84_credit(trustedLedgerPrincipal)).toEqual(10_000n);
     });
 
     test('should return total deposit', async () => {
@@ -258,50 +258,51 @@ describe('ICRC1 Auction', () => {
         owner: auctionPrincipal,
         subaccount: await auction.principalToSubaccount(user.getPrincipal()),
       }, BigInt(5_000));
-      const ret = await auction.icrcX_notify({ token: trustedLedgerPrincipal });
+      const ret = await auction.icrc84_notify({ token: trustedLedgerPrincipal });
       expect(ret).toEqual({
         Ok: {
+          credit: 15000n,
           credit_inc: 15000n,
           deposit_inc: 15000n,
         },
       });
-      expect(await auction.icrcX_credit(trustedLedgerPrincipal)).toEqual(15_000n);
+      expect(await auction.icrc84_credit(trustedLedgerPrincipal)).toEqual(15_000n);
     });
 
     test('should return error if not enough balance', async () => {
-      const ret = await auction.icrcX_notify({ token: trustedLedgerPrincipal });
-      expect(ret).toEqual({Err: {NotAvailable: "Deposit was not detected"}});
+      const ret = await auction.icrc84_notify({ token: trustedLedgerPrincipal });
+      expect(ret).toEqual({ Err: { NotAvailable: { message: 'Deposit was not detected' } } });
     });
 
     test('should return error if wrong asset id', async () => {
-      const ret = await auction.icrcX_notify({ token: createIdentity('fakeFt').getPrincipal() });
-      expect(ret).toEqual({ Err: { NotAvailable: 'Unknown token' } });
+      const ret = await auction.icrc84_notify({ token: createIdentity('fakeFt').getPrincipal() });
+      expect(ret).toEqual({ Err: { NotAvailable: { message: 'Unknown token' } } });
     });
 
     test('should be able to withdraw deposit', async () => {
       await mintDeposit(user, 999, trustedLedgerPrincipal);
-      await auction.icrcX_notify({ token: trustedLedgerPrincipal });
-      expect(await auction.icrcX_credit(trustedLedgerPrincipal)).toEqual(999n);
+      await auction.icrc84_notify({ token: trustedLedgerPrincipal });
+      expect(await auction.icrc84_credit(trustedLedgerPrincipal)).toEqual(999n);
       expect(await trustedLedger.icrc1_balance_of({ owner: user.getPrincipal(), subaccount: [] })).toEqual(0n);
 
-      const res = await auction.icrcX_withdraw({
+      const res = await auction.icrc84_withdraw({
         to_subaccount: [],
         amount: 499n,
         token: trustedLedgerPrincipal,
       });
       expect(res).toHaveProperty('Ok');
-      expect(await auction.icrcX_credit(trustedLedgerPrincipal)).toEqual(500n);
+      expect(await auction.icrc84_credit(trustedLedgerPrincipal)).toEqual(500n);
       expect(await trustedLedger.icrc1_balance_of({ owner: user.getPrincipal(), subaccount: [] })).toEqual(499n);
     });
 
     test('withdraw deposit should return insufficient deposit error', async () => {
       await prepareDeposit(user);
-      const res = await auction.icrcX_withdraw({
+      const res = await auction.icrc84_withdraw({
         to_subaccount: [],
         amount: 500_000_001n,
         token: trustedLedgerPrincipal,
       });
-      expect(await auction.icrcX_credit(trustedLedgerPrincipal)).toEqual(500_000_000n);
+      expect(await auction.icrc84_credit(trustedLedgerPrincipal)).toEqual(500_000_000n);
     });
   });
 
@@ -368,53 +369,53 @@ describe('ICRC1 Auction', () => {
   describe('credit', () => {
 
     test('should be able to query credit when not registered', async () => {
-      expect(await auction.icrcX_credit(ledger1Principal)).toEqual(0n);
+      expect(await auction.icrc84_credit(ledger1Principal)).toEqual(0n);
     });
 
     test('should return #InsufficientCredit if not registered', async () => {
-      const res = await auction.icrcX_withdraw({
+      const res = await auction.icrc84_withdraw({
         to_subaccount: [],
         amount: 1_000n,
         token: ledger1Principal,
       });
-      expect(res).toEqual({ Err: { InsufficientCredit: null } });
+      expect(res).toEqual({ Err: { InsufficientCredit: {} } });
     });
 
     test('should return #InsufficientCredit if not enough credits', async () => {
       await prepareDeposit(user, ledger1Principal, 800);
-      const res = await auction.icrcX_withdraw({
+      const res = await auction.icrc84_withdraw({
         to_subaccount: [],
         amount: 1_000n,
         token: ledger1Principal,
       });
-      expect(res).toEqual({ Err: { InsufficientCredit: null } });
-      expect(await auction.icrcX_credit(ledger1Principal)).toEqual(800n);
+      expect(res).toEqual({ Err: { InsufficientCredit: {} } });
+      expect(await auction.icrc84_credit(ledger1Principal)).toEqual(800n);
     });
 
     test('should withdraw credit successfully', async () => {
       await prepareDeposit(user, ledger1Principal, 1_200);
-      const res = await auction.icrcX_withdraw({
+      const res = await auction.icrc84_withdraw({
         to_subaccount: [],
         amount: 1_200n,
         token: ledger1Principal,
       });
       expect(res).toHaveProperty('Ok');
       expect(await ledger1.icrc1_balance_of({ owner: user.getPrincipal(), subaccount: [] })).toEqual(1_200n);
-      expect(await auction.icrcX_credit(ledger1Principal)).toEqual(0n);
+      expect(await auction.icrc84_credit(ledger1Principal)).toEqual(0n);
     });
 
     test('should withdraw credit successfully with ICRC1 fee', async () => {
       await ledger1.updateFee(BigInt(3));
       await prepareDeposit(user, ledger1Principal, 1_200);
-      expect(await auction.icrcX_credit(ledger1Principal)).toEqual(1197n);
-      const res = await auction.icrcX_withdraw({
+      expect(await auction.icrc84_credit(ledger1Principal)).toEqual(1197n);
+      const res = await auction.icrc84_withdraw({
         to_subaccount: [],
         amount: 1_197n,
         token: ledger1Principal,
       });
       expect(res).toHaveProperty('Ok');
       expect(await ledger1.icrc1_balance_of({ owner: user.getPrincipal(), subaccount: [] })).toEqual(1_194n);
-      expect(await auction.icrcX_credit(ledger1Principal)).toEqual(0n);
+      expect(await auction.icrc84_credit(ledger1Principal)).toEqual(0n);
     });
   });
 });
