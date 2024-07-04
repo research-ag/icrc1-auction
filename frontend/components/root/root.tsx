@@ -6,13 +6,12 @@ import ThemeButton from '../../components/theme-button';
 import { useIdentity } from '@fe/integration/identity';
 
 import InfoItem from './info-item';
-import { useIsAdmin, useSessionsCounter, useTrustedLedger } from '@fe/integration';
+import { canisterId, useIsAdmin, useSessionsCounter, useTrustedLedger } from '@fe/integration';
 import { useState } from 'react';
 import Credits from '../credits';
 import TransactionsHistory from '@fe/components/transactions-history';
 import Assets from '../assets';
 import Owners from '../owners';
-import { canisterId } from '@declarations/icrc1_auction';
 import PriceHistory from '@fe/components/price-history';
 import RunAuctionButton from '@fe/components/run-auction-button';
 import { Ed25519KeyIdentity } from '@dfinity/identity';

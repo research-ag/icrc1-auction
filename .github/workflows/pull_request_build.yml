@@ -1,0 +1,43 @@
+name: App build
+on:
+  pull_request:
+    types: [synchronize, opened, reopened, ready_for_review, unlabeled]
+
+env:
+  dfx_version: 0.20.0
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+
+      - name: Install mops
+        uses: ZenVoich/setup-mops@v1.2.0
+
+      - name: Install dfx
+        uses: dfinity/setup-dfx@main
+
+      - name: Make sure moc is installed
+        run: mops toolchain bin moc || mops toolchain use moc latest
+
+      - name: Start local dfx
+        run: dfx start --host 127.0.0.1:4943 --background
+
+      - name: Build canisters and prepare tests
+        run: |
+          npm i
+          npm run create
+          npm run setup
+
+      - name: Run tests
+        run: |
+          npm run test
+
+      - name: Stop local dfx
+        run: dfx stop

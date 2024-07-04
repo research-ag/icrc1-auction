@@ -17,11 +17,10 @@ import {
     Typography,
 } from '@mui/joy';
 import ErrorAlert from '../../error-alert';
-import { useDeposit, useNotify, usePrincipalToSubaccount } from '@fe/integration';
+import { canisterId, useDeposit, useNotify, usePrincipalToSubaccount } from '@fe/integration';
 import { validatePrincipal } from '@fe/utils';
 import { Principal } from '@dfinity/principal';
 import { useIdentity } from '@fe/integration/identity';
-import { canisterId } from '@declarations/icrc1_auction';
 
 interface DepositFormValues {
     icrc1Ledger: string;

@@ -33,6 +33,25 @@
       "source": ["dist/"],
       "build": "npm run build:frontend",
       "declarations": {}
+    },
+    "icrc1_auction_legacy": {
+      "dependencies": ["icrc1_ledger_mock"],
+      "main": "src/icrc1_auction_api_legacy.mo",
+      "did": "src/icrc1_auction_legacy.did",
+      "type": "motoko",
+      "init_arg": "(opt principal \"xevnm-gaaaa-aaaar-qafnq-cai\", opt principal \"2vxsx-fae\")",
+      "declarations": {
+        "bindings": ["js", "ts"],
+        "output": "./declarations/icrc1_auction_legacy"
+      },
+      "optimize": "cycles"
+    },
+    "frontend_legacy": {
+      "type": "assets",
+      "dependencies": ["icrc1_auction_legacy"],
+      "source": ["dist_legacy/"],
+      "build": "npm run build:frontend_legacy",
+      "declarations": {}
     }
   },
   "defaults": {
