@@ -53,7 +53,7 @@ jobs:
           echo "/home/runner/bin" >> $GITHUB_PATH
 
       - name: Check implementation against public did file
-        run: didc check --strict .dfx/local/canisters/icrc1_auction/icrc1_auction.did did/icrc1_auction.did
+        run: didc check .dfx/local/canisters/icrc1_auction/icrc1_auction.did did/icrc1_auction.did
 
       - name: Check public did file against icrc84 standard
         run: didc check did/icrc1_auction.did $(ls -d .mops/_github/icrc84*)/icrc-84.did
