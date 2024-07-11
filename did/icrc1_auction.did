@@ -114,7 +114,7 @@ type CancelOrderResponse = variant {
   };
 };
 
-service : () -> {
+service : (opt principal, opt principal) -> {
   // ICRC-84 API
   // helper function
   principalToSubaccount : (principal) -> (opt blob) query;
