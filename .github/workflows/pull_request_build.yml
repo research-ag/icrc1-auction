@@ -4,7 +4,7 @@ on:
     types: [synchronize, opened, reopened, ready_for_review, unlabeled]
 
 env:
-  dfx_version: 0.20.0
+  dfx_version: 0.20.1
 
 jobs:
   build:
@@ -18,7 +18,7 @@ jobs:
         uses: actions/setup-node@v4
 
       - name: Install mops
-        uses: ZenVoich/setup-mops@v1.2.0
+        uses: ZenVoich/setup-mops@v1.3.1
 
       - name: Install dfx
         uses: dfinity/setup-dfx@main
@@ -55,4 +55,4 @@ jobs:
       - name: Check did file implementation
         run: |
           didc check .dfx/local/canisters/icrc1_auction/icrc1_auction.did src/icrc1_auction.did
-          didc check .dfx/local/canisters/icrc1_auction/icrc1_auction.did $(ls -d .mops/_github/icrc84*)/icrc-84.did
+          didc check src/icrc1_auction.did $(ls -d .mops/_github/icrc84*)/icrc-84.did
