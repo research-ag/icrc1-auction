@@ -4,7 +4,7 @@ on:
     types: [synchronize, opened, reopened, ready_for_review, unlabeled]
 
 env:
-  dfx_version: 0.20.0
+  dfx_version: 0.20.1
 
 jobs:
   build:
@@ -18,7 +18,7 @@ jobs:
         uses: actions/setup-node@v4
 
       - name: Install mops
-        uses: ZenVoich/setup-mops@v1.2.0
+        uses: ZenVoich/setup-mops@v1.3.1
 
       - name: Install dfx
         uses: dfinity/setup-dfx@main
@@ -41,3 +41,19 @@ jobs:
 
       - name: Stop local dfx
         run: dfx stop
+
+      - name: Make bin directory
+        run: mkdir -p /home/runner/bin
+
+      - name: Get didc
+        run: |
+          release=$(curl --silent "https://api.github.com/repos/dfinity/candid/releases/latest" | awk -F\" '/tag_name/ { print $4 }')  	
+          curl -fsSL https://github.com/dfinity/candid/releases/download/$release/didc-linux64 > /home/runner/bin/didc
+          chmod +x /home/runner/bin/didc
+          echo "/home/runner/bin" >> $GITHUB_PATH
+
+      - name: Check implementation against public did file
+        run: didc check .dfx/local/canisters/icrc1_auction/icrc1_auction.did did/icrc1_auction.did
+
+      - name: Check public did file against icrc84 standard
+        run: didc check did/icrc1_auction.did $(ls -d .mops/_github/icrc84*)/icrc-84.did
