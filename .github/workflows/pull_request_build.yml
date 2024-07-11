@@ -41,3 +41,18 @@ jobs:
 
       - name: Stop local dfx
         run: dfx stop
+
+      - name: Make bin directory
+        run: mkdir -p /home/runner/bin
+
+      - name: Get didc
+        run: |
+          release=$(curl --silent "https://api.github.com/repos/dfinity/candid/releases/latest" | awk -F\" '/tag_name/ { print $4 }')  	
+          curl -fsSL https://github.com/dfinity/candid/releases/download/$release/didc-linux64 > /home/runner/bin/didc
+          chmod +x /home/runner/bin/didc
+          echo "/home/runner/bin" >> $GITHUB_PATH
+
+      - name: Check did file implementation
+        run: |
+          didc check .dfx/local/canisters/icrc1_auction/icrc1_auction.did src/icrc1_auction.did
+          didc check .dfx/local/canisters/icrc1_auction/icrc1_auction.did $(ls -d .mops/_github/icrc84*)/icrc-84.did
