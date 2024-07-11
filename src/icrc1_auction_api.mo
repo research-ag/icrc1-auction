@@ -72,13 +72,6 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
   );
 
   type UpperResult<Ok, Err> = { #Ok : Ok; #Err : Err };
-  // TODO use resultToUpper after upgrading motoko-base (0.11.2?)
-  private func resultToUpper<Ok, Err>(result : R.Result<Ok, Err>) : UpperResult<Ok, Err> {
-    switch result {
-      case (#ok(ok)) { #Ok(ok) };
-      case (#err(err)) { #Err(err) };
-    };
-  };
 
   type PriceHistoryItem = (timestamp : Nat64, sessionNumber : Nat, ledgerPrincipal : Principal, volume : Nat, price : Float);
   type TransactionHistoryItem = (timestamp : Nat64, sessionNumber : Nat, kind : { #ask; #bid }, ledgerPrincipal : Principal, volume : Nat, price : Float);
@@ -206,14 +199,14 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     };
   };
 
-  public shared ({ caller }) func icrc84_deposit(args : { token : Principal; amount : Nat; subaccount : ?Blob }) : async UpperResult<{ txid : Nat; credit_inc : Nat; credit : Int }, { #AmountBelowMinimum : {}; #CallLedgerError : { message : Text }; #TransferError : { message : Text } }> {
+  public shared ({ caller }) func icrc84_deposit(args : { token : Principal; amount : Nat; from : { owner : Principal; subaccount : ?Blob } }) : async UpperResult<{ txid : Nat; credit_inc : Nat; credit : Int }, { #AmountBelowMinimum : {}; #CallLedgerError : { message : Text }; #TransferError : { message : Text } }> {
     let a = U.unwrapUninit(auction);
     let assetId = switch (getAssetId(args.token)) {
       case (?aid) aid;
       case (_) throw Error.reject("Unknown token");
     };
     let assetInfo = Vec.get(assets, assetId);
-    let res = await* assetInfo.handler.depositFromAllowance(caller, { owner = caller; subaccount = args.subaccount }, args.amount);
+    let res = await* assetInfo.handler.depositFromAllowance(caller, args.from, args.amount);
     switch (res) {
       case (#ok(credited, txid)) {
         assert assetInfo.handler.debitUser(caller, credited);
@@ -371,21 +364,21 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     Array.tabulate<UpperResult<Auction.OrderId, Auction.PlaceOrderError>>(
       arg.size(),
       func(i) = switch (getAssetId(arg[i].0)) {
-        case (?aid) U.unwrapUninit(auction).placeBid(caller, aid, arg[i].1, arg[i].2) |> resultToUpper(_);
+        case (?aid) U.unwrapUninit(auction).placeBid(caller, aid, arg[i].1, arg[i].2) |> R.toUpper(_);
         case (_) #Err(#UnknownAsset);
       },
     );
   };
 
   public shared ({ caller }) func replaceBid(orderId : Auction.OrderId, volume : Nat, price : Float) : async UpperResult<Auction.OrderId, Auction.ReplaceOrderError> {
-    U.unwrapUninit(auction).replaceBid(caller, orderId, volume : Nat, price : Float) |> resultToUpper(_);
+    U.unwrapUninit(auction).replaceBid(caller, orderId, volume : Nat, price : Float) |> R.toUpper(_);
   };
 
   public shared ({ caller }) func cancelBids(orderIds : [Auction.OrderId]) : async [UpperResult<Bool, Auction.CancelOrderError>] {
     let a = U.unwrapUninit(auction);
     Array.tabulate<UpperResult<Bool, Auction.CancelOrderError>>(
       orderIds.size(),
-      func(i) = a.cancelBid(caller, orderIds[i]) |> resultToUpper(_),
+      func(i) = a.cancelBid(caller, orderIds[i]) |> R.toUpper(_),
     );
   };
 
@@ -393,21 +386,21 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     Array.tabulate<UpperResult<Auction.OrderId, Auction.PlaceOrderError>>(
       arg.size(),
       func(i) = switch (getAssetId(arg[i].0)) {
-        case (?aid) U.unwrapUninit(auction).placeAsk(caller, aid, arg[i].1, arg[i].2) |> resultToUpper(_);
+        case (?aid) U.unwrapUninit(auction).placeAsk(caller, aid, arg[i].1, arg[i].2) |> R.toUpper(_);
         case (_) #Err(#UnknownAsset);
       },
     );
   };
 
   public shared ({ caller }) func replaceAsk(orderId : Auction.OrderId, volume : Nat, price : Float) : async UpperResult<Auction.OrderId, Auction.ReplaceOrderError> {
-    U.unwrapUninit(auction).replaceAsk(caller, orderId, volume : Nat, price : Float) |> resultToUpper(_);
+    U.unwrapUninit(auction).replaceAsk(caller, orderId, volume : Nat, price : Float) |> R.toUpper(_);
   };
 
   public shared ({ caller }) func cancelAsks(orderIds : [Auction.OrderId]) : async [UpperResult<Bool, Auction.CancelOrderError>] {
     let a = U.unwrapUninit(auction);
     Array.tabulate<UpperResult<Bool, Auction.CancelOrderError>>(
       orderIds.size(),
-      func(i) = a.cancelAsk(caller, orderIds[i]) |> resultToUpper(_),
+      func(i) = a.cancelAsk(caller, orderIds[i]) |> R.toUpper(_),
     );
   };
 
@@ -507,7 +500,7 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     } catch (err) {
       throw err;
     };
-    registerAsset_(ledger, minAskVolume) |> resultToUpper(_);
+    registerAsset_(ledger, minAskVolume) |> R.toUpper(_);
   };
 
   public shared query func debugLastBidProcessingInstructions() : async Nat64 = async lastBidProcessingInstructions;

@@ -29,6 +29,7 @@ interface DepositFormValues {
 interface AllowanceFormValues {
     icrc1Ledger: string;
     amount: number;
+    owner: string;
     subaccount: string;
 }
 
@@ -53,6 +54,10 @@ const allowanceSchema = zod.object({
       .string()
       .min(1)
       .refine(value => !isNaN(Number(value))),
+    owner: zod
+      .string()
+      .min(1)
+      .refine(value => validatePrincipal(value)),
     subaccount: zod
       .string()
       .transform(value => value.replaceAll(' ', ''))
@@ -71,6 +76,7 @@ const DepositModal = ({isOpen, onClose}: AddModalProps) => {
       () => ({
           icrc1Ledger: '',
           amount: 0,
+          owner: '',
           subaccount: '',
       }),
       [],
@@ -119,7 +125,7 @@ const DepositModal = ({isOpen, onClose}: AddModalProps) => {
         });
     };
 
-    const submitAllowance: SubmitHandler<AllowanceFormValues> = ({ icrc1Ledger, amount, subaccount }) => {
+    const submitAllowance: SubmitHandler<AllowanceFormValues> = ({ icrc1Ledger, amount, owner, subaccount }) => {
         let subaccountValue: number[] | null = subaccount.match(/.{2}/g)?.map(x => parseInt(x, 16)) || null;
         if (subaccountValue && subaccountValue.length !== 16) {
             subaccountValue = null;
@@ -127,6 +133,7 @@ const DepositModal = ({isOpen, onClose}: AddModalProps) => {
         deposit({
             token: Principal.fromText(icrc1Ledger),
             amount,
+            owner,
             subaccount: subaccountValue,
         }, {
             onSuccess: () => {
@@ -242,6 +249,23 @@ const DepositModal = ({isOpen, onClose}: AddModalProps) => {
                                           <FormLabel>Amount</FormLabel>
                                           <Input
                                             type="number"
+                                            variant="outlined"
+                                            name={field.name}
+                                            value={field.value}
+                                            onChange={field.onChange}
+                                            autoComplete="off"
+                                            error={!!fieldState.error}
+                                          />
+                                      </FormControl>
+                                    )} />
+                                  <Controller
+                                    name="owner"
+                                    control={allowanceControl}
+                                    render={({ field, fieldState }) => (
+                                      <FormControl>
+                                          <FormLabel>Owner principal</FormLabel>
+                                          <Input
+                                            type="text"
                                             variant="outlined"
                                             name={field.name}
                                             value={field.value}

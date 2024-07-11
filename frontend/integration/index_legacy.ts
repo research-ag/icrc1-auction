@@ -159,7 +159,7 @@ export const useDeposit = () => {
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
   return useMutation(
-    (arg: { token: Principal; amount: number; subaccount: number[] | null }) =>
+    (arg: { token: Principal; amount: number; owner: string, subaccount: number[] | null }) =>
       auction.icrcX_deposit({
         token: arg.token,
         amount: BigInt(arg.amount),
