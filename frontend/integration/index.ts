@@ -4,7 +4,7 @@ import { useSnackbar } from 'notistack';
 import { useIdentity } from './identity';
 import { Principal } from '@dfinity/principal';
 import { useMemo } from 'react';
-import { canisterId as cid, createActor } from '@declarations/icrc1_auction';
+import { canisterId as cid, createActor } from '@declarations/icrc1_auction_legacy';
 
 // Custom replacer function for JSON.stringify
 const bigIntReplacer = (key: string, value: any): any => {
@@ -74,7 +74,7 @@ export const useListAssets = () => {
   return useQuery(
     'assets',
     async () => {
-      return auction.icrc84_supported_tokens();
+      return auction.icrcX_supported_tokens();
     },
     {
       onError: err => {
@@ -106,7 +106,7 @@ export const useListCredits = () => {
   return useQuery(
     'myCredits',
     async () => {
-      return auction.icrc84_all_credits();
+      return auction.icrcX_all_credits();
     },
     {
       onError: err => {
@@ -139,7 +139,7 @@ export const useNotify = () => {
   const { auction } = useAuction();
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
-  return useMutation((icrc1Ledger: Principal) => auction.icrc84_notify({ token: icrc1Ledger }), {
+  return useMutation((icrc1Ledger: Principal) => auction.icrcX_notify({ token: icrc1Ledger }), {
     onSuccess: res => {
       if ('Err' in res) {
         enqueueSnackbar(`Failed to deposit: ${JSON.stringify(res.Err, bigIntReplacer)}`, { variant: 'error' });
@@ -159,14 +159,11 @@ export const useDeposit = () => {
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
   return useMutation(
-    (arg: { token: Principal; amount: number; owner: string, subaccount: number[] | null }) =>
-      auction.icrc84_deposit({
+    (arg: { token: Principal; amount: number; owner: Principal, subaccount: Uint8Array | number[] | null }) =>
+      auction.icrcX_deposit({
         token: arg.token,
         amount: BigInt(arg.amount),
-        from: {
-          owner: Principal.fromText(arg.owner),
-          subaccount: arg.subaccount ? [arg.subaccount] : [],
-        },
+        subaccount: arg.subaccount ? [arg.subaccount] : [],
       }),
     {
       onSuccess: res => {
@@ -273,7 +270,7 @@ export const useWithdrawCredit = () => {
   const { enqueueSnackbar } = useSnackbar();
   return useMutation(
     (formObj: { ledger: string; amount: number; subaccount: Uint8Array | null }) =>
-      auction.icrc84_withdraw({
+      auction.icrcX_withdraw({
         token: Principal.fromText(formObj.ledger),
         to_subaccount: formObj.subaccount ? [formObj.subaccount] : [],
         amount: BigInt(formObj.amount),

@@ -21,6 +21,7 @@ import { canisterId, useDeposit, useNotify, usePrincipalToSubaccount } from '@fe
 import { validatePrincipal } from '@fe/utils';
 import { Principal } from '@dfinity/principal';
 import { useIdentity } from '@fe/integration/identity';
+import { decodeIcrcAccount } from '@dfinity/ledger-icrc';
 
 interface DepositFormValues {
     icrc1Ledger: string;
@@ -29,8 +30,7 @@ interface DepositFormValues {
 interface AllowanceFormValues {
     icrc1Ledger: string;
     amount: number;
-    owner: string;
-    subaccount: string;
+    account: string;
 }
 
 interface AddModalProps {
@@ -45,6 +45,16 @@ const schema = zod.object({
       .refine(value => validatePrincipal(value)),
 });
 
+export const validateICRC1Account = (value: string): boolean => {
+    try {
+        decodeIcrcAccount(value);
+        return true;
+    } catch (e) {
+        return false;
+    }
+};
+
+
 const allowanceSchema = zod.object({
     icrc1Ledger: zod
       .string()
@@ -54,14 +64,10 @@ const allowanceSchema = zod.object({
       .string()
       .min(1)
       .refine(value => !isNaN(Number(value))),
-    owner: zod
+    account: zod
       .string()
       .min(1)
-      .refine(value => validatePrincipal(value)),
-    subaccount: zod
-      .string()
-      .transform(value => value.replaceAll(' ', ''))
-      .refine(value => value.length === 0 || value.length === 64),
+      .refine(value => validateICRC1Account(value)),
 });
 
 const DepositModal = ({isOpen, onClose}: AddModalProps) => {
@@ -76,8 +82,7 @@ const DepositModal = ({isOpen, onClose}: AddModalProps) => {
       () => ({
           icrc1Ledger: '',
           amount: 0,
-          owner: '',
-          subaccount: '',
+          account: '',
       }),
       [],
     );
@@ -125,16 +130,13 @@ const DepositModal = ({isOpen, onClose}: AddModalProps) => {
         });
     };
 
-    const submitAllowance: SubmitHandler<AllowanceFormValues> = ({ icrc1Ledger, amount, owner, subaccount }) => {
-        let subaccountValue: number[] | null = subaccount.match(/.{2}/g)?.map(x => parseInt(x, 16)) || null;
-        if (subaccountValue && subaccountValue.length !== 16) {
-            subaccountValue = null;
-        }
+    const submitAllowance: SubmitHandler<AllowanceFormValues> = ({ icrc1Ledger, amount, account }) => {
+        let icrc1Account = decodeIcrcAccount(account);
         deposit({
             token: Principal.fromText(icrc1Ledger),
             amount,
-            owner,
-            subaccount: subaccountValue,
+            owner: icrc1Account.owner,
+            subaccount: icrc1Account.subaccount || null,
         }, {
             onSuccess: () => {
                 onClose();
@@ -259,31 +261,13 @@ const DepositModal = ({isOpen, onClose}: AddModalProps) => {
                                       </FormControl>
                                     )} />
                                   <Controller
-                                    name="owner"
+                                    name="account"
                                     control={allowanceControl}
                                     render={({ field, fieldState }) => (
                                       <FormControl>
-                                          <FormLabel>Owner principal</FormLabel>
-                                          <Input
-                                            type="text"
-                                            variant="outlined"
-                                            name={field.name}
-                                            value={field.value}
-                                            onChange={field.onChange}
-                                            autoComplete="off"
-                                            error={!!fieldState.error}
-                                          />
-                                      </FormControl>
-                                    )} />
-                                  <Controller
-                                    name="subaccount"
-                                    control={allowanceControl}
-                                    render={({ field, fieldState }) => (
-                                      <FormControl>
-                                          <FormLabel>Subaccount</FormLabel>
+                                          <FormLabel>Account</FormLabel>
                                           <Typography level="body-xs">
-                                              Paste hex string, exactly 64 characters or leave empty to use subaccount
-                                              null. Spaces will be ignored
+                                              Type encoded ICRC-1 account
                                           </Typography>
                                           <Input
                                             type="text"
