@@ -289,6 +289,7 @@ describe('ICRC1 Auction', () => {
         to_subaccount: [],
         amount: 499n,
         token: trustedLedgerPrincipal,
+        expected_fee: [],
       });
       expect(res).toHaveProperty('Ok');
       expect(await auction.icrc84_credit(trustedLedgerPrincipal)).toEqual(500n);
@@ -301,6 +302,7 @@ describe('ICRC1 Auction', () => {
         to_subaccount: [],
         amount: 500_000_001n,
         token: trustedLedgerPrincipal,
+        expected_fee: [],
       });
       expect(await auction.icrc84_credit(trustedLedgerPrincipal)).toEqual(500_000_000n);
     });
@@ -377,6 +379,7 @@ describe('ICRC1 Auction', () => {
         to_subaccount: [],
         amount: 1_000n,
         token: ledger1Principal,
+        expected_fee: [],
       });
       expect(res).toEqual({ Err: { InsufficientCredit: {} } });
     });
@@ -387,6 +390,7 @@ describe('ICRC1 Auction', () => {
         to_subaccount: [],
         amount: 1_000n,
         token: ledger1Principal,
+        expected_fee: [],
       });
       expect(res).toEqual({ Err: { InsufficientCredit: {} } });
       expect(await auction.icrc84_credit(ledger1Principal)).toEqual(800n);
@@ -398,10 +402,25 @@ describe('ICRC1 Auction', () => {
         to_subaccount: [],
         amount: 1_200n,
         token: ledger1Principal,
+        expected_fee: [],
       });
       expect(res).toHaveProperty('Ok');
       expect(await ledger1.icrc1_balance_of({ owner: user.getPrincipal(), subaccount: [] })).toEqual(1_200n);
       expect(await auction.icrc84_credit(ledger1Principal)).toEqual(0n);
+    });
+
+    test('should return #BadFee if provided fee is wrong', async () => {
+      await ledger1.updateFee(BigInt(3));
+      await prepareDeposit(user, ledger1Principal, 1_200);
+      expect(await auction.icrc84_credit(ledger1Principal)).toEqual(1197n);
+      const res = await auction.icrc84_withdraw({
+        to_subaccount: [],
+        amount: 1_197n,
+        token: ledger1Principal,
+        expected_fee: [50n],
+      });
+      expect(res).toEqual({ Err: { BadFee: { expected_fee: 3n } } });
+      expect(await auction.icrc84_credit(ledger1Principal)).toEqual(1_197n);
     });
 
     test('should withdraw credit successfully with ICRC1 fee', async () => {
@@ -412,6 +431,21 @@ describe('ICRC1 Auction', () => {
         to_subaccount: [],
         amount: 1_197n,
         token: ledger1Principal,
+        expected_fee: [],
+      });
+      expect(res).toHaveProperty('Ok');
+      expect(await ledger1.icrc1_balance_of({ owner: user.getPrincipal(), subaccount: [] })).toEqual(1_194n);
+      expect(await auction.icrc84_credit(ledger1Principal)).toEqual(0n);
+    });
+
+    test('should withdraw credit successfully when provided correct expected fee', async () => {
+      await ledger1.updateFee(BigInt(3));
+      await prepareDeposit(user, ledger1Principal, 1_200);
+      const res = await auction.icrc84_withdraw({
+        to_subaccount: [],
+        amount: 1_197n,
+        token: ledger1Principal,
+        expected_fee: [3n],
       });
       expect(res).toHaveProperty('Ok');
       expect(await ledger1.icrc1_balance_of({ owner: user.getPrincipal(), subaccount: [] })).toEqual(1_194n);
