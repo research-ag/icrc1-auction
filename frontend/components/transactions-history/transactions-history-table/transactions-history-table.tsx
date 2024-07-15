@@ -1,10 +1,17 @@
 import { Box, Table } from '@mui/joy';
 
-import { useTransactionHistory } from '@fe/integration';
+import { useTokenSymbolsMap, useTransactionHistory } from '@fe/integration';
 import InfoItem from '../../root/info-item';
+import { Principal } from '@dfinity/principal';
 
 const TransactionsHistoryTable = () => {
   const { data: data } = useTransactionHistory();
+
+  const { data: symbols } = useTokenSymbolsMap();
+  const getSymbol = (ledger: Principal): string => {
+    const mapItem = (symbols || []).find(([p, s]) => p.toText() == ledger.toText());
+    return mapItem ? mapItem[1] : '-';
+  };
 
   return (
     <Box sx={{ width: '100%', overflow: 'auto' }}>
@@ -22,7 +29,7 @@ const TransactionsHistoryTable = () => {
           <th>Timestamp</th>
           <th>Session</th>
           <th>Kind</th>
-          <th>Ledger</th>
+          <th>Token symbol</th>
           <th>Volume</th>
           <th>Price</th>
         </tr>
@@ -35,7 +42,7 @@ const TransactionsHistoryTable = () => {
                 <td>{String(sessionNumber)}</td>
                 <td>{'ask' in kind ? 'Ask' : 'Bid'}</td>
                 <td>
-                  <InfoItem content={ledger.toText()} withCopy={true} />
+                  <InfoItem content={getSymbol(ledger)} withCopy={true} />
                 </td>
                 <td>{String(volume)}</td>
                 <td>{String(price)}</td>

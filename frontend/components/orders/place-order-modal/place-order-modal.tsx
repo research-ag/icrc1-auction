@@ -1,15 +1,16 @@
 import { useEffect, useMemo } from 'react';
-import { useForm, SubmitHandler, Controller, useFormState } from 'react-hook-form';
+import { Controller, SubmitHandler, useForm, useFormState } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z as zod } from 'zod';
-import { Box, Modal, ModalDialog, ModalClose, FormControl, FormLabel, Input, Typography, Button } from '@mui/joy';
+import { Box, Button, FormControl, FormLabel, Input, Modal, ModalClose, ModalDialog, Typography } from '@mui/joy';
 
-import { usePlaceOrder } from '../../../integration';
+import { usePlaceOrder, useTokenSymbolsMap } from '@fe/integration';
 import ErrorAlert from '../../../components/error-alert';
-import { validatePrincipal } from '../../../utils';
+import { Principal } from '@dfinity/principal';
+import { useSnackbar } from 'notistack';
 
 interface PlaceOrderFormValues {
-  ledger: string;
+  symbol: string;
   volume: number;
   price: number;
 }
@@ -21,10 +22,9 @@ interface PlaceOrderModalProps {
 }
 
 const schema = zod.object({
-  ledger: zod
+  symbol: zod
     .string()
-    .min(1)
-    .refine(value => validatePrincipal(value)),
+    .min(1),
   volume: zod
     .string()
     .min(1)
@@ -38,7 +38,7 @@ const schema = zod.object({
 const PlaceOrderModal = ({ kind, isOpen, onClose }: PlaceOrderModalProps) => {
   const defaultValues: PlaceOrderFormValues = useMemo(
     () => ({
-      ledger: '',
+      symbol: '',
       volume: 0,
       price: 0,
     }),
@@ -59,8 +59,24 @@ const PlaceOrderModal = ({ kind, isOpen, onClose }: PlaceOrderModalProps) => {
 
   const { mutate: placeOrder, error, isLoading, reset: resetApi } = usePlaceOrder(kind);
 
+  const { data: symbols } = useTokenSymbolsMap();
+  const getLedgerPrincipal = (symbol: string): Principal | null => {
+    const mapItem = (symbols || []).find(([p, s]) => s == symbol);
+    return mapItem ? mapItem[0] : null;
+  };
+  const { enqueueSnackbar } = useSnackbar();
+
   const submit: SubmitHandler<PlaceOrderFormValues> = data => {
-    placeOrder(data, {
+    const p = getLedgerPrincipal(data.symbol);
+    if (!p) {
+      enqueueSnackbar(`Unknown token symbol: "${data.symbol}"`, { variant: 'error' });
+      return;
+    }
+    placeOrder({
+      ledger: p.toText(),
+      price: data.price,
+      volume: data.volume,
+    }, {
       onSuccess: () => {
         onClose();
       },
@@ -80,11 +96,11 @@ const PlaceOrderModal = ({ kind, isOpen, onClose }: PlaceOrderModalProps) => {
         <form onSubmit={handleSubmit(submit)} autoComplete="off">
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
             <Controller
-              name="ledger"
+              name="symbol"
               control={control}
               render={({ field, fieldState }) => (
                 <FormControl>
-                  <FormLabel>Ledger principal</FormLabel>
+                  <FormLabel>Token symbol</FormLabel>
                   <Input
                     type="text"
                     variant="outlined"

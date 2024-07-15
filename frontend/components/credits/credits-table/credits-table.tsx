@@ -1,6 +1,6 @@
 import { Box, Button, Table } from '@mui/joy';
 
-import { useListCredits } from '../../../integration';
+import { useListCredits, useTokenSymbolsMap } from '@fe/integration';
 import WithdrawCreditModal from '../withdraw-credit-modal';
 import { useState } from 'react';
 import InfoItem from '../../root/info-item';
@@ -17,6 +17,12 @@ const CreditsTable = () => {
   };
   const closeWithdrawModal = () => setIsWithdrawModalOpen(false);
 
+  const { data: symbols } = useTokenSymbolsMap();
+  const getSymbol = (ledger: Principal): string => {
+    const mapItem = (symbols || []).find(([p, s]) => p.toText() == ledger.toText());
+    return mapItem ? mapItem[1] : '-';
+  };
+
   return (
     <Box sx={{ width: '100%', overflow: 'auto' }}>
       <Table>
@@ -27,7 +33,7 @@ const CreditsTable = () => {
         </colgroup>
         <thead>
           <tr>
-            <th>Ledger principal</th>
+            <th>Token symbol</th>
             <th>Credit</th>
             <th></th>
           </tr>
@@ -37,7 +43,7 @@ const CreditsTable = () => {
             return (
               <tr key={i}>
                 <td>
-                  <InfoItem content={ledger.toText()} withCopy={true} />
+                  { symbols && <InfoItem content={getSymbol(ledger)} withCopy={true} />}
                 </td>
                 <td>{String(credit)}</td>
                 <td>

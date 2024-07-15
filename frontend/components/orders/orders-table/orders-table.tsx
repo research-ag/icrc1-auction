@@ -1,13 +1,20 @@
 import { Box, Button, Table } from '@mui/joy';
 
-import { useCancelOrder, useListOrders } from '@fe/integration';
+import { useCancelOrder, useListOrders, useTokenSymbolsMap } from '@fe/integration';
 import InfoItem from '../../root/info-item';
+import { Principal } from '@dfinity/principal';
 
 export type OrdersTableProps = { kind: 'ask' | 'bid' };
 
 const OrdersTable = ({ kind }: OrdersTableProps) => {
   const { data: orders } = useListOrders(kind);
   const { mutate: cancelOrder } = useCancelOrder(kind);
+
+  const { data: symbols } = useTokenSymbolsMap();
+  const getSymbol = (ledger: Principal): string => {
+    const mapItem = (symbols || []).find(([p, s]) => p.toText() == ledger.toText());
+    return mapItem ? mapItem[1] : '-';
+  };
 
   return (
     <Box sx={{ width: '100%', overflow: 'auto' }}>
@@ -20,7 +27,7 @@ const OrdersTable = ({ kind }: OrdersTableProps) => {
         </colgroup>
         <thead>
           <tr>
-            <th>Ledger principal</th>
+            <th>Token symbol</th>
             <th>Price</th>
             <th>Volume</th>
             <th></th>
@@ -31,7 +38,7 @@ const OrdersTable = ({ kind }: OrdersTableProps) => {
             return (
               <tr key={i}>
                 <td>
-                  <InfoItem content={order.icrc1Ledger.toText()} withCopy={true} />
+                  <InfoItem content={getSymbol(order.icrc1Ledger)} withCopy={true} />
                 </td>
                 <td>{String(order.price)}</td>
                 <td>{String(order.volume)}</td>

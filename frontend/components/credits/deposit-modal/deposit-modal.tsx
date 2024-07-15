@@ -17,18 +17,18 @@ import {
     Typography,
 } from '@mui/joy';
 import ErrorAlert from '../../error-alert';
-import { canisterId, useDeposit, useNotify, usePrincipalToSubaccount } from '@fe/integration';
-import { validatePrincipal } from '@fe/utils';
+import { canisterId, useDeposit, useNotify, usePrincipalToSubaccount, useTokenSymbolsMap } from '@fe/integration';
 import { Principal } from '@dfinity/principal';
 import { useIdentity } from '@fe/integration/identity';
 import { decodeIcrcAccount } from '@dfinity/ledger-icrc';
+import { useSnackbar } from 'notistack';
 
 interface DepositFormValues {
-    icrc1Ledger: string;
+    symbol: string;
 }
 
 interface AllowanceFormValues {
-    icrc1Ledger: string;
+    symbol: string;
     amount: number;
     account: string;
 }
@@ -39,10 +39,9 @@ interface AddModalProps {
 }
 
 const schema = zod.object({
-    icrc1Ledger: zod
+    symbol: zod
       .string()
-      .min(1)
-      .refine(value => validatePrincipal(value)),
+      .min(1),
 });
 
 export const validateICRC1Account = (value: string): boolean => {
@@ -56,10 +55,9 @@ export const validateICRC1Account = (value: string): boolean => {
 
 
 const allowanceSchema = zod.object({
-    icrc1Ledger: zod
+    symbol: zod
       .string()
-      .min(1)
-      .refine(value => validatePrincipal(value)),
+      .min(1),
     amount: zod
       .string()
       .min(1)
@@ -73,14 +71,14 @@ const allowanceSchema = zod.object({
 const DepositModal = ({isOpen, onClose}: AddModalProps) => {
     const defaultValues: DepositFormValues = useMemo(
         () => ({
-            icrc1Ledger: '',
+            symbol: '',
         }),
         [],
     );
 
     const defaultAllowanceValues: AllowanceFormValues = useMemo(
       () => ({
-          icrc1Ledger: '',
+          symbol: '',
           amount: 0,
           account: '',
       }),
@@ -122,18 +120,35 @@ const DepositModal = ({isOpen, onClose}: AddModalProps) => {
         reset: resetAllowanceApi,
     } = useDeposit();
 
-    const submit: SubmitHandler<DepositFormValues> = ({icrc1Ledger}) => {
-        notify(Principal.fromText(icrc1Ledger), {
+    const { data: symbols } = useTokenSymbolsMap();
+    const getLedgerPrincipal = (symbol: string): Principal | null => {
+        const mapItem = (symbols || []).find(([p, s]) => s == symbol);
+        return mapItem ? mapItem[0] : null;
+    };
+    const { enqueueSnackbar } = useSnackbar();
+
+    const submit: SubmitHandler<DepositFormValues> = ({ symbol }) => {
+        const p = getLedgerPrincipal(symbol);
+        if (!p) {
+            enqueueSnackbar(`Unknown token symbol: "${symbol}"`, { variant: 'error' });
+            return;
+        }
+        notify(p, {
             onSuccess: () => {
                 onClose();
             },
         });
     };
 
-    const submitAllowance: SubmitHandler<AllowanceFormValues> = ({ icrc1Ledger, amount, account }) => {
+    const submitAllowance: SubmitHandler<AllowanceFormValues> = ({ symbol, amount, account }) => {
         let icrc1Account = decodeIcrcAccount(account);
+        const p = getLedgerPrincipal(symbol);
+        if (!p) {
+            enqueueSnackbar(`Unknown token symbol: "${symbol}"`, { variant: 'error' });
+            return;
+        }
         deposit({
-            token: Principal.fromText(icrc1Ledger),
+            token: p,
             amount,
             owner: icrc1Account.owner,
             subaccount: icrc1Account.subaccount || null,
@@ -187,17 +202,17 @@ const DepositModal = ({isOpen, onClose}: AddModalProps) => {
                               2. Make a transfer to account <b>{canisterId}</b>, subaccount{' '}
                               <b>{subaccountToText(subaccount.data)}</b> using ledger API
                               <br />
-                              3. Put ICRC1 ledger principal in the input below and click "Notify"
+                              3. Put token symbol in the input below and click "Notify"
                               <br />
                           </Typography>
                           <form onSubmit={handleSubmit(submit)} autoComplete="off">
                               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                                   <Controller
-                                    name="icrc1Ledger"
+                                    name="symbol"
                                     control={control}
                                     render={({ field, fieldState }) => (
                                       <FormControl>
-                                          <FormLabel>Ledger principal</FormLabel>
+                                          <FormLabel>Token symbol</FormLabel>
                                           <Input
                                             type="text"
                                             variant="outlined"
@@ -227,11 +242,11 @@ const DepositModal = ({isOpen, onClose}: AddModalProps) => {
                           <form onSubmit={handleAllowanceSubmit(submitAllowance)} autoComplete="off">
                               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                                   <Controller
-                                    name="icrc1Ledger"
+                                    name="symbol"
                                     control={allowanceControl}
                                     render={({ field, fieldState }) => (
                                       <FormControl>
-                                          <FormLabel>Ledger principal</FormLabel>
+                                          <FormLabel>Token symbol</FormLabel>
                                           <Input
                                             type="text"
                                             variant="outlined"
