@@ -234,7 +234,7 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     let ?assetId = getAssetId(args.token) else throw Error.reject("Unknown token");
     let handler = Vec.get(assets, assetId).handler;
     let rollbackCredit = switch (U.unwrapUninit(auction).deductCredit(caller, assetId, args.amount)) {
-      case (#err err) return #Err(#InsufficientCredit);
+      case (#err _) return #Err(#InsufficientCredit);
       case (#ok(_, r)) r;
     };
     let res = await* handler.withdrawFromPool({ owner = caller; subaccount = args.to_subaccount }, args.amount);

@@ -159,12 +159,12 @@ export const useDeposit = () => {
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
   return useMutation(
-    (arg: { token: Principal; amount: number; owner: string, subaccount: number[] | null }) =>
+    (arg: { token: Principal; amount: number; owner: Principal, subaccount: Uint8Array | number[] | null }) =>
       auction.icrc84_deposit({
         token: arg.token,
         amount: BigInt(arg.amount),
         from: {
-          owner: Principal.fromText(arg.owner),
+          owner: arg.owner,
           subaccount: arg.subaccount ? [arg.subaccount] : [],
         },
       }),
