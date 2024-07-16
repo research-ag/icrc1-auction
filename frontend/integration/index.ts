@@ -189,6 +189,7 @@ export const useDeposit = () => {
           owner: arg.owner,
           subaccount: arg.subaccount ? [arg.subaccount] : [],
         },
+        expected_fee: [],
       }),
     {
       onSuccess: res => {
@@ -299,6 +300,7 @@ export const useWithdrawCredit = () => {
         token: Principal.fromText(formObj.ledger),
         to_subaccount: formObj.subaccount ? [formObj.subaccount] : [],
         amount: BigInt(formObj.amount),
+        expected_fee: [],
       }),
     {
       onSuccess: res => {

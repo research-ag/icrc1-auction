@@ -77,8 +77,7 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
   type TransactionHistoryItem = (timestamp : Nat64, sessionNumber : Nat, kind : { #ask; #bid }, ledgerPrincipal : Principal, volume : Nat, price : Float);
 
   type TokenInfo = {
-    min_deposit : Nat;
-    min_withdrawal : Nat;
+    allowance_fee : Nat;
     deposit_fee : Nat;
     withdrawal_fee : Nat;
   };
@@ -95,12 +94,15 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     };
   };
 
+  type DepositResult = UpperResult<{ txid : Nat; credit_inc : Nat; credit : Int }, { #AmountBelowMinimum : {}; #CallLedgerError : { message : Text }; #TransferError : { message : Text }; #BadFee : { expected_fee : Nat } }>;
+
   type WithdrawResult = {
     #Ok : {
       txid : Nat;
       amount : Nat;
     };
     #Err : {
+      #BadFee : { expected_fee : Nat };
       #CallLedgerError : { message : Text };
       #InsufficientCredit : {};
       #AmountBelowMinimum : {};
@@ -126,11 +128,10 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
   public shared query func icrc84_token_info(token : Principal) : async TokenInfo {
     for ((assetInfo, i) in Vec.items(assets)) {
       if (Principal.equal(assetInfo.ledgerPrincipal, token)) {
-        return (assetInfo.handler.fee(#deposit), assetInfo.handler.fee(#withdrawal)) |> {
-          min_deposit = _.0 + 1;
-          min_withdrawal = _.1 + 1;
-          deposit_fee = _.0;
-          withdrawal_fee = _.1;
+        return {
+          deposit_fee = assetInfo.handler.fee(#deposit);
+          withdrawal_fee = assetInfo.handler.fee(#withdrawal);
+          allowance_fee = assetInfo.handler.fee(#allowance);
         };
       };
     };
@@ -199,14 +200,14 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     };
   };
 
-  public shared ({ caller }) func icrc84_deposit(args : { token : Principal; amount : Nat; from : { owner : Principal; subaccount : ?Blob } }) : async UpperResult<{ txid : Nat; credit_inc : Nat; credit : Int }, { #AmountBelowMinimum : {}; #CallLedgerError : { message : Text }; #TransferError : { message : Text } }> {
+  public shared ({ caller }) func icrc84_deposit(args : { token : Principal; amount : Nat; from : { owner : Principal; subaccount : ?Blob }; expected_fee : ?Nat }) : async DepositResult {
     let a = U.unwrapUninit(auction);
     let assetId = switch (getAssetId(args.token)) {
       case (?aid) aid;
       case (_) throw Error.reject("Unknown token");
     };
     let assetInfo = Vec.get(assets, assetId);
-    let res = await* assetInfo.handler.depositFromAllowance(caller, args.from, args.amount);
+    let res = await* assetInfo.handler.depositFromAllowance(caller, args.from, args.amount, args.expected_fee);
     switch (res) {
       case (#ok(credited, txid)) {
         assert assetInfo.handler.debitUser(caller, credited);
@@ -219,7 +220,7 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
       };
       case (#err x) #Err(
         switch (x) {
-          case (#TooLowQuantity) #AmountBelowMinimum({});
+          case (#BadFee x) #BadFee(x);
           case (#CallIcrc1LedgerError) #CallLedgerError({
             message = "Call failed";
           });
@@ -235,19 +236,20 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     };
   };
 
-  public shared ({ caller }) func icrc84_withdraw(args : { to_subaccount : ?Blob; amount : Nat; token : Principal }) : async WithdrawResult {
+  public shared ({ caller }) func icrc84_withdraw(args : { to_subaccount : ?Blob; amount : Nat; token : Principal; expected_fee : ?Nat }) : async WithdrawResult {
     let ?assetId = getAssetId(args.token) else throw Error.reject("Unknown token");
     let handler = Vec.get(assets, assetId).handler;
     let rollbackCredit = switch (U.unwrapUninit(auction).deductCredit(caller, assetId, args.amount)) {
-      case (#err err) return #Err(#InsufficientCredit({}));
+      case (#err _) return #Err(#InsufficientCredit({}));
       case (#ok(_, r)) r;
     };
-    let res = await* handler.withdrawFromPool({ owner = caller; subaccount = args.to_subaccount }, args.amount);
+    let res = await* handler.withdrawFromPool({ owner = caller; subaccount = args.to_subaccount }, args.amount, args.expected_fee);
     switch (res) {
       case (#ok(txid, amount)) #Ok({ txid; amount });
       case (#err err) {
         rollbackCredit();
         switch (err) {
+          case (#BadFee x) #Err(#BadFee(x));
           case (#TooLowQuantity) #Err(#AmountBelowMinimum({}));
           case (#CallIcrc1LedgerError) #Err(#CallLedgerError({ message = "Call error" }));
           case (_) #Err(#CallLedgerError({ message = "Try later" }));
