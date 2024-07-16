@@ -1,10 +1,17 @@
 import { Box, Table } from '@mui/joy';
 
-import { usePriceHistory } from '@fe/integration';
+import { usePriceHistory, useTokenSymbolsMap } from '@fe/integration';
 import InfoItem from '../../root/info-item';
+import { Principal } from '@dfinity/principal';
 
 const PriceHistoryTable = () => {
   const { data: data } = usePriceHistory();
+
+  const { data: symbols } = useTokenSymbolsMap();
+  const getSymbol = (ledger: Principal): string => {
+    const mapItem = (symbols || []).find(([p, s]) => p.toText() == ledger.toText());
+    return mapItem ? mapItem[1] : '-';
+  };
 
   return (
     <Box sx={{ width: '100%', overflow: 'auto' }}>
@@ -20,7 +27,7 @@ const PriceHistoryTable = () => {
         <tr>
           <th>Timestamp</th>
           <th>Session</th>
-          <th>Ledger</th>
+          <th>Token symbol</th>
           <th>Volume</th>
           <th>Price</th>
         </tr>
@@ -32,7 +39,7 @@ const PriceHistoryTable = () => {
               <td>{String(new Date(Number(ts) / 1_000_000))}</td>
               <td>{String(sessionNumber)}</td>
               <td>
-                <InfoItem content={ledger.toText()} withCopy={true} />
+                <InfoItem content={getSymbol(ledger)} withCopy={true} />
               </td>
               <td>{String(volume)}</td>
               <td>{String(price)}</td>

@@ -5,6 +5,7 @@ import { useIdentity } from './identity';
 import { Principal } from '@dfinity/principal';
 import { useMemo } from 'react';
 import { canisterId as cid, createActor } from '@declarations/icrc1_auction_legacy';
+import { createActor as createLedgerActor } from '@declarations/icrc1_ledger_mock';
 
 // Custom replacer function for JSON.stringify
 const bigIntReplacer = (key: string, value: any): any => {
@@ -71,14 +72,34 @@ export const useAddAsset = () => {
 export const useListAssets = () => {
   const { auction } = useAuction();
   const { enqueueSnackbar } = useSnackbar();
+  const queryClient = useQueryClient();
+
   return useQuery(
     'assets',
+    async () => auction.icrc84_supported_tokens(),
+    {
+      onSettled: _ => queryClient.invalidateQueries('assetSymbols'),
+      onError: err => {
+        enqueueSnackbar(`Failed to fetch credits: ${err}`, { variant: 'error' });
+      },
+    },
+  );
+};
+
+export const useTokenSymbolsMap = () => {
+  useListAssets();
+  const { enqueueSnackbar } = useSnackbar();
+  const queryClient = useQueryClient();
+  return useQuery(
+    'assetSymbols',
     async () => {
-      return auction.icrc84_supported_tokens();
+      const assets = queryClient.getQueryData('assets') as (Principal[] | undefined);
+      const symbols = await Promise.all((assets || []).map(async p => createLedgerActor(p).icrc1_symbol()));
+      return (assets || []).map((p, i) => ([p, symbols[i]])) as [Principal, string][];
     },
     {
       onError: err => {
-        enqueueSnackbar(`Failed to fetch credits: ${err}`, { variant: 'error' });
+        enqueueSnackbar(`Failed to fetch symbols: ${err}`, { variant: 'error' });
       },
     },
   );
