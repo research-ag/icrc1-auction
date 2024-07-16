@@ -115,7 +115,7 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
   let metrics = PT.PromTracker("", 65);
   metrics.addSystemValues();
 
-  // ICRCX API
+  // ICRC84 API
   public shared query func principalToSubaccount(p : Principal) : async ?Blob = async ?TokenHandler.toSubaccount(p);
 
   public shared query func icrc84_supported_tokens() : async [Principal] {
