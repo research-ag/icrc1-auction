@@ -12,7 +12,7 @@ import RBTree "mo:base/RBTree";
 import Text "mo:base/Text";
 import Timer "mo:base/Timer";
 
-import Auction "mo:auction";
+import Auction "./auction/src";
 import ICRC1 "mo:token_handler/ICRC1";
 import PT "mo:promtracker";
 import TokenHandler "mo:token_handler";
@@ -376,9 +376,9 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     U.unwrapUninit(auction).replaceBid(caller, orderId, volume : Nat, price : Float) |> R.toUpper(_);
   };
 
-  public shared ({ caller }) func cancelBids(orderIds : [Auction.OrderId]) : async [UpperResult<Bool, Auction.CancelOrderError>] {
+  public shared ({ caller }) func cancelBids(orderIds : [Auction.OrderId]) : async [UpperResult<(), Auction.CancelOrderError>] {
     let a = U.unwrapUninit(auction);
-    Array.tabulate<UpperResult<Bool, Auction.CancelOrderError>>(
+    Array.tabulate<UpperResult<(), Auction.CancelOrderError>>(
       orderIds.size(),
       func(i) = a.cancelBid(caller, orderIds[i]) |> R.toUpper(_),
     );
@@ -398,9 +398,9 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     U.unwrapUninit(auction).replaceAsk(caller, orderId, volume : Nat, price : Float) |> R.toUpper(_);
   };
 
-  public shared ({ caller }) func cancelAsks(orderIds : [Auction.OrderId]) : async [UpperResult<Bool, Auction.CancelOrderError>] {
+  public shared ({ caller }) func cancelAsks(orderIds : [Auction.OrderId]) : async [UpperResult<(), Auction.CancelOrderError>] {
     let a = U.unwrapUninit(auction);
-    Array.tabulate<UpperResult<Bool, Auction.CancelOrderError>>(
+    Array.tabulate<UpperResult<(), Auction.CancelOrderError>>(
       orderIds.size(),
       func(i) = a.cancelAsk(caller, orderIds[i]) |> R.toUpper(_),
     );
