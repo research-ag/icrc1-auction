@@ -6,7 +6,7 @@ import ThemeButton from '../../components/theme-button';
 import { useIdentity } from '@fe/integration/identity';
 
 import InfoItem from './info-item';
-import { canisterId, useIsAdmin, useSessionsCounter, useTrustedLedger } from '@fe/integration';
+import { canisterId, useIsAdmin, useSessionsCounter, useTrustedLedger, useMinimumOrder } from '@fe/integration';
 import { useState } from 'react';
 import Credits from '../credits';
 import TransactionsHistory from '@fe/components/transactions-history';
@@ -79,6 +79,7 @@ const Root = () => {
                         </Box>
                         <InfoItem label="Quote currency ledger" content={useTrustedLedger().data?.toText() || ""} withCopy/>
                         <InfoItem label="Auction principal" content={canisterId} withCopy/>
+                        <InfoItem label="Minimum order size" content={String(useMinimumOrder())}/>
                     </Box>
                 </Box>
                 <Box

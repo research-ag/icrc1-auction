@@ -256,6 +256,8 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     };
   };
 
+  let MINIMUM_ORDER = 5_000;
+
   // Auction API
   public shared func init() : async () {
     assert Option.isNull(auction);
@@ -287,7 +289,7 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     let a = Auction.Auction(
       0,
       {
-        minimumOrder = 5_000;
+        minimumOrder = MINIMUM_ORDER;
         minAskVolume = func(assetId, _) = Vec.get(assets, assetId).minAskVolume;
         performanceCounter = Prim.performanceCounter;
       },
@@ -312,6 +314,7 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
   public shared query func getTrustedLedger() : async Principal = async trustedLedgerPrincipal;
   public shared query func sessionRemainingTime() : async Nat = async remainingTime();
   public shared query func sessionsCounter() : async Nat = async U.unwrapUninit(auction).sessionsCounter;
+  public shared query func minimumOrder() : async Nat = async MINIMUM_ORDER;
 
   public shared query ({ caller }) func queryCredits() : async [(Principal, Auction.CreditInfo)] {
     U.unwrapUninit(auction).queryCredits(caller) |> Array.tabulate<(Principal, Auction.CreditInfo)>(_.size(), func(i) = (getIcrc1Ledger(_ [i].0), _ [i].1));
@@ -334,8 +337,6 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     };
     case (_) [];
   };
-
-  // TODO replace function
 
   public shared query ({ caller }) func queryBids() : async [(Auction.OrderId, Order)] = async U.unwrapUninit(auction).queryBids(caller)
   |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = mapOrder(_ [i]));

@@ -38,6 +38,12 @@ export const useSessionsCounter = () => {
   return useQuery('sessionsCounter', () => auction.sessionsCounter());
 };
 
+
+export const useMinimumOrder = () => {
+  const { auction } = useAuction();
+  return useQuery('minimumOrder', () => auction.minimumOrder());
+};
+
 export const usePrincipalToSubaccount = (p: Principal) => {
   const { auction } = useAuction();
   return useQuery('subaccount_' + p.toText(), async () => auction.principalToSubaccount(p));

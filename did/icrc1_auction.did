@@ -144,6 +144,7 @@ service : (opt principal, opt principal) -> {
   getTrustedLedger : () -> (principal) query;
   sessionsCounter : () -> (nat) query;
   sessionRemainingTime : () -> (nat) query;
+  minimumOrder : () -> (nat) query;
 
   // user queries
   queryTokenBids : (Token) -> (vec record { OrderId; Order }) query;
