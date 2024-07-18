@@ -138,12 +138,12 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
   };
 
   public shared query ({ caller }) func icrc84_credit(token : Principal) : async Int = async switch (getAssetId(token)) {
-    case (?aid) U.unwrapUninit(auction).queryCredit(caller, aid);
+    case (?aid) U.unwrapUninit(auction).queryCredit(caller, aid).available;
     case (_) 0;
   };
 
   public shared query ({ caller }) func icrc84_all_credits() : async [(Principal, Int)] {
-    U.unwrapUninit(auction).queryCredits(caller) |> Array.tabulate<(Principal, Nat)>(_.size(), func(i) = (getIcrc1Ledger(_ [i].0), _ [i].1));
+    U.unwrapUninit(auction).queryCredits(caller) |> Array.tabulate<(Principal, Nat)>(_.size(), func(i) = (getIcrc1Ledger(_ [i].0), _ [i].1.available));
   };
 
   public shared query ({ caller }) func icrc84_trackedDeposit(token : Principal) : async {
@@ -189,7 +189,7 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
           #Ok({
             deposit_inc = inc;
             credit_inc = inc;
-            credit = a.queryCredit(caller, assetId);
+            credit = a.queryCredit(caller, assetId).available;
           });
         } else {
           #Err(#NotAvailable({ message = "Deposit was not detected" }));
@@ -214,7 +214,7 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
         #Ok({
           credit_inc = credited;
           txid = txid;
-          credit = a.queryCredit(caller, assetId);
+          credit = a.queryCredit(caller, assetId).available;
         });
       };
       case (#err x) #Err(
@@ -312,6 +312,10 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
   public shared query func getTrustedLedger() : async Principal = async trustedLedgerPrincipal;
   public shared query func sessionRemainingTime() : async Nat = async remainingTime();
   public shared query func sessionsCounter() : async Nat = async U.unwrapUninit(auction).sessionsCounter;
+
+  public shared query ({ caller }) func queryCredits() : async [(Principal, Auction.CreditInfo)] {
+    U.unwrapUninit(auction).queryCredits(caller) |> Array.tabulate<(Principal, Auction.CreditInfo)>(_.size(), func(i) = (getIcrc1Ledger(_ [i].0), _ [i].1));
+  };
 
   private func getIcrc1Ledger(assetId : Nat) : Principal = Vec.get(assets, assetId).ledgerPrincipal;
   private func getAssetId(icrc1Ledger : Principal) : ?Nat {

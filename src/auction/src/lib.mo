@@ -66,6 +66,12 @@ module {
     var lockedCredit : Nat;
   };
 
+  public type CreditInfo = {
+    total : Nat;
+    available : Nat;
+    locked : Nat;
+  };
+
   public type PriceHistoryItem = (timestamp : Nat64, sessionNumber : Nat, assetId : AssetId, volume : Nat, price : Float);
   public type TransactionHistoryItem = (timestamp : Nat64, sessionNumber : Nat, kind : { #ask; #bid }, assetId : AssetId, volume : Nat, price : Float);
 
@@ -236,24 +242,24 @@ module {
       };
     };
 
-    public func queryCredit(p : Principal, assetId : AssetId) : Nat = users.get(p)
+    public func queryCredit(p : Principal, assetId : AssetId) : CreditInfo = users.get(p)
     |> Option.chain<UserInfo, Account>(_, func(info) = AssocList.find(info.credits, assetId, Nat.equal))
-    |> Option.map<Account, Nat>(_, func(acc) = acc.credit - acc.lockedCredit)
-    |> Option.get(_, 0);
+    |> Option.map<Account, CreditInfo>(_, func(acc) = { total = acc.credit; locked = acc.lockedCredit; available = acc.credit - acc.lockedCredit })
+    |> Option.get(_, { total = 0; locked = 0; available = 0 });
 
-    public func queryCredits(p : Principal) : [(AssetId, Nat)] = switch (users.get(p)) {
+    public func queryCredits(p : Principal) : [(AssetId, CreditInfo)] = switch (users.get(p)) {
       case (null) [];
       case (?ui) {
         let length = List.size(ui.credits);
         var list = ui.credits;
-        Array.tabulate<(AssetId, Nat)>(
+        Array.tabulate<(AssetId, CreditInfo)>(
           length,
           func(i) {
             let popped = List.pop(list);
             list := popped.1;
             switch (popped.0) {
               case null { loop { assert false } };
-              case (?x) (x.0, x.1.credit - x.1.lockedCredit);
+              case (?x) (x.0, { total = x.1.credit; locked = x.1.lockedCredit; available = x.1.credit - x.1.lockedCredit });
             };
           },
         );

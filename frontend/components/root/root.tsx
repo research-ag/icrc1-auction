@@ -77,7 +77,7 @@ const Root = () => {
                           <Typography sx={{ fontWeight: 700 }} level="body-xs">Principal seed:</Typography>
                           <input type="text" onChange={e => onSeedInput(e.target.value)}></input>
                         </Box>
-                        <InfoItem label="Trusted ledger" content={useTrustedLedger().data?.toText() || ""} withCopy/>
+                        <InfoItem label="Quote currency ledger" content={useTrustedLedger().data?.toText() || ""} withCopy/>
                         <InfoItem label="Auction principal" content={canisterId} withCopy/>
                     </Box>
                 </Box>

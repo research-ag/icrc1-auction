@@ -128,7 +128,7 @@ export const useListCredits = () => {
   return useQuery(
     'myCredits',
     async () => {
-      return auction.icrc84_all_credits();
+      return auction.queryCredits();
     },
     {
       onError: err => {

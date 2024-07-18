@@ -28,24 +28,27 @@ const CreditsTable = () => {
       <Table>
         <colgroup>
           <col style={{ width: '200px' }} />
-          <col style={{ width: '240px' }} />
+          <col style={{ width: '120px' }} />
+          <col style={{ width: '120px' }} />
           <col style={{ width: '60px' }} />
         </colgroup>
         <thead>
-          <tr>
-            <th>Token symbol</th>
-            <th>Credit</th>
-            <th></th>
-          </tr>
+        <tr>
+          <th>Token symbol</th>
+          <th>Credit</th>
+          <th>Total credit</th>
+          <th></th>
+        </tr>
         </thead>
         <tbody>
           {(credits ?? []).map(([ledger, credit], i) => {
             return (
               <tr key={i}>
                 <td>
-                  { symbols && <InfoItem content={getSymbol(ledger)} withCopy={true} />}
+                  {symbols && <InfoItem content={getSymbol(ledger)} withCopy={true} />}
                 </td>
-                <td>{String(credit)}</td>
+                <td>{String(credit.available)}</td>
+                <td>{String(credit.total)}</td>
                 <td>
                   <Button onClick={() => openWithdrawModal(ledger)} color="danger" size="sm">
                     Withdraw
