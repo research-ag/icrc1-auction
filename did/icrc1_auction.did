@@ -113,6 +113,7 @@ type ReplaceOrderResponse = variant {
 type CancelOrderResponse = variant {
   Ok;
   Err : variant {
+    UnknownOrder;
     UnknownPrincipal;
   };
 };
