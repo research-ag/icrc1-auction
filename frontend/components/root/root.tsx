@@ -79,7 +79,7 @@ const Root = () => {
                         </Box>
                         <InfoItem label="Quote currency ledger" content={useTrustedLedger().data?.toText() || ""} withCopy/>
                         <InfoItem label="Auction principal" content={canisterId} withCopy/>
-                        <InfoItem label="Minimum order size" content={String(useMinimumOrder())}/>
+                        <InfoItem label="Minimum order size" content={String(useMinimumOrder().data)}/>
                     </Box>
                 </Box>
                 <Box
