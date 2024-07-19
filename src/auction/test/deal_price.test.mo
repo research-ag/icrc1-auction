@@ -199,8 +199,8 @@ do {
   auction.processAsset(ft);
 
   // note: user ask was not fulfilled because has too high price
-  userExpectedCredits[0] += 100_000; // bid fulfilled part funds unlocked
-  userExpectedCredits[0] -= 90_200; // bid fulfilled part funds charged (lower price)
+  userExpectedCredits[0] += 98_000;
+  userExpectedCredits[0] -= 88_200;
   userExpectedCredits[1] += 980_000; // credited with bought token
 
   // note user2 [1] balance not changed: whole volume was locked and then charged
