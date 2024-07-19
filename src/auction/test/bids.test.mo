@@ -3,27 +3,7 @@ import Principal "mo:base/Principal";
 
 import Vec "mo:vector";
 
-import Auction "../src/lib";
-
-func init(trustedAssetId : Nat) : (Auction.Auction, Principal) {
-  let auction = Auction.Auction(
-    trustedAssetId,
-    {
-      minAskVolume = func(_, _) = 0;
-      minimumOrder = 5_000;
-      performanceCounter = func(_) = 0;
-    },
-  );
-  auction.registerAssets(trustedAssetId + 1);
-  let user = Principal.fromText("rl3fy-hyflm-6r3qg-7nid5-lr6cp-ysfwh-xiqme-stgsq-bcga5-vnztf-mqe");
-  (auction, user);
-};
-
-func createFt(auction : Auction.Auction) : Nat {
-  let id = Vec.size(auction.assets);
-  auction.registerAssets(1);
-  id;
-};
+import { init; createFt } "./test.util";
 
 do {
   Prim.debugPrint("should not be able to place bid on non-existent token...");
@@ -92,7 +72,7 @@ do {
   assert bids.size() == 1;
   assert bids[0].1.price == 1_000;
   assert bids[0].1.volume == 2_000;
-  assert auction.queryCredit(user, 0) == 498_000_000;
+  assert auction.queryCredit(user, 0).available == 498_000_000;
 };
 
 do {
@@ -138,14 +118,14 @@ do {
   ignore auction.appendCredit(user, 0, 500_000_000);
   let ft = createFt(auction);
 
-  assert auction.queryCredit(user, 0) == 500_000_000;
+  assert auction.queryCredit(user, 0).available == 500_000_000;
   ignore auction.placeBid(user, ft, 2_000, 100_000);
-  assert auction.queryCredit(user, 0) == 300_000_000;
+  assert auction.queryCredit(user, 0).available == 300_000_000;
   switch (auction.placeBid(user, ft, 2_000, 150_000)) {
     case (#ok _) ();
     case (_) assert false;
   };
-  assert auction.queryCredit(user, 0) == 0;
+  assert auction.queryCredit(user, 0).available == 0;
   assert auction.queryAssetBids(user, ft).size() == 2;
 };
 
@@ -155,17 +135,17 @@ do {
   ignore auction.appendCredit(user, 0, 500_000_000);
   let ft = createFt(auction);
 
-  assert auction.queryCredit(user, 0) == 500_000_000;
+  assert auction.queryCredit(user, 0).available == 500_000_000;
   let orderId = switch (auction.placeBid(user, ft, 2_000, 100_000)) {
     case (#ok id) id;
     case (_) { assert false; 0 };
   };
-  assert auction.queryCredit(user, 0) == 300_000_000;
+  assert auction.queryCredit(user, 0).available == 300_000_000;
   switch (auction.placeBid(user, ft, 2_000, 100_000)) {
-    case (#err(#ConflictingOrder(#bid, oid))) assert oid == orderId;
+    case (#err(#ConflictingOrder(#bid, oid))) assert oid == ?orderId;
     case (_) assert false;
   };
-  assert auction.queryCredit(user, 0) == 300_000_000;
+  assert auction.queryCredit(user, 0).available == 300_000_000;
   assert auction.queryAssetBids(user, ft).size() == 1;
 };
 
@@ -179,21 +159,21 @@ do {
     case (#ok id) id;
     case (_) { assert false; 0 };
   };
-  assert auction.queryCredit(user, 0) == 250_000_000;
+  assert auction.queryCredit(user, 0).available == 250_000_000;
   assert auction.queryAssetBids(user, ft).size() == 1;
 
   let newOrderId = switch (auction.replaceBid(user, orderId, 2_000, 250_000)) {
     case (#ok id) id;
     case (_) { assert false; 0 };
   };
-  assert auction.queryCredit(user, 0) == 0;
+  assert auction.queryCredit(user, 0).available == 0;
   assert auction.queryAssetBids(user, ft).size() == 1;
 
   switch (auction.replaceBid(user, newOrderId, 2_000, 60_000)) {
-    case (#ok id) {};
+    case (#ok _) {};
     case (_) assert false;
   };
-  assert auction.queryCredit(user, 0) == 380_000_000;
+  assert auction.queryCredit(user, 0).available == 380_000_000;
   assert auction.queryAssetBids(user, ft).size() == 1;
 };
 
@@ -207,14 +187,14 @@ do {
     case (#ok id) id;
     case (_) { assert false; 0 };
   };
-  assert auction.queryCredit(user, 0) == 250_000_000;
+  assert auction.queryCredit(user, 0).available == 250_000_000;
   assert auction.queryAssetBids(user, ft).size() == 1;
 
   switch (auction.replaceBid(user, orderId, 2_000_000, 250_000_000)) {
     case (#err(#NoCredit)) ();
     case (_) assert false;
   };
-  assert auction.queryCredit(user, 0) == 250_000_000;
+  assert auction.queryCredit(user, 0).available == 250_000_000;
   let bids = auction.queryAssetBids(user, ft);
   assert bids.size() == 1;
   assert bids[0].0 == orderId;
@@ -229,11 +209,11 @@ do {
   let ft = createFt(auction);
 
   switch (auction.placeBid(user, ft, 2_000, 15_000)) {
-    case (#ok id) {};
+    case (#ok _) {};
     case (_) assert false;
   };
   assert auction.queryAssetBids(user, ft).size() == 1;
-  assert auction.queryCredit(user, 0) == 470_000_000;
+  assert auction.queryCredit(user, 0).available == 470_000_000;
 
   let seller = Principal.fromText("ocqy6-3dphi-xgf54-vkr2e-lk4oz-3exc6-446gr-5e72g-bsdfo-4nzrm-hqe");
   ignore auction.appendCredit(seller, ft, 500_000_000);
@@ -244,8 +224,8 @@ do {
   // test that bid disappeared
   assert auction.queryAssetBids(user, ft).size() == 0;
   // test that tokens were decremented from deposit, credit added
-  assert auction.queryCredit(user, 0) == 470_000_000;
-  assert auction.queryCredit(user, ft) == 2_000;
+  assert auction.queryCredit(user, 0).available == 470_000_000;
+  assert auction.queryCredit(user, ft).available == 2_000;
   // check history
   let historyItem = auction.queryTransactionHistory(user, ?ft, 1, 0)[0];
   assert historyItem.1 == 0;
@@ -319,7 +299,7 @@ do {
   assert auction.queryAssetBids(user2, ft).size() == 0;
 
   assert auction.queryAssetBids(user3, ft).size() == 1;
-  assert auction.queryCredit(user3, ft) == 1;
+  assert auction.queryCredit(user3, ft).available == 1;
 };
 
 do {
@@ -353,10 +333,10 @@ do {
   assert auction.queryAssetBids(user2, ft).size() == 0;
   assert auction.queryAssetBids(user3, ft).size() == 1;
   // check that price was 100 (lowest fulfilled bid) for both user and user2
-  assert auction.queryCredit(user, ft) == 1_500;
-  assert auction.queryCredit(user, 0) == 350_000_000;
-  assert auction.queryCredit(user2, ft) == 1_500;
-  assert auction.queryCredit(user2, 0) == 350_000_000;
+  assert auction.queryCredit(user, ft).available == 1_500;
+  assert auction.queryCredit(user, 0).available == 350_000_000;
+  assert auction.queryCredit(user2, ft).available == 1_500;
+  assert auction.queryCredit(user2, 0).available == 350_000_000;
 };
 
 do {
@@ -392,13 +372,13 @@ do {
   auction.processAsset(ft);
 
   // check that price was 100 (lowest partially fulfilled bid). Queried deposit grew for high bidders
-  assert auction.queryCredit(user, ft) == 1_500;
-  assert auction.queryCredit(user, 0) == 350_000_000;
-  assert auction.queryCredit(user2, ft) == 1_500;
-  assert auction.queryCredit(user2, 0) == 350_000_000;
+  assert auction.queryCredit(user, ft).available == 1_500;
+  assert auction.queryCredit(user, 0).available == 350_000_000;
+  assert auction.queryCredit(user2, ft).available == 1_500;
+  assert auction.queryCredit(user2, 0).available == 350_000_000;
   // user whose bid was fulfilled partially
-  assert auction.queryCredit(user3, ft) == 500;
-  assert auction.queryCredit(user3, 0) == 350_000_000; // 100m is locked in the bid, 50m were charged
+  assert auction.queryCredit(user3, ft).available == 500;
+  assert auction.queryCredit(user3, 0).available == 350_000_000; // 100m is locked in the bid, 50m were charged
   // check bid. Volume should be lowered by 500
   let bids = auction.queryAssetBids(user3, ft);
   assert bids.size() == 1;
@@ -430,8 +410,8 @@ do {
 
   // bid is still there
   assert auction.queryAssetBids(user, ft).size() == 1;
-  assert auction.queryCredit(user, 0) == 300_000_000;
-  assert auction.queryCredit(user, ft) == 1_000; // was partially fulfilled
+  assert auction.queryCredit(user, 0).available == 300_000_000;
+  assert auction.queryCredit(user, ft).available == 1_000; // was partially fulfilled
 
   // add another ask
   ignore auction.placeAsk(seller, ft, 1_000, 0);
@@ -441,8 +421,8 @@ do {
 
   // bid should be fully fulfilled now
   assert auction.queryAssetBids(user, ft).size() == 0;
-  assert auction.queryCredit(user, 0) == 300_000_000;
-  assert auction.queryCredit(user, ft) == 2_000;
+  assert auction.queryCredit(user, 0).available == 300_000_000;
+  assert auction.queryCredit(user, ft).available == 2_000;
 };
 
 do {
@@ -524,5 +504,5 @@ do {
   assert auction.queryAssetAsks(seller, ft).size() == 0;
   assert auction.queryAssetBids(user, ft).size() == 0;
 
-  assert auction.queryCredit(user, ft) == 2_000;
+  assert auction.queryCredit(user, ft).available == 2_000;
 };

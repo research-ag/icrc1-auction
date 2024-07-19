@@ -2,29 +2,7 @@ import Array "mo:base/Array";
 import Prim "mo:prim";
 import Principal "mo:base/Principal";
 
-import Vec "mo:vector";
-
-import Auction "../src/lib";
-
-func init(trustedAssetId : Nat) : (Auction.Auction, Principal) {
-  let auction = Auction.Auction(
-    trustedAssetId,
-    {
-      minAskVolume = func(_, _) = 0;
-      minimumOrder = 5_000;
-      performanceCounter = func(_) = 0;
-    },
-  );
-  auction.registerAssets(trustedAssetId + 1);
-  let user = Principal.fromText("rl3fy-hyflm-6r3qg-7nid5-lr6cp-ysfwh-xiqme-stgsq-bcga5-vnztf-mqe");
-  (auction, user);
-};
-
-func createFt(auction : Auction.Auction) : Nat {
-  let id = Vec.size(auction.assets);
-  auction.registerAssets(1);
-  id;
-};
+import { init; createFt } "./test.util";
 
 do {
   Prim.debugPrint("should use correct price when orders are completely fulfilled and there are other unfulfilled orders...");
@@ -153,11 +131,11 @@ do {
   func assertBalances(u : Principal, expectedCredits : [var Nat]) : () {
     let cr = auction.queryCredits(u);
     if (cr[0].0 == 0) {
-      assert cr[0].1 == expectedCredits[0];
-      assert cr[1].1 == expectedCredits[1];
+      assert cr[0].1.available == expectedCredits[0];
+      assert cr[1].1.available == expectedCredits[1];
     } else {
-      assert cr[0].1 == expectedCredits[1];
-      assert cr[1].1 == expectedCredits[0];
+      assert cr[0].1.available == expectedCredits[1];
+      assert cr[1].1.available == expectedCredits[0];
     };
   };
   auction.processAsset(ft);
@@ -199,8 +177,8 @@ do {
   auction.processAsset(ft);
 
   // note: user ask was not fulfilled because has too high price
-  userExpectedCredits[0] += 98_000;
-  userExpectedCredits[0] -= 88_200;
+  userExpectedCredits[0] += 98_000; // bid fulfilled part funds unlocked
+  userExpectedCredits[0] -= 88_200; // bid fulfilled part funds charged (lower price)
   userExpectedCredits[1] += 980_000; // credited with bought token
 
   // note user2 [1] balance not changed: whole volume was locked and then charged

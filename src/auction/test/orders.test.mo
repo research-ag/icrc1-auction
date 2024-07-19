@@ -1,29 +1,6 @@
 import Prim "mo:prim";
-import Principal "mo:base/Principal";
 
-import Vec "mo:vector";
-
-import Auction "../src/lib";
-
-func init(trustedAssetId : Nat) : (Auction.Auction, Principal) {
-  let auction = Auction.Auction(
-    trustedAssetId,
-    {
-      minAskVolume = func(_, _) = 0;
-      minimumOrder = 5_000;
-      performanceCounter = func(_) = 0;
-    },
-  );
-  auction.registerAssets(trustedAssetId + 1);
-  let user = Principal.fromText("rl3fy-hyflm-6r3qg-7nid5-lr6cp-ysfwh-xiqme-stgsq-bcga5-vnztf-mqe");
-  (auction, user);
-};
-
-func createFt(auction : Auction.Auction) : Nat {
-  let id = Vec.size(auction.assets);
-  auction.registerAssets(1);
-  id;
-};
+import { init; createFt } "./test.util";
 
 do {
   Prim.debugPrint("should be able to place both bid and ask on the same asset...");
@@ -162,9 +139,9 @@ do {
   assert auction.queryAssetBids(user, ft1).size() == 2;
   assert auction.queryAssetAsks(user, ft2).size() == 2;
   assert auction.queryAssetBids(user, ft2).size() == 2;
-  assert auction.queryCredit(user, 0) == 497_800_000;
-  assert auction.queryCredit(user, ft1) == 496_000_000;
-  assert auction.queryCredit(user, ft2) == 496_000_000;
+  assert auction.queryCredit(user, 0).available == 497_800_000;
+  assert auction.queryCredit(user, ft1).available == 496_000_000;
+  assert auction.queryCredit(user, ft2).available == 496_000_000;
 };
 
 do {
@@ -202,9 +179,9 @@ do {
   assert auction.queryAssetBids(user, ft1).size() == 0;
   assert auction.queryAssetAsks(user, ft2).size() == 0;
   assert auction.queryAssetBids(user, ft2).size() == 0;
-  assert auction.queryCredit(user, 0) == 500_000_000;
-  assert auction.queryCredit(user, ft1) == 500_000_000;
-  assert auction.queryCredit(user, ft2) == 500_000_000;
+  assert auction.queryCredit(user, 0).available == 500_000_000;
+  assert auction.queryCredit(user, ft1).available == 500_000_000;
+  assert auction.queryCredit(user, ft2).available == 500_000_000;
 };
 
 do {
@@ -242,9 +219,9 @@ do {
   assert auction.queryAssetBids(user, ft1).size() == 0;
   assert auction.queryAssetAsks(user, ft2).size() == 2;
   assert auction.queryAssetBids(user, ft2).size() == 2;
-  assert auction.queryCredit(user, 0) == 498_900_000;
-  assert auction.queryCredit(user, ft1) == 500_000_000;
-  assert auction.queryCredit(user, ft2) == 496_000_000;
+  assert auction.queryCredit(user, 0).available == 498_900_000;
+  assert auction.queryCredit(user, ft1).available == 500_000_000;
+  assert auction.queryCredit(user, ft2).available == 496_000_000;
 };
 
 do {
@@ -285,7 +262,7 @@ do {
   assert auction.queryAssetBids(user, ft1).size() == 1;
   assert auction.queryAssetAsks(user, ft2).size() == 2;
   assert auction.queryAssetBids(user, ft2).size() == 2;
-  assert auction.queryCredit(user, 0) == 498_400_000;
-  assert auction.queryCredit(user, ft1) == 500_000_000;
-  assert auction.queryCredit(user, ft2) == 496_000_000;
+  assert auction.queryCredit(user, 0).available == 498_400_000;
+  assert auction.queryCredit(user, ft1).available == 500_000_000;
+  assert auction.queryCredit(user, ft2).available == 496_000_000;
 };

@@ -622,12 +622,12 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
       ignore Timer.recurringTimer<system>(
         #seconds(Nat64.toNat(AUCTION_INTERVAL_SECONDS)),
         func() : async () = async switch (auction) {
-          case (?a) await runAuction();
+          case (?_) await runAuction();
           case (null) {};
         },
       );
       switch (auction) {
-        case (?a) await runAuction();
+        case (?_) await runAuction();
         case (null) {};
       };
     }
