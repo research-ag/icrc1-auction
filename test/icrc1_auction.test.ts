@@ -308,9 +308,21 @@ describe('ICRC1 Auction', () => {
     });
   });
 
-  describe('bids', () => {
+  describe('orders', () => {
 
-    test('should affect metrics', async () => {
+    test('should be able to manage orders via single query', async () => {
+      await prepareDeposit(user);
+      await auction.placeBids([[ledger1Principal, 1_000n, 15_000]]);
+      expect(await auction.queryBids()).toHaveLength(1);
+      let res2 = await auction.manageOrders([{ all: [] }], [
+        { bid: [ledger1Principal, 1_000n, 15_100] },
+        { bid: [ledger1Principal, 1_000n, 15_200] },
+      ]);
+      expect(res2).toHaveProperty('Ok');
+      expect(await auction.queryBids()).toHaveLength(2);
+    });
+
+    test('bids should affect metrics', async () => {
       await auction.runAuctionImmediately();
       await prepareDeposit(user);
       await auction.placeBids([[ledger1Principal, 2_000n, 15_000]]);
@@ -335,11 +347,7 @@ describe('ICRC1 Auction', () => {
       expect(metrics).toContain(`bids_volume{canister="${shortP}",asset_id="1"} 0 `);
     });
 
-  });
-
-  describe('asks', () => {
-
-    test('should affect metrics', async () => {
+    test('asks should affect metrics', async () => {
       await auction.runAuctionImmediately();
       await prepareDeposit(user, ledger1Principal);
 
@@ -366,6 +374,7 @@ describe('ICRC1 Auction', () => {
       expect(metrics).toContain(`asks_amount{canister="${shortP}",asset_id="1"} 0 `);
       expect(metrics).toContain(`asks_volume{canister="${shortP}",asset_id="1"} 0 `);
     });
+
   });
 
   describe('credit', () => {

@@ -370,6 +370,58 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     |> Array.tabulate<PriceHistoryItem>(_.size(), func(i) = (_ [i].0, _ [i].1, Vec.get(assets, _ [i].2).ledgerPrincipal, _ [i].3, _ [i].4));
   };
 
+  type ManageOrdersError = {
+    #UnknownPrincipal;
+    #cancellation : { index : Nat; error : { #UnknownAsset; #UnknownOrder } };
+    #placement : {
+      index : Nat;
+      error : {
+        #ConflictingOrder : ({ #ask; #bid }, ?Auction.OrderId);
+        #NoCredit;
+        #TooLowOrder;
+        #UnknownAsset;
+      };
+    };
+  };
+
+  public shared ({ caller }) func manageOrders(
+    cancellations : ?{
+      #all : ?[Principal];
+      #orders : [{ #ask : Auction.OrderId; #bid : Auction.OrderId }];
+    },
+    placements : [{
+      #ask : (token : Principal, volume : Nat, price : Float);
+      #bid : (token : Principal, volume : Nat, price : Float);
+    }],
+  ) : async UpperResult<[Auction.OrderId], ManageOrdersError> {
+    let cancellationArg : ?Auction.CancellationAction = switch (cancellations) {
+      case (null) null;
+      case (? #orders x) ? #orders(x);
+      case (? #all null) ? #all(null);
+      case (? #all(?tokens)) {
+        let aids = Array.init<Nat>(tokens.size(), 0);
+        for (i in tokens.keys()) {
+          let ?aid = getAssetId(tokens[i]) else return #Err(#cancellation({ index = i; error = #UnknownAsset }));
+          aids[i] := aid;
+        };
+        ? #all(?Array.freeze(aids));
+      };
+    };
+    let placementArg = Array.init<Auction.PlaceOrderAction>(placements.size(), #ask(0, 0, 0.0));
+    for (i in placements.keys()) {
+      let placement = placements[i];
+      let token = switch (placement) { case (#ask x or #bid x) x.0 };
+      let ?aid = getAssetId(token) else return #Err(#placement({ index = i; error = #UnknownAsset }));
+      placementArg[i] := switch (placement) {
+        case (#ask(_, volume, price)) #ask(aid, volume, price);
+        case (#bid(_, volume, price)) #bid(aid, volume, price);
+      };
+    };
+    U.unwrapUninit(auction)
+    |> _.manageOrders(caller, cancellationArg, Array.freeze(placementArg))
+    |> R.toUpper(_);
+  };
+
   public shared ({ caller }) func placeBids(arg : [(ledger : Principal, volume : Nat, price : Float)]) : async [UpperResult<Auction.OrderId, Auction.PlaceOrderError>] {
     Array.tabulate<UpperResult<Auction.OrderId, Auction.PlaceOrderError>>(
       arg.size(),

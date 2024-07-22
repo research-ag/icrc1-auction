@@ -90,6 +90,38 @@ type Order = record {
   volume : nat;
 };
 
+type CancellationArg = variant {
+  all : opt vec Token;
+  orders : vec variant { ask : OrderId; bid : OrderId };
+};
+type PlaceArg = vec variant {
+  ask : record { Token; nat; float64 };
+  bid : record { Token; nat; float64 };
+};
+
+type ManageOrdersResponse = variant {
+  Ok : vec OrderId;
+  Err : variant {
+    UnknownPrincipal;
+    cancellation : record {
+      index : nat;
+      error : variant {
+        UnknownAsset;
+        UnknownOrder;
+      };
+    };
+    placement : record {
+      index : nat;
+      error : variant {
+        ConflictingOrder : record { variant { ask; bid }; opt OrderId };
+        NoCredit;
+        TooLowOrder;
+        UnknownAsset;
+      };
+    };
+  };
+};
+
 type PlaceOrderResponse = variant {
   Ok : OrderId;
   Err : variant {
@@ -161,6 +193,8 @@ service : (opt principal, opt principal) -> {
   queryPriceHistory : (opt Token, nat, nat) -> (vec record { nat64; nat; Token; nat; float64 }) query;
 
   // update
+  manageOrders : (opt CancellationArg, PlaceArg) -> (ManageOrdersResponse);
+
   placeAsks : (vec record { Token; nat; float64 }) -> (vec PlaceOrderResponse);
   replaceAsk : (OrderId, nat, float64) -> (ReplaceOrderResponse);
   cancelAsks : (vec OrderId) -> (vec CancelOrderResponse);
