@@ -63,7 +63,7 @@ describe('ICRC1 Auction', () => {
 
     const setupLedgerCanister = () => pic.setupCanister({
       wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_ledger_mock/icrc1_ledger_mock.wasm'),
-      arg: IDL.encode(lInit({ IDL }), []),
+      arg: IDL.encode(lInit({ IDL }), [[], []]),
       sender: controller.getPrincipal(),
       idlFactory: L_IDL,
     });
