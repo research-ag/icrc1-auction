@@ -1,10 +1,11 @@
 import { Box, Button, Table } from '@mui/joy';
 
-import { useListCredits, useTokenSymbolsMap } from '@fe/integration';
+import { useListCredits, useTokenInfoMap } from '@fe/integration';
 import WithdrawCreditModal from '../withdraw-credit-modal';
 import { useState } from 'react';
 import InfoItem from '../../root/info-item';
 import { Principal } from '@dfinity/principal';
+import { displayWithDecimals } from '@fe/utils';
 
 const CreditsTable = () => {
   const { data: credits } = useListCredits();
@@ -17,10 +18,10 @@ const CreditsTable = () => {
   };
   const closeWithdrawModal = () => setIsWithdrawModalOpen(false);
 
-  const { data: symbols } = useTokenSymbolsMap();
-  const getSymbol = (ledger: Principal): string => {
+  const { data: symbols } = useTokenInfoMap();
+  const getTokenInfo = (ledger: Principal): { symbol: string, decimals: number } => {
     const mapItem = (symbols || []).find(([p, s]) => p.toText() == ledger.toText());
-    return mapItem ? mapItem[1] : '-';
+    return mapItem ? mapItem[1] : { symbol: '-', decimals: 0 };
   };
 
   return (
@@ -41,22 +42,22 @@ const CreditsTable = () => {
         </tr>
         </thead>
         <tbody>
-          {(credits ?? []).map(([ledger, credit], i) => {
-            return (
-              <tr key={i}>
-                <td>
-                  {symbols && <InfoItem content={getSymbol(ledger)} withCopy={true} />}
-                </td>
-                <td>{String(credit.available)}</td>
-                <td>{String(credit.total)}</td>
-                <td>
-                  <Button onClick={() => openWithdrawModal(ledger)} color="danger" size="sm">
-                    Withdraw
-                  </Button>
-                </td>
-              </tr>
-            );
-          })}
+        {(credits ?? []).map(([ledger, credit], i) => {
+          return (
+            <tr key={i}>
+              <td>
+                {symbols && <InfoItem content={getTokenInfo(ledger).symbol} withCopy={true} />}
+              </td>
+              <td>{displayWithDecimals(credit.available, getTokenInfo(ledger).decimals)}</td>
+              <td>{displayWithDecimals(credit.total, getTokenInfo(ledger).decimals)}</td>
+              <td>
+                <Button onClick={() => openWithdrawModal(ledger)} color="danger" size="sm">
+                  Withdraw
+                </Button>
+              </td>
+            </tr>
+          );
+        })}
         </tbody>
       </Table>
       <WithdrawCreditModal isOpen={isWithdrawModalOpen} onClose={closeWithdrawModal} ledger={withdrawLedger} />

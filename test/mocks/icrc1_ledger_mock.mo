@@ -1,10 +1,11 @@
 import Array "mo:base/Array";
 import AssocList "mo:base/AssocList";
 import Blob "mo:base/Blob";
+import Nat8 "mo:base/Nat8";
 import Option "mo:base/Option";
 import Principal "mo:base/Principal";
 
-actor class ICRC1Ledger() = self {
+actor class ICRC1Ledger(symbol_ : ?Text, decimals_ : ?Nat8) = self {
   type Account = {
     var balance : Nat;
   };
@@ -30,6 +31,9 @@ actor class ICRC1Ledger() = self {
     #TemporarilyUnavailable;
     #GenericError : { error_code : Nat; message : Text };
   };
+
+  let TOKEN_SYMBOL = Option.get<Text>(symbol_, "MOCK");
+  let TOKEN_DECIMALS = Option.get<Nat8>(decimals_, 2);
 
   let zeroSubaccount = Blob.fromArray(Array.tabulate<Nat8>(32, func(n) = 0));
   func deoptRef(r : AccountRefOpt) : AccountRef = ({
@@ -78,16 +82,16 @@ actor class ICRC1Ledger() = self {
     };
   };
 
-  public shared query func icrc1_symbol() : async Text = async "MOCK";
+  public shared query func icrc1_symbol() : async Text = async TOKEN_SYMBOL;
 
-  public shared query func icrc1_decimals() : async Nat8 = async 2;
+  public shared query func icrc1_decimals() : async Nat8 = async TOKEN_DECIMALS;
 
   public shared query func icrc1_fee() : async Nat = async fee;
 
-  public shared query func icrc1_metadata() : async [(Text, { #Int: Int; #Nat:Nat; #Blob: Blob; #Text: Text})] = async [
-    ("icrc1:decimals", #Nat(2)),
+  public shared query func icrc1_metadata() : async [(Text, { #Int : Int; #Nat : Nat; #Blob : Blob; #Text : Text })] = async [
+    ("icrc1:decimals", #Nat(Nat8.toNat(TOKEN_DECIMALS))),
     ("icrc1:name", #Text("Mock")),
-    ("icrc1:symbol", #Text("MOCK")),
+    ("icrc1:symbol", #Text(TOKEN_SYMBOL)),
     ("icrc1:fee", #Nat(fee)),
   ];
 

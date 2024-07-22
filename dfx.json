@@ -7,13 +7,15 @@
       "declarations": {
         "bindings": ["js", "ts"],
         "output": "./declarations/icrc1_ledger_mock"
-      }
+      },
+      "init_arg": "(opt \"MCK_1\", opt 6 : opt nat8)"
     },
     "icrc1_ledger_mock_2": {
       "dependencies": ["icrc1_ledger_mock"],
       "wasm": "./.dfx/local/canisters/icrc1_ledger_mock/icrc1_ledger_mock.wasm",
       "candid": "./.dfx/local/canisters/icrc1_ledger_mock/icrc1_ledger_mock.did",
-      "type": "custom"
+      "type": "custom",
+      "init_arg": "(opt \"MCK_2\", opt 2 : opt nat8)"
     },
     "icrc1_auction": {
       "dependencies": ["icrc1_ledger_mock"],

@@ -1,16 +1,18 @@
 import { Box, Table } from '@mui/joy';
 
-import { useTokenSymbolsMap, useTransactionHistory } from '@fe/integration';
+import { useTokenInfoMap, useTransactionHistory, useTrustedLedger } from '@fe/integration';
 import InfoItem from '../../root/info-item';
 import { Principal } from '@dfinity/principal';
+import { displayWithDecimals } from '@fe/utils';
 
 const TransactionsHistoryTable = () => {
   const { data: data } = useTransactionHistory();
 
-  const { data: symbols } = useTokenSymbolsMap();
-  const getSymbol = (ledger: Principal): string => {
+  const { data: trustedLedger } = useTrustedLedger();
+  const { data: symbols } = useTokenInfoMap();
+  const getInfo = (ledger: Principal): { symbol: string, decimals: number } => {
     const mapItem = (symbols || []).find(([p, s]) => p.toText() == ledger.toText());
-    return mapItem ? mapItem[1] : '-';
+    return mapItem ? mapItem[1] : { symbol: '-', decimals: 0 };
   };
 
   return (
@@ -36,19 +38,19 @@ const TransactionsHistoryTable = () => {
         </thead>
         <tbody>
         {(data ?? []).map(([ts, sessionNumber, kind, ledger, volume, price]) => {
-            return (
-              <tr key={String(ts)}>
-                <td>{String(new Date(Number(ts) / 1_000_000))}</td>
-                <td>{String(sessionNumber)}</td>
-                <td>{'ask' in kind ? 'Ask' : 'Bid'}</td>
-                <td>
-                  <InfoItem content={getSymbol(ledger)} withCopy={true} />
-                </td>
-                <td>{String(volume)}</td>
-                <td>{String(price)}</td>
-              </tr>
-            );
-          })}
+          return (
+            <tr key={String(ts)}>
+              <td>{String(new Date(Number(ts) / 1_000_000))}</td>
+              <td>{String(sessionNumber)}</td>
+              <td>{'ask' in kind ? 'Ask' : 'Bid'}</td>
+              <td>
+                <InfoItem content={getInfo(ledger).symbol} withCopy={true} />
+              </td>
+              <td>{displayWithDecimals(volume, getInfo(ledger).decimals)}</td>
+              <td>{String(price * Math.pow(10, getInfo(ledger).decimals - getInfo(trustedLedger!).decimals))}</td>
+            </tr>
+          );
+        })}
         </tbody>
       </Table>
     </Box>

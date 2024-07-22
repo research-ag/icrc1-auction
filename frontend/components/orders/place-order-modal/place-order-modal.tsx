@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z as zod } from 'zod';
 import { Box, Button, FormControl, FormLabel, Input, Modal, ModalClose, ModalDialog, Typography } from '@mui/joy';
 
-import { usePlaceOrder, useTokenSymbolsMap } from '@fe/integration';
+import { usePlaceOrder, useTokenInfoMap, useTrustedLedger } from '@fe/integration';
 import ErrorAlert from '../../../components/error-alert';
 import { Principal } from '@dfinity/principal';
 import { useSnackbar } from 'notistack';
@@ -27,11 +27,11 @@ const schema = zod.object({
     .min(1),
   volume: zod
     .string()
-    .min(1)
+    .min(0)
     .refine(value => !isNaN(Number(value))),
   price: zod
     .string()
-    .min(1)
+    .min(0)
     .refine(value => !isNaN(Number(value))),
 });
 
@@ -59,10 +59,22 @@ const PlaceOrderModal = ({ kind, isOpen, onClose }: PlaceOrderModalProps) => {
 
   const { mutate: placeOrder, error, isLoading, reset: resetApi } = usePlaceOrder(kind);
 
-  const { data: symbols } = useTokenSymbolsMap();
+  const { data: symbols } = useTokenInfoMap();
+  const { data: trustedLedger } = useTrustedLedger();
   const getLedgerPrincipal = (symbol: string): Principal | null => {
-    const mapItem = (symbols || []).find(([p, s]) => s == symbol);
+    const mapItem = (symbols || []).find(([p, s]) => s.symbol === symbol);
     return mapItem ? mapItem[0] : null;
+  };
+  const getTokenDecimals = (symbol: string): number => {
+    const mapItem = (symbols || []).find(([p, s]) => s.symbol === symbol);
+    if (!mapItem) {
+      throw new Error('Unknown token');
+    }
+    return mapItem[1].decimals;
+  };
+  const getTrustedDecimals = (): number => {
+    const mapItem = (symbols || []).find(([p]) => p.toText() === trustedLedger?.toText());
+    return mapItem ? mapItem[1].decimals : 0;
   };
   const { enqueueSnackbar } = useSnackbar();
 
@@ -72,10 +84,11 @@ const PlaceOrderModal = ({ kind, isOpen, onClose }: PlaceOrderModalProps) => {
       enqueueSnackbar(`Unknown token symbol: "${data.symbol}"`, { variant: 'error' });
       return;
     }
+    let decimals = getTokenDecimals(data.symbol);
     placeOrder({
       ledger: p.toText(),
-      price: data.price,
-      volume: data.volume,
+      price: Math.round(data.price * Math.pow(10, getTrustedDecimals() - decimals)),
+      volume: Math.round(data.volume * Math.pow(10, decimals)),
     }, {
       onSuccess: () => {
         onClose();
