@@ -9,25 +9,64 @@ export const validatePrincipal = (value: string): boolean => {
   }
 };
 
+// convert number to string avoiding scientific notation
+const numberToString = (num: number): string => {
+  let numStr = String(num);
+  if (Math.abs(num) < 1.0) {
+    let e = parseInt(num.toString().split('e-')[1]);
+    if (e) {
+      let negative = num < 0;
+      if (negative) num *= -1
+      num *= Math.pow(10, e - 1);
+      numStr = '0.' + (new Array(e)).join('0') + num.toString().substring(2);
+      if (negative) numStr = "-" + numStr;
+    }
+  } else {
+    let e = parseInt(num.toString().split('+')[1]);
+    if (e > 20)
+    {
+      e -= 20;
+      num /= Math.pow(10, e);
+      numStr = num.toString() + (new Array(e + 1)).join('0');
+    }
+  }
+  return numStr;
+}
+
+// string-based decimal point transformation
 export const displayWithDecimals = (value: bigint | number, decimals: number): string => {
   if (value < 0) {
     throw new Error('Wrong natural number provided: ' + value.toString());
   }
-  let res = value.toString();
+  let res = numberToString(Number(value));
   if (decimals === 0) {
     return res;
   }
-  if (decimals > 0) {
-    if (res.length <= decimals) {
-      res = '0.' + res.padStart(decimals, '0');
+  let [intPart, fracPart] = res.split('.');
+  fracPart = fracPart || '';
+  while (decimals < 0) {
+    if (fracPart == '') {
+      intPart += '0';
     } else {
-      res = res.slice(0, res.length - decimals) + '.' + res.slice(res.length - decimals);
+      intPart += fracPart[0];
+      fracPart = fracPart.slice(1);
     }
-    while (res[res.length - 1] === '0' && res[res.length - 2] !== '.') {
-      res = res.slice(0, res.length - 1);
+    decimals++;
+  }
+  while (decimals > 0) {
+    if (intPart == '') {
+      fracPart = '0' + fracPart;
+    } else {
+      fracPart = intPart[intPart.length - 1] + fracPart;
+      intPart = intPart.slice(0, intPart.length - 1);
     }
-  } else if (res !== '0') {
-    res = res.padEnd(res.length - decimals, '0');
+    decimals--;
+  }
+  intPart = intPart.replace(/^0+/, '');
+  fracPart = fracPart.replace(/0+$/, '');
+  res = intPart || "0";
+  if (fracPart) {
+    res += "." + fracPart;
   }
   return res;
 };

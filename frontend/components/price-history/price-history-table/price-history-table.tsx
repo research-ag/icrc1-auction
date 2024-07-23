@@ -44,7 +44,7 @@ const PriceHistoryTable = () => {
                 <InfoItem content={getInfo(ledger).symbol} withCopy={true} />
               </td>
               <td>{displayWithDecimals(volume, getInfo(ledger).decimals)}</td>
-              <td>{String(price * Math.pow(10, getInfo(ledger).decimals - getInfo(trustedLedger!).decimals))}</td>
+              <td>{displayWithDecimals(price, getInfo(trustedLedger!).decimals - getInfo(ledger).decimals)}</td>
             </tr>
           );
         })}
