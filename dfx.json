@@ -18,7 +18,6 @@
       "init_arg": "(opt \"MCK_2\", opt 2 : opt nat8)"
     },
     "icrc1_auction": {
-      "dependencies": ["icrc1_ledger_mock"],
       "main": "src/icrc1_auction_api.mo",
       "did": "src/icrc1_auction.did",
       "type": "motoko",
@@ -37,7 +36,6 @@
       "declarations": {}
     },
     "icrc1_auction_legacy": {
-      "dependencies": ["icrc1_ledger_mock"],
       "main": "src/icrc1_auction_api_legacy.mo",
       "did": "src/icrc1_auction_legacy.did",
       "type": "motoko",
@@ -53,6 +51,25 @@
       "dependencies": ["icrc1_auction_legacy"],
       "source": ["dist_legacy/"],
       "build": "npm run build:frontend_legacy",
+      "declarations": {}
+    },
+    "icrc1_auction_mock": {
+      "dependencies": ["icrc1_ledger_mock"],
+      "main": "src/icrc1_auction_api.mo",
+      "did": "src/icrc1_auction.did",
+      "type": "motoko",
+      "init_arg": "(opt principal \"arufl-lyaaa-aaaao-a3n4a-cai\", opt principal \"2vxsx-fae\")",
+      "declarations": {
+        "bindings": ["js", "ts"],
+        "output": "./declarations/icrc1_auction_mock"
+      },
+      "optimize": "cycles"
+    },
+    "frontend_mock": {
+      "type": "assets",
+      "dependencies": ["icrc1_auction_mock"],
+      "source": ["dist_mock/"],
+      "build": "npm run build:frontend_mock",
       "declarations": {}
     }
   },
