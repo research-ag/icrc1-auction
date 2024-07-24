@@ -100,7 +100,7 @@ export const useTokenInfoMap = () => {
     'assetInfos',
     async () => {
       const assets = queryClient.getQueryData('assets') as (Principal[] | undefined);
-      return (assets || []).map((p, i) => ([p, { symbol: 'TKN_' + i, decimals: (i % 5) * 2 }])) as [Principal, {
+      return (assets || []).map((p, i) => ([p, { symbol: 'TKN_' + i, decimals: i == 0 ? 6 : (i % 5) * 2 }])) as [Principal, {
         symbol: string,
         decimals: number
       }][];
