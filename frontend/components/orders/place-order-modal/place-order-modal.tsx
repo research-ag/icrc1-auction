@@ -87,7 +87,7 @@ const PlaceOrderModal = ({ kind, isOpen, onClose }: PlaceOrderModalProps) => {
     let decimals = getTokenDecimals(data.symbol);
     placeOrder({
       ledger: p.toText(),
-      price: Math.round(data.price * Math.pow(10, getTrustedDecimals() - decimals)),
+      price: data.price * Math.pow(10, getTrustedDecimals() - decimals),
       volume: Math.round(data.volume * Math.pow(10, decimals)),
     }, {
       onSuccess: () => {

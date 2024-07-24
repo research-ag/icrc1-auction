@@ -34,7 +34,7 @@ const numberToString = (num: number): string => {
 }
 
 // string-based decimal point transformation
-export const displayWithDecimals = (value: bigint | number, decimals: number): string => {
+export const displayWithDecimals = (value: bigint | number, decimals: number, maxSignificantDigits: number = 6): string => {
   if (value < 0) {
     throw new Error('Wrong natural number provided: ' + value.toString());
   }
@@ -63,6 +63,13 @@ export const displayWithDecimals = (value: bigint | number, decimals: number): s
     decimals--;
   }
   intPart = intPart.replace(/^0+/, '');
+  if (maxSignificantDigits > 0) {
+    let maxFracPartLength = Math.max(0, maxSignificantDigits - intPart.length);
+    let fracSignificantPart = intPart.length ? fracPart : fracPart.replace(/^0+/, '');
+    if (fracSignificantPart.length > maxFracPartLength) {
+      fracPart = fracPart.slice(0, (fracPart.length - fracSignificantPart.length) + maxFracPartLength);
+    }
+  }
   fracPart = fracPart.replace(/0+$/, '');
   res = intPart || "0";
   if (fracPart) {

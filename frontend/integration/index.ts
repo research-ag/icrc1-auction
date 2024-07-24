@@ -38,7 +38,6 @@ export const useSessionsCounter = () => {
   return useQuery('sessionsCounter', () => auction.sessionsCounter());
 };
 
-
 export const useMinimumOrder = () => {
   const { auction } = useAuction();
   return useQuery('minimumOrder', () => auction.minimumOrder());
