@@ -1,12 +1,9 @@
 import Iter "mo:base/Iter";
 import List "mo:base/List";
-import Order "mo:base/Order";
 
 import Vec "mo:vector";
 
 module {
-
-  public func flipOrder<T>(f : (T, T) -> Order.Order) : (T, T) -> Order.Order = func(a : T, b : T) = f(b, a);
 
   public func sliceList<T>(list : List.List<T>, limit : Nat, skip : Nat) : [T] {
     var tail = list;

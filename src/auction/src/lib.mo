@@ -103,8 +103,6 @@ module {
   };
   public type ReplaceOrderError = CancelOrderError or PlaceOrderError;
 
-  public func getTotalPrice(volume : Nat, unitPrice : Float) : Nat = Int.abs(Float.toInt(Float.ceil(unitPrice * Float.fromInt(volume))));
-
   public class Auction(
     trustedAssetId : AssetId,
     settings : {
@@ -185,8 +183,7 @@ module {
     };
 
     public func queryCredit(p : Principal, assetId : AssetId) : CreditInfo = users.get(p)
-    |> Option.chain<UserInfo, Account>(_, func(info) = CreditsRepo.getAccount(info, assetId))
-    |> Option.map<Account, CreditInfo>(_, func(acc) = CreditsRepo.info(acc))
+    |> Option.map<UserInfo, CreditInfo>(_, func(ui) = CreditsRepo.info(ui, assetId))
     |> Option.get(_, { total = 0; locked = 0; available = 0 });
 
     public func queryCredits(p : Principal) : [(AssetId, CreditInfo)] = switch (users.get(p)) {
@@ -201,7 +198,7 @@ module {
             list := popped.1;
             switch (popped.0) {
               case null { loop { assert false } };
-              case (?x) (x.0, CreditsRepo.info(x.1));
+              case (?x) (x.0, CreditsRepo.accountInfo(x.1));
             };
           },
         );
@@ -435,7 +432,7 @@ module {
         if (isNew) {
           stats.accountsAmount += 1;
         };
-        ignore CreditsRepo.appendCredit(acc, getTotalPrice(volume, price));
+        ignore CreditsRepo.appendCredit(acc, OrdersRepo.getTotalPrice(volume, price));
         // update stats
         assetStats.totalAskVolume -= volume;
         // append to history
@@ -464,9 +461,9 @@ module {
         };
         // remove price from deposit
         let ?trustedAcc = CreditsRepo.getAccount(userInfo, trustedAssetId) else Prim.trap("Can never happen");
-        trustedAcc.credit -= getTotalPrice(volume, price);
+        trustedAcc.credit -= OrdersRepo.getTotalPrice(volume, price);
         // unlock locked deposit (note that it uses bid price)
-        let (success, _) = CreditsRepo.unlockCredit(trustedAcc, getTotalPrice(volume, order.price));
+        let (success, _) = CreditsRepo.unlockCredit(trustedAcc, OrdersRepo.getTotalPrice(volume, order.price));
         assert success;
         // credit user with tokens
         let (acc, isNew) = CreditsRepo.getOrCreateAccount(userInfo, assetId);

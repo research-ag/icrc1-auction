@@ -19,7 +19,6 @@ import CreditsRepo "./credits_repo";
 import PriorityQueue "./priority_queue";
 import T "./types";
 import {
-  flipOrder;
   iterConcat;
 } "./utils";
 
@@ -73,38 +72,104 @@ module {
     var volume : Nat;
   };
 
-  // internal usage only
-  // TODO maybe remove that
-  private type OrderCtx = {
-    assetList : (assetInfo : AssetInfo) -> AssocList.AssocList<OrderId, Order>;
-    assetListSet : (assetInfo : AssetInfo, list : AssocList.AssocList<OrderId, Order>) -> ();
+  public func getTotalPrice(volume : Nat, unitPrice : Float) : Nat = Int.abs(Float.toInt(Float.ceil(unitPrice * Float.fromInt(volume))));
 
-    kind : { #ask; #bid };
-    userList : (userInfo : UserInfo) -> AssocList.AssocList<OrderId, Order>;
-    userListSet : (userInfo : UserInfo, list : AssocList.AssocList<OrderId, Order>) -> ();
+  class OrderBook(
+    trustedAssetId : AssetId,
+    assetInfoFunc : (AssetId) -> AssetInfo,
+    minimumOrder : Nat,
+    minAskVolume : (AssetId, AssetInfo) -> Int,
+    // TODO check usage of everything below
+    kind_ : { #ask; #bid },
 
-    oppositeKind : { #ask; #bid };
-    userOppositeList : (userInfo : UserInfo) -> AssocList.AssocList<OrderId, Order>;
-    oppositeOrderConflictCriteria : (orderPrice : Float, oppositeOrderPrice : Float) -> Bool;
+    assetList : (assetInfo : AssetInfo) -> AssocList.AssocList<OrderId, Order>,
+    assetListSet : (assetInfo : AssetInfo, list : AssocList.AssocList<OrderId, Order>) -> (),
 
-    chargeToken : (orderAssetId : AssetId) -> AssetId;
-    chargeAmount : (volume : Nat, price : Float) -> Nat;
-    priorityComparator : (a : (OrderId, Order), b : (OrderId, Order)) -> O.Order;
-    lowOrderSign : (orderAssetId : AssetId, orderAssetInfo : AssetInfo, volume : Nat, price : Float) -> Bool;
+    priorityComparator : (a : (OrderId, Order), b : (OrderId, Order)) -> O.Order,
 
     amountStat : (assetId : AssetId) -> {
       add : (n : Nat) -> ();
       sub : (n : Nat) -> ();
-    };
+    },
     volumeStat : (assetId : AssetId) -> {
       add : (n : Nat) -> ();
       sub : (n : Nat) -> ();
+    },
+  ) {
+
+    public let kind : { #ask; #bid } = kind_;
+
+    // validation
+    public func isOrderLow(orderAssetId : AssetId, orderAssetInfo : AssetInfo, volume : Nat, price : Float) : Bool = switch (kind) {
+      case (#ask) volume == 0 or (price > 0 and volume < minAskVolume(orderAssetId, orderAssetInfo));
+      case (#bid) getTotalPrice(volume, price) < minimumOrder;
+    };
+
+    public func isOppositeOrderConflicts(orderPrice : Float, oppositeOrderPrice : Float) : Bool = switch (kind) {
+      case (#ask) oppositeOrderPrice >= orderPrice;
+      case (#bid) oppositeOrderPrice <= orderPrice;
+    };
+
+    // returns asset id, which will be charged from user upon placing order
+    public func chargeToken(orderAssetId : AssetId) : AssetId = switch (kind) {
+      case (#ask) orderAssetId;
+      case (#bid) trustedAssetId;
+    };
+
+    // returns amount to charge from "chargeToken" account
+    public func chargeAmount(volume : Nat, price : Float) : Nat = switch (kind) {
+      case (#ask) volume;
+      case (#bid) getTotalPrice(volume, price);
+    };
+
+    // returns list of orders from user info
+    public func userList(userInfo : UserInfo) : AssocList.AssocList<OrderId, Order> = switch (kind) {
+      case (#ask) userInfo.currentAsks;
+      case (#bid) userInfo.currentBids;
+    };
+
+    // set list of orders in user info
+    public func userListSet(userInfo : UserInfo, list : AssocList.AssocList<OrderId, Order>) = switch (kind) {
+      case (#ask) { userInfo.currentAsks := list };
+      case (#bid) { userInfo.currentBids := list };
+    };
+
+    public func place(userInfo : UserInfo, accountToCharge : Account, assetId : AssetId, assetInfo : AssetInfo, orderId : OrderId, order : Order) {
+      // charge user credits
+      let (success, _) = CreditsRepo.lockCredit(accountToCharge, chargeAmount(order.volume, order.price));
+      assert success;
+
+      // insert into order lists
+      AssocList.replace<OrderId, Order>(userList(userInfo), orderId, Nat.equal, ?order) |> userListSet(userInfo, _.0);
+      PriorityQueue.insert(assetList(assetInfo), (orderId, order), priorityComparator) |> assetListSet(assetInfo, _);
+
+      // update stats
+      amountStat(assetId).add(1);
+      volumeStat(assetId).add(order.volume);
+    };
+
+    public func cancel(userInfo : UserInfo, orderId : OrderId) : ?Order {
+      // find and remove from order lists
+      let (updatedList, oldValue) = AssocList.replace(userList(userInfo), orderId, Nat.equal, null);
+      let ?existingOrder = oldValue else return null;
+      userListSet(userInfo, updatedList);
+      let assetInfo = assetInfoFunc(existingOrder.assetId);
+      let (upd, deleted) = PriorityQueue.findOneAndDelete<(OrderId, Order)>(assetList(assetInfo), func(id, _) = id == orderId);
+      assert deleted;
+      assetListSet(assetInfo, upd);
+
+      // return deposit to user
+      let ?sourceAcc = CreditsRepo.getAccount(userInfo, chargeToken(existingOrder.assetId)) else Prim.trap("Can never happen");
+      let (success, _) = CreditsRepo.unlockCredit(sourceAcc, chargeAmount(existingOrder.volume, existingOrder.price));
+      assert success;
+
+      // update stats
+      amountStat(existingOrder.assetId).sub(1);
+      volumeStat(existingOrder.assetId).sub(existingOrder.volume);
+
+      ?existingOrder;
     };
   };
-
-  func orderPriorityComparator(a : (OrderId, Order), b : (OrderId, Order)) : O.Order = Float.compare(a.1.price, b.1.price);
-  // TODO copy-pasted function
-  public func getTotalPrice(volume : Nat, unitPrice : Float) : Nat = Int.abs(Float.toInt(Float.ceil(unitPrice * Float.fromInt(volume))));
 
   public class OrdersRepo(
     // TODO double check whether these are needed after finishing refactoring
@@ -122,6 +187,59 @@ module {
 
     // a counter of ever added order
     public var ordersCounter = 0;
+
+    public let asks : OrderBook = OrderBook(
+      trustedAssetId,
+      assetInfoFunc,
+      minimumOrder,
+      minAskVolume,
+      #ask,
+      func(assetInfo) = assetInfo.asks,
+      func(assetInfo, list) { assetInfo.asks := list },
+      func(a : (OrderId, Order), b : (OrderId, Order)) : O.Order = Float.compare(b.1.price, a.1.price),
+      func(assetId) = {
+        add = func(n : Nat) {
+          Vec.get(stats.assets, assetId).asksAmount += n;
+        };
+        sub = func(n : Nat) {
+          Vec.get(stats.assets, assetId).asksAmount -= n;
+        };
+      },
+      func(assetId) = {
+        add = func(n : Nat) {
+          Vec.get(stats.assets, assetId).totalAskVolume += n;
+        };
+        sub = func(n : Nat) {
+          Vec.get(stats.assets, assetId).totalAskVolume -= n;
+        };
+      },
+    );
+    public let bids : OrderBook = OrderBook(
+      trustedAssetId,
+      assetInfoFunc,
+      minimumOrder,
+      minAskVolume,
+      #bid,
+      func(assetInfo) = assetInfo.bids,
+      func(assetInfo, list) { assetInfo.bids := list },
+      func(a : (OrderId, Order), b : (OrderId, Order)) : O.Order = Float.compare(a.1.price, b.1.price),
+      func(assetId) = {
+        add = func(n : Nat) {
+          Vec.get(stats.assets, assetId).bidsAmount += n;
+        };
+        sub = func(n : Nat) {
+          Vec.get(stats.assets, assetId).bidsAmount -= n;
+        };
+      },
+      func(assetId) = {
+        add = func(n : Nat) {
+          Vec.get(stats.assets, assetId).totalBidVolume += n;
+        };
+        sub = func(n : Nat) {
+          Vec.get(stats.assets, assetId).totalBidVolume -= n;
+        };
+      },
+    );
 
     public func manageOrders(
       p : Principal,
@@ -153,33 +271,30 @@ module {
       // validate and prepare cancellations
 
       // update temporary balances: add unlocked credits for each cancelled order
-      func affectNewBalancesWithCancellation(ctx : OrderCtx, order : Order) {
-        let chargeToken = ctx.chargeToken(order.assetId);
+      func affectNewBalancesWithCancellation(orderBook : OrderBook, order : Order) {
+        let chargeToken = orderBook.chargeToken(order.assetId);
         let balance = switch (AssocList.find<AssetId, Nat>(newBalances, chargeToken, Nat.equal)) {
           case (?b) b;
-          case (null) {
-            let ?chargeAcc = CreditsRepo.getAccount(userInfo, chargeToken) else Prim.trap("Can never happen");
-            CreditsRepo.availableBalance(chargeAcc);
-          };
+          case (null) CreditsRepo.balance(userInfo, chargeToken);
         };
         AssocList.replace<AssetId, Nat>(
           newBalances,
           chargeToken,
           Nat.equal,
-          ?(balance + ctx.chargeAmount(order.volume, order.price)),
+          ?(balance + orderBook.chargeAmount(order.volume, order.price)),
         ) |> (newBalances := _.0);
       };
 
       // prepare cancellation of all orders by type (ask or bid)
-      func prepareBulkCancelation(ctx : OrderCtx) {
-        for ((orderId, order) in List.toIter(ctx.userList(userInfo))) {
-          affectNewBalancesWithCancellation(ctx, order);
+      func prepareBulkCancelation(orderBook : OrderBook) {
+        for ((orderId, order) in List.toIter(orderBook.userList(userInfo))) {
+          affectNewBalancesWithCancellation(orderBook, order);
         };
         cancellationCommitActions := List.push(
           func() {
             label l while (true) {
-              switch (ctx.userList(userInfo)) {
-                case (?((orderId, _), _)) ignore cancelOrderInternal(ctx, userInfo, orderId);
+              switch (orderBook.userList(userInfo)) {
+                case (?((orderId, _), _)) ignore orderBook.cancel(userInfo, orderId);
                 case (_) break l;
               };
             };
@@ -189,19 +304,19 @@ module {
       };
 
       // prepare cancellation of all orders by given filter function by type (ask or bid)
-      func prepareBulkCancelationWithFilter(ctx : OrderCtx, isCancel : (assetId : AssetId, orderId : OrderId) -> Bool) {
+      func prepareBulkCancelationWithFilter(orderBook : OrderBook, isCancel : (assetId : AssetId, orderId : OrderId) -> Bool) {
         // TODO can be optimized: cancelOrderInternal searches for order by it's id with linear complexity
         let orderIds : Vec.Vector<OrderId> = Vec.new();
-        for ((orderId, order) in List.toIter(ctx.userList(userInfo))) {
+        for ((orderId, order) in List.toIter(orderBook.userList(userInfo))) {
           if (isCancel(order.assetId, orderId)) {
-            affectNewBalancesWithCancellation(ctx, order);
+            affectNewBalancesWithCancellation(orderBook, order);
             Vec.add(orderIds, orderId);
           };
         };
         cancellationCommitActions := List.push(
           func() {
             for (orderId in Vec.vals(orderIds)) {
-              ignore cancelOrderInternal(ctx, userInfo, orderId);
+              ignore orderBook.cancel(userInfo, orderId);
             };
           },
           cancellationCommitActions,
@@ -213,14 +328,14 @@ module {
         case (? #all(null)) {
           asksDelta.isOrderCancelled := func(_, _) = true;
           bidsDelta.isOrderCancelled := func(_, _) = true;
-          prepareBulkCancelation(askCtx);
-          prepareBulkCancelation(bidCtx);
+          prepareBulkCancelation(asks);
+          prepareBulkCancelation(bids);
         };
         case (? #all(?aids)) {
           asksDelta.isOrderCancelled := func(assetId, _) = Array.find<Nat>(aids, func(x) = x == assetId) |> not Option.isNull(_);
           bidsDelta.isOrderCancelled := func(assetId, _) = Array.find<Nat>(aids, func(x) = x == assetId) |> not Option.isNull(_);
-          prepareBulkCancelationWithFilter(askCtx, asksDelta.isOrderCancelled);
-          prepareBulkCancelationWithFilter(bidCtx, bidsDelta.isOrderCancelled);
+          prepareBulkCancelationWithFilter(asks, asksDelta.isOrderCancelled);
+          prepareBulkCancelationWithFilter(bids, bidsDelta.isOrderCancelled);
         };
         case (? #orders(orders)) {
           let cancelledAsks : RBTree.RBTree<OrderId, ()> = RBTree.RBTree(Nat.compare);
@@ -229,15 +344,15 @@ module {
           bidsDelta.isOrderCancelled := func(_, orderId) = cancelledBids.get(orderId) |> not Option.isNull(_);
 
           for (i in orders.keys()) {
-            let (ctx, orderId, cancelledTree) = switch (orders[i]) {
-              case (#ask orderId) (askCtx, orderId, cancelledAsks);
-              case (#bid orderId) (bidCtx, orderId, cancelledBids);
+            let (orderBook, orderId, cancelledTree) = switch (orders[i]) {
+              case (#ask orderId) (asks, orderId, cancelledAsks);
+              case (#bid orderId) (bids, orderId, cancelledBids);
             };
-            let ?oldOrder = AssocList.find(ctx.userList(userInfo), orderId, Nat.equal) else return #err(#cancellation({ index = i; error = #UnknownOrder }));
-            affectNewBalancesWithCancellation(ctx, oldOrder);
+            let ?oldOrder = AssocList.find(orderBook.userList(userInfo), orderId, Nat.equal) else return #err(#cancellation({ index = i; error = #UnknownOrder }));
+            affectNewBalancesWithCancellation(orderBook, oldOrder);
             cancelledTree.put(orderId, ());
             cancellationCommitActions := List.push(
-              func() = ignore cancelOrderInternal(ctx, userInfo, orderId),
+              func() = ignore orderBook.cancel(userInfo, orderId),
               cancellationCommitActions,
             );
           };
@@ -246,9 +361,9 @@ module {
 
       // validate and prepare placements
       for (i in placements.keys()) {
-        let (ctx, (assetId, volume, price), ordersDelta, oppositeOrdersDelta) = switch (placements[i]) {
-          case (#ask(args)) (askCtx, args, asksDelta, bidsDelta);
-          case (#bid(args)) (bidCtx, args, bidsDelta, asksDelta);
+        let (orderBook, (assetId, volume, price), ordersDelta, oppositeOrdersDelta) = switch (placements[i]) {
+          case (#ask(args)) (asks, args, asksDelta, bidsDelta);
+          case (#bid(args)) (bids, args, bidsDelta, asksDelta);
         };
 
         // validate asset id
@@ -256,15 +371,15 @@ module {
 
         // validate order volume
         let assetInfo = assetInfoFunc(assetId);
-        if (ctx.lowOrderSign(assetId, assetInfo, volume, price)) return #err(#placement({ index = i; error = #TooLowOrder }));
+        if (orderBook.isOrderLow(assetId, assetInfo, volume, price)) return #err(#placement({ index = i; error = #TooLowOrder }));
 
         // validate user credit
-        let chargeToken = ctx.chargeToken(assetId);
-        let chargeAmount = ctx.chargeAmount(volume, price);
+        let chargeToken = orderBook.chargeToken(assetId);
+        let chargeAmount = orderBook.chargeAmount(volume, price);
         let ?chargeAcc = CreditsRepo.getAccount(userInfo, chargeToken) else return #err(#placement({ index = i; error = #NoCredit }));
         let balance = switch (AssocList.find<AssetId, Nat>(newBalances, chargeToken, Nat.equal)) {
           case (?b) b;
-          case (null) CreditsRepo.availableBalance(chargeAcc);
+          case (null) CreditsRepo.accountBalance(chargeAcc);
         };
         if (balance < chargeAmount) {
           return #err(#placement({ index = i; error = #NoCredit }));
@@ -279,7 +394,7 @@ module {
         |> iterConcat<(?OrderId, Order)>(_, List.toIter(delta.placed));
 
         // validate conflicting orders
-        for ((orderId, order) in buildOrdersList(ctx.userList(userInfo), ordersDelta)) {
+        for ((orderId, order) in buildOrdersList(orderBook.userList(userInfo), ordersDelta)) {
           if (
             order.assetId == assetId and price == order.price and (
               switch (orderId) {
@@ -288,20 +403,24 @@ module {
               }
             )
           ) {
-            return #err(#placement({ index = i; error = #ConflictingOrder(ctx.kind, orderId) }));
+            return #err(#placement({ index = i; error = #ConflictingOrder(orderBook.kind, orderId) }));
           };
         };
 
-        for ((oppOrderId, oppOrder) in buildOrdersList(ctx.userOppositeList(userInfo), oppositeOrdersDelta)) {
+        let oppositeOrderManager = switch (orderBook.kind) {
+          case (#ask) { bids };
+          case (#bid) { asks };
+        };
+        for ((oppOrderId, oppOrder) in buildOrdersList(oppositeOrderManager.userList(userInfo), oppositeOrdersDelta)) {
           if (
-            oppOrder.assetId == assetId and ctx.oppositeOrderConflictCriteria(price, oppOrder.price) and (
+            oppOrder.assetId == assetId and orderBook.isOppositeOrderConflicts(price, oppOrder.price) and (
               switch (oppOrderId) {
                 case (?oid) not oppositeOrdersDelta.isOrderCancelled(assetId, oid);
                 case (null) true;
               }
             )
           ) {
-            return #err(#placement({ index = i; error = #ConflictingOrder(ctx.oppositeKind, oppOrderId) }));
+            return #err(#placement({ index = i; error = #ConflictingOrder(oppositeOrderManager.kind, oppOrderId) }));
           };
         };
 
@@ -314,7 +433,12 @@ module {
         };
         ordersDelta.placed := List.push((null, order), ordersDelta.placed);
 
-        placementCommitActions[i] := func() = placeOrderInternal(ctx, userInfo, chargeAcc, assetId, assetInfo, order);
+        placementCommitActions[i] := func() {
+          let orderId = ordersCounter;
+          ordersCounter += 1;
+          orderBook.place(userInfo, chargeAcc, assetId, assetInfo, orderId, order);
+          orderId;
+        };
       };
 
       // commit changes, return results
@@ -322,114 +446,6 @@ module {
         cancel();
       };
       #ok(Array.tabulate<OrderId>(placementCommitActions.size(), func(i) = placementCommitActions[i]()));
-    };
-
-    private let askCtx : OrderCtx = {
-      kind = #ask;
-      assetList = func(assetInfo) = assetInfo.asks;
-      assetListSet = func(assetInfo, list) { assetInfo.asks := list };
-      userList = func(userInfo) = userInfo.currentAsks;
-      userListSet = func(userInfo, list) { userInfo.currentAsks := list };
-
-      oppositeKind = #bid;
-      userOppositeList = func(userInfo) = userInfo.currentBids;
-      oppositeOrderConflictCriteria = func(orderPrice, oppositeOrderPrice) = oppositeOrderPrice >= orderPrice;
-
-      chargeToken = func(assetId) = assetId;
-      chargeAmount = func(volume, _) = volume;
-      priorityComparator = flipOrder(orderPriorityComparator);
-      lowOrderSign = func(assetId, assetInfo, volume, price) = volume == 0 or (price > 0 and volume < minAskVolume(assetId, assetInfo));
-
-      amountStat = func(assetId) = {
-        add = func(n : Nat) {
-          Vec.get(stats.assets, assetId).asksAmount += n;
-        };
-        sub = func(n : Nat) {
-          Vec.get(stats.assets, assetId).asksAmount -= n;
-        };
-      };
-      volumeStat = func(assetId) = {
-        add = func(n : Nat) {
-          Vec.get(stats.assets, assetId).totalAskVolume += n;
-        };
-        sub = func(n : Nat) {
-          Vec.get(stats.assets, assetId).totalAskVolume -= n;
-        };
-      };
-    };
-    private let bidCtx : OrderCtx = {
-      kind = #bid;
-      assetList = func(assetInfo) = assetInfo.bids;
-      assetListSet = func(assetInfo, list) { assetInfo.bids := list };
-      userList = func(userInfo) = userInfo.currentBids;
-      userListSet = func(userInfo, list) { userInfo.currentBids := list };
-
-      oppositeKind = #ask;
-      userOppositeList = func(userInfo) = userInfo.currentAsks;
-      oppositeOrderConflictCriteria = func(orderPrice, oppositeOrderPrice) = oppositeOrderPrice <= orderPrice;
-
-      chargeToken = func(_) = trustedAssetId;
-      chargeAmount = getTotalPrice;
-      priorityComparator = orderPriorityComparator;
-      lowOrderSign = func(_, _, volume, price) = getTotalPrice(volume, price) < minimumOrder;
-
-      amountStat = func(assetId) = {
-        add = func(n : Nat) {
-          Vec.get(stats.assets, assetId).bidsAmount += n;
-        };
-        sub = func(n : Nat) {
-          Vec.get(stats.assets, assetId).bidsAmount -= n;
-        };
-      };
-      volumeStat = func(assetId) = {
-        add = func(n : Nat) {
-          Vec.get(stats.assets, assetId).totalBidVolume += n;
-        };
-        sub = func(n : Nat) {
-          Vec.get(stats.assets, assetId).totalBidVolume -= n;
-        };
-      };
-    };
-
-    // order management functions
-    private func placeOrderInternal(ctx : OrderCtx, userInfo : UserInfo, accountToCharge : Account, assetId : AssetId, assetInfo : AssetInfo, order : Order) : OrderId {
-      let orderId = ordersCounter;
-      ordersCounter += 1;
-      // update user info
-      AssocList.replace<OrderId, Order>(ctx.userList(userInfo), orderId, Nat.equal, ?order) |> ctx.userListSet(userInfo, _.0);
-      let (success, _) = CreditsRepo.lockCredit(accountToCharge, ctx.chargeAmount(order.volume, order.price));
-      assert success;
-      // update asset info
-      PriorityQueue.insert(ctx.assetList(assetInfo), (orderId, order), ctx.priorityComparator)
-      |> ctx.assetListSet(assetInfo, _);
-      // update stats
-      ctx.amountStat(assetId).add(1);
-      ctx.volumeStat(assetId).add(order.volume);
-      orderId;
-    };
-
-    private func cancelOrderInternal(ctx : OrderCtx, userInfo : UserInfo, orderId : OrderId) : ?Order {
-      AssocList.replace(ctx.userList(userInfo), orderId, Nat.equal, null)
-      |> (
-        switch (_) {
-          case (_, null) null;
-          case (map, ?existingOrder) {
-            ctx.userListSet(userInfo, map);
-            // return deposit to user
-            let ?sourceAcc = CreditsRepo.getAccount(userInfo, ctx.chargeToken(existingOrder.assetId)) else Prim.trap("Can never happen");
-            let (success, _) = CreditsRepo.unlockCredit(sourceAcc, ctx.chargeAmount(existingOrder.volume, existingOrder.price));
-            assert success;
-            // remove ask from asset data
-            let assetInfo = assetInfoFunc(existingOrder.assetId);
-            let (upd, deleted) = PriorityQueue.findOneAndDelete<(OrderId, Order)>(ctx.assetList(assetInfo), func(id, _) = id == orderId);
-            assert deleted; // should always be true unless we have a bug with asset orders and user orders out of sync
-            ctx.assetListSet(assetInfo, upd);
-            ctx.amountStat(existingOrder.assetId).sub(1);
-            ctx.volumeStat(existingOrder.assetId).sub(existingOrder.volume);
-            ?existingOrder;
-          };
-        }
-      );
     };
   };
 
