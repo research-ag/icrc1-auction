@@ -75,7 +75,7 @@ module {
 
   // internal usage only
   // TODO maybe remove that
-  public type OrderCtx = {
+  private type OrderCtx = {
     assetList : (assetInfo : AssetInfo) -> AssocList.AssocList<OrderId, Order>;
     assetListSet : (assetInfo : AssetInfo, list : AssocList.AssocList<OrderId, Order>) -> ();
 
@@ -324,24 +324,7 @@ module {
       #ok(Array.tabulate<OrderId>(placementCommitActions.size(), func(i) = placementCommitActions[i]()));
     };
 
-    // public shortcuts, optimized by skipping userInfo tree lookup and all validation checks
-    public func placeAskInternal(userInfo : UserInfo, askSourceAcc : Account, assetId : AssetId, assetInfo : AssetInfo, order : Order) : OrderId {
-      placeOrderInternal(askCtx, userInfo, askSourceAcc, assetId, assetInfo, order);
-    };
-
-    public func placeBidInternal(userInfo : UserInfo, trustedAcc : Account, assetId : AssetId, assetInfo : AssetInfo, order : Order) : OrderId {
-      placeOrderInternal(bidCtx, userInfo, trustedAcc, assetId, assetInfo, order);
-    };
-
-    public func cancelAskInternal(userInfo : UserInfo, orderId : OrderId) : ?Order {
-      cancelOrderInternal(askCtx, userInfo, orderId);
-    };
-
-    public func cancelBidInternal(userInfo : UserInfo, orderId : OrderId) : ?Order {
-      cancelOrderInternal(bidCtx, userInfo, orderId);
-    };
-
-    public let askCtx : OrderCtx = {
+    private let askCtx : OrderCtx = {
       kind = #ask;
       assetList = func(assetInfo) = assetInfo.asks;
       assetListSet = func(assetInfo, list) { assetInfo.asks := list };
@@ -374,7 +357,7 @@ module {
         };
       };
     };
-    public let bidCtx : OrderCtx = {
+    private let bidCtx : OrderCtx = {
       kind = #bid;
       assetList = func(assetInfo) = assetInfo.bids;
       assetListSet = func(assetInfo, list) { assetInfo.bids := list };
@@ -409,7 +392,7 @@ module {
     };
 
     // order management functions
-    public func placeOrderInternal(ctx : OrderCtx, userInfo : UserInfo, accountToCharge : Account, assetId : AssetId, assetInfo : AssetInfo, order : Order) : OrderId {
+    private func placeOrderInternal(ctx : OrderCtx, userInfo : UserInfo, accountToCharge : Account, assetId : AssetId, assetInfo : AssetInfo, order : Order) : OrderId {
       let orderId = ordersCounter;
       ordersCounter += 1;
       // update user info
@@ -425,7 +408,7 @@ module {
       orderId;
     };
 
-    public func cancelOrderInternal(ctx : OrderCtx, userInfo : UserInfo, orderId : OrderId) : ?Order {
+    private func cancelOrderInternal(ctx : OrderCtx, userInfo : UserInfo, orderId : OrderId) : ?Order {
       AssocList.replace(ctx.userList(userInfo), orderId, Nat.equal, null)
       |> (
         switch (_) {

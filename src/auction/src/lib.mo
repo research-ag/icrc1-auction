@@ -66,7 +66,6 @@ module {
   public type TransactionHistoryItem = (timestamp : Nat64, sessionNumber : Nat, kind : { #ask; #bid }, assetId : AssetId, volume : Nat, price : Float);
 
   public type Order = OrdersRepo.Order;
-  type OrderCtx = OrdersRepo.OrderCtx;
 
   public type SharedOrder = {
     assetId : AssetId;
