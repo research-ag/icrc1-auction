@@ -13,27 +13,30 @@ import List "mo:base/List";
 import Nat "mo:base/Nat";
 import Nat64 "mo:base/Nat64";
 import Option "mo:base/Option";
+import O "mo:base/Order";
 import Prim "mo:prim";
 import Principal "mo:base/Principal";
 import R "mo:base/Result";
 import RBTree "mo:base/RBTree";
 
 import Vec "mo:vector";
-
 import { matchOrders } "mo:auction";
 
+import T "./types";
+import PriorityQueue "./priority_queue";
+import CreditsRepo "./credits_repo";
 import {
   sliceList;
   sliceListWithFilter;
-  listFindOneAndDelete;
-  insertWithPriority;
   iterConcat;
+  flipOrder;
 } "./utils";
 
 module {
 
-  public type AssetId = Nat;
+  public type AssetId = T.AssetId;
   public type OrderId = Nat;
+  type Account = CreditsRepo.Account;
 
   public type StableDataV1 = {
     counters : (sessions : Nat, orders : Nat);
@@ -57,13 +60,6 @@ module {
       accountsAmount = 0;
       assets = Vec.new();
     };
-  };
-
-  public type Account = {
-    // balance of user account
-    var credit : Nat;
-    // user's credit, placed as bid or ask
-    var lockedCredit : Nat;
   };
 
   public type CreditInfo = {
@@ -92,19 +88,19 @@ module {
   public type UserInfo = {
     var currentAsks : AssocList.AssocList<OrderId, Order>;
     var currentBids : AssocList.AssocList<OrderId, Order>;
-    var credits : AssocList.AssocList<AssetId, Account>;
+    var credits : AssocList.AssocList<AssetId, CreditsRepo.Account>;
     var history : List.List<TransactionHistoryItem>;
   };
 
   public type StableAssetInfo = {
-    asks : AssocList.AssocList<OrderId, Order>;
-    bids : AssocList.AssocList<OrderId, Order>;
+    asks : PriorityQueue.PriorityQueue<(OrderId, Order)>;
+    bids : PriorityQueue.PriorityQueue<(OrderId, Order)>;
     lastRate : Float;
   };
 
   public type AssetInfo = {
-    var asks : AssocList.AssocList<OrderId, Order>;
-    var bids : AssocList.AssocList<OrderId, Order>;
+    var asks : PriorityQueue.PriorityQueue<(OrderId, Order)>;
+    var bids : PriorityQueue.PriorityQueue<(OrderId, Order)>;
     var lastRate : Float;
   };
 
@@ -142,6 +138,8 @@ module {
 
   public func getTotalPrice(volume : Nat, unitPrice : Float) : Nat = Int.abs(Float.toInt(Float.ceil(unitPrice * Float.fromInt(volume))));
 
+  func orderPriorityComparator(a : (OrderId, Order), b : (OrderId, Order)) : O.Order = Float.compare(a.1.price, b.1.price);
+
   // internal usage only
   type OrderCtx = {
     assetList : (assetInfo : AssetInfo) -> AssocList.AssocList<OrderId, Order>;
@@ -157,7 +155,7 @@ module {
 
     chargeToken : (orderAssetId : AssetId) -> AssetId;
     chargeAmount : (volume : Nat, price : Float) -> Nat;
-    priorityComparator : (order : Order, newOrder : Order) -> Bool;
+    priorityComparator : (a : (OrderId, Order), b : (OrderId, Order)) -> O.Order;
     lowOrderSign : (orderAssetId : AssetId, orderAssetInfo : AssetInfo, volume : Nat, price : Float) -> Bool;
 
     amountStat : (assetId : AssetId) -> {
@@ -243,7 +241,7 @@ module {
     };
 
     public func queryCredit(p : Principal, assetId : AssetId) : CreditInfo = users.get(p)
-    |> Option.chain<UserInfo, Account>(_, func(info) = AssocList.find(info.credits, assetId, Nat.equal))
+    |> Option.chain<UserInfo, Account>(_, func(info) = CreditsRepo.getAccount(info, assetId))
     |> Option.map<Account, CreditInfo>(_, func(acc) = { total = acc.credit; locked = acc.lockedCredit; available = acc.credit - acc.lockedCredit })
     |> Option.get(_, { total = 0; locked = 0; available = 0 });
 
@@ -334,54 +332,21 @@ module {
         case (?info) info;
         case (null) initUser(p);
       };
-      switch (AssocList.find<AssetId, Account>(userInfo.credits, assetId, Nat.equal)) {
-        case (?acc) {
-          acc.credit += amount;
-          acc.credit - acc.lockedCredit;
-        };
-        case (null) {
-          { var credit = amount; var lockedCredit = 0 }
-          |> AssocList.replace<AssetId, Account>(userInfo.credits, assetId, Nat.equal, ?_)
-          |> (userInfo.credits := _.0);
-          stats.accountsAmount += 1;
-          amount;
-        };
+      let (acc, isNew) = CreditsRepo.getOrCreateAccount(userInfo, assetId);
+      if (isNew) {
+        stats.accountsAmount += 1;
       };
-    };
-
-    public func setCredit(p : Principal, assetId : AssetId, credit : Nat) : Nat {
-      let userInfo = switch (users.get(p)) {
-        case (?info) info;
-        case (null) initUser(p);
-      };
-      switch (AssocList.find<AssetId, Account>(userInfo.credits, assetId, Nat.equal)) {
-        case (?acc) {
-          acc.credit := credit;
-          acc.credit - acc.lockedCredit;
-        };
-        case (null) {
-          { var credit = credit; var lockedCredit = 0 }
-          |> AssocList.replace<AssetId, Account>(userInfo.credits, assetId, Nat.equal, ?_)
-          |> (userInfo.credits := _.0);
-          stats.accountsAmount += 1;
-          credit;
-        };
-      };
+      CreditsRepo.appendCredit(acc, amount);
     };
 
     public func deductCredit(p : Principal, assetId : AssetId, amount : Nat) : R.Result<(Nat, rollback : () -> ()), { #NoCredit }> {
       let ?user = users.get(p) else return #err(#NoCredit);
-      let ?creditAcc = AssocList.find(user.credits, assetId, Nat.equal) else return #err(#NoCredit);
-      if (creditAcc.credit < amount + creditAcc.lockedCredit) return #err(#NoCredit);
-      // charge credit
-      creditAcc.credit -= amount;
-      #ok(
-        creditAcc.credit,
-        func() = creditAcc.credit += amount,
-      );
+      let ?creditAcc = CreditsRepo.getAccount(user, assetId) else return #err(#NoCredit);
+      switch (CreditsRepo.deductCredit(creditAcc, amount)) {
+        case (true, balance) #ok(balance, func() = ignore CreditsRepo.appendCredit(creditAcc, amount));
+        case (false, _) #err(#NoCredit);
+      };
     };
-
-    private func getUserTrustedAccount_(userInfo : UserInfo) : ?Account = AssocList.find<AssetId, Account>(userInfo.credits, trustedAssetId, Nat.equal);
 
     let askCtx : OrderCtx = {
       kind = #ask;
@@ -396,7 +361,7 @@ module {
 
       chargeToken = func(assetId) = assetId;
       chargeAmount = func(volume, _) = volume;
-      priorityComparator = func(order, newOrder) = order.price > newOrder.price;
+      priorityComparator = flipOrder(orderPriorityComparator);
       lowOrderSign = func(assetId, assetInfo, volume, price) = volume == 0 or (price > 0 and volume < settings.minAskVolume(assetId, assetInfo));
 
       amountStat = func(assetId) = {
@@ -429,7 +394,7 @@ module {
 
       chargeToken = func(_) = trustedAssetId;
       chargeAmount = getTotalPrice;
-      priorityComparator = func(order, newOrder) = order.price < newOrder.price;
+      priorityComparator = orderPriorityComparator;
       lowOrderSign = func(_, _, volume, price) = getTotalPrice(volume, price) < settings.minimumOrder;
 
       amountStat = func(assetId) = {
@@ -458,11 +423,7 @@ module {
       AssocList.replace<OrderId, Order>(ctx.userList(userInfo), orderId, Nat.equal, ?order) |> ctx.userListSet(userInfo, _.0);
       accountToCharge.lockedCredit += ctx.chargeAmount(order.volume, order.price);
       // update asset info
-      insertWithPriority<(OrderId, Order)>(
-        ctx.assetList(assetInfo),
-        (orderId, order),
-        func(x) = ctx.priorityComparator(x.1, order),
-      )
+      PriorityQueue.insert(ctx.assetList(assetInfo), (orderId, order), ctx.priorityComparator)
       |> ctx.assetListSet(assetInfo, _);
       // update stats
       ctx.amountStat(assetId).add(1);
@@ -478,11 +439,11 @@ module {
           case (map, ?existingOrder) {
             ctx.userListSet(userInfo, map);
             // return deposit to user
-            let ?sourceAcc = AssocList.find<AssetId, Account>(userInfo.credits, ctx.chargeToken(existingOrder.assetId), Nat.equal) else Prim.trap("Can never happen");
+            let ?sourceAcc = CreditsRepo.getAccount(userInfo, ctx.chargeToken(existingOrder.assetId)) else Prim.trap("Can never happen");
             sourceAcc.lockedCredit -= ctx.chargeAmount(existingOrder.volume, existingOrder.price);
             // remove ask from asset data
             let assetInfo = Vec.get(assets, existingOrder.assetId);
-            let (upd, deleted) = listFindOneAndDelete<(OrderId, Order)>(ctx.assetList(assetInfo), func(id, _) = id == orderId);
+            let (upd, deleted) = PriorityQueue.findOneAndDelete<(OrderId, Order)>(ctx.assetList(assetInfo), func(id, _) = id == orderId);
             assert deleted; // should always be true unless we have a bug with asset orders and user orders out of sync
             ctx.assetListSet(assetInfo, upd);
             ctx.amountStat(existingOrder.assetId).sub(1);
@@ -543,7 +504,7 @@ module {
       // update temporary balances: add unlocked credits for each cancelled order
       func affectNewBalancesWithCancellation(ctx : OrderCtx, order : Order) {
         let chargeToken = ctx.chargeToken(order.assetId);
-        let ?chargeAcc = AssocList.find<AssetId, Account>(userInfo.credits, chargeToken, Nat.equal) else Prim.trap("Can never happen");
+        let ?chargeAcc = CreditsRepo.getAccount(userInfo, chargeToken) else Prim.trap("Can never happen");
         let balance = switch (AssocList.find<AssetId, Nat>(newBalances, chargeToken, Nat.equal)) {
           case (?b) b;
           case (null) (chargeAcc.credit - chargeAcc.lockedCredit) : Nat;
@@ -646,7 +607,7 @@ module {
 
         // validate user credit
         let chargeToken = ctx.chargeToken(assetId);
-        let ?chargeAcc = AssocList.find<AssetId, Account>(userInfo.credits, chargeToken, Nat.equal) else return #err(#placement({ index = i; error = #NoCredit }));
+        let ?chargeAcc = CreditsRepo.getAccount(userInfo, chargeToken) else return #err(#placement({ index = i; error = #NoCredit }));
         let chargeAmount = ctx.chargeAmount(volume, price);
         let balance = switch (AssocList.find<AssetId, Nat>(newBalances, chargeToken, Nat.equal)) {
           case (?b) b;
@@ -777,9 +738,7 @@ module {
       switch (manageOrders(p, ? #orders([#bid(orderId)]), [#bid(assetId, volume, price)])) {
         case (#ok orderIds) #ok(orderIds[0]);
         case (#err(#UnknownPrincipal)) #err(#UnknownPrincipal);
-        case (#err(#cancellation({ error }))) switch (error) {
-          case (#UnknownOrder) #err(#UnknownOrder);
-        };
+        case (#err(#cancellation({ error }))) #err(error);
         case (#err(#placement({ error }))) switch (error) {
           case (#ConflictingOrder x) #err(#ConflictingOrder(x));
           case (#NoCredit) #err(#NoCredit);
@@ -793,10 +752,8 @@ module {
       switch (manageOrders(p, ? #orders([#bid(orderId)]), [])) {
         case (#ok _) #ok();
         case (#err(#UnknownPrincipal)) #err(#UnknownPrincipal);
+        case (#err(#cancellation({ error }))) #err(error);
         case (#err(#placement _)) Prim.trap("Can never happen");
-        case (#err(#cancellation({ error }))) switch (error) {
-          case (#UnknownOrder) #err(#UnknownOrder);
-        };
       };
     };
 
@@ -837,12 +794,12 @@ module {
           order.volume;
         };
         // remove price from deposit
-        let ?sourceAcc = AssocList.find<AssetId, Account>(userInfo.credits, assetId, Nat.equal) else Prim.trap("Can never happen");
+        let ?sourceAcc = CreditsRepo.getAccount(userInfo, assetId) else Prim.trap("Can never happen");
         sourceAcc.credit -= volume;
         // unlock locked deposit
         sourceAcc.lockedCredit -= volume;
         // credit user with trusted tokens
-        switch (getUserTrustedAccount_(userInfo)) {
+        switch (CreditsRepo.getAccount(userInfo, trustedAssetId)) {
           case (?acc) acc.credit += getTotalPrice(volume, price);
           case (null) {
             {
@@ -881,12 +838,12 @@ module {
           order.volume;
         };
         // remove price from deposit
-        let ?trustedAcc = getUserTrustedAccount_(userInfo) else Prim.trap("Can never happen");
+        let ?trustedAcc = CreditsRepo.getAccount(userInfo, trustedAssetId) else Prim.trap("Can never happen");
         trustedAcc.credit -= getTotalPrice(volume, price);
         // unlock locked deposit (note that it uses bid price)
         trustedAcc.lockedCredit -= getTotalPrice(volume, order.price);
         // credit user with tokens
-        switch (AssocList.find<AssetId, Account>(userInfo.credits, assetId, Nat.equal)) {
+        switch (CreditsRepo.getAccount(userInfo, assetId)) {
           case (?acc) acc.credit += volume;
           case (null) {
             { var credit = volume; var lockedCredit = 0 }
