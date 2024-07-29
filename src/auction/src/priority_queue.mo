@@ -19,12 +19,12 @@ module {
   };
 
   // goes through list, finds one needed element and removes it if found. Returns updated list and flag is item was found and deleted
-  public func findOneAndDelete<T>(queue : PriorityQueue<T>, f : T -> Bool) : (PriorityQueue<T>, Bool) {
+  public func findOneAndDelete<T>(queue : PriorityQueue<T>, f : T -> Bool) : (PriorityQueue<T>, ?T) {
     switch queue {
-      case null { (null, false) };
+      case null { (null, null) };
       case (?(h, t)) {
         if (f(h)) {
-          (t, true);
+          (t, ?h);
         } else {
           findOneAndDelete<T>(t, f) |> (?(h, _.0), _.1);
         };

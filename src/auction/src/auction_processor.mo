@@ -47,7 +47,7 @@ module {
         order.volume -= dealVolumeLeft;
         dealVolumeLeft;
       } else {
-        AssocList.replace<T.OrderId, T.Order>(userInfo.currentAsks, orderId, Nat.equal, null) |> (userInfo.currentAsks := _.0);
+        AssocList.replace<T.OrderId, T.Order>(userInfo.asks.map, orderId, Nat.equal, null) |> (userInfo.asks.map := _.0);
         asksTail := next;
         assetInfo.asks.amount -= 1;
         dealVolumeLeft -= order.volume;
@@ -84,7 +84,7 @@ module {
         order.volume -= dealVolumeLeft;
         dealVolumeLeft;
       } else {
-        AssocList.replace<T.OrderId, T.Order>(userInfo.currentBids, orderId, Nat.equal, null) |> (userInfo.currentBids := _.0);
+        AssocList.replace<T.OrderId, T.Order>(userInfo.bids.map, orderId, Nat.equal, null) |> (userInfo.bids.map := _.0);
         bidsTail := next;
         assetInfo.bids.amount -= 1;
         dealVolumeLeft -= order.volume;

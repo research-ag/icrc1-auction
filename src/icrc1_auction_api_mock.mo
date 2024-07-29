@@ -56,6 +56,7 @@ actor class Icrc1AuctionAPI(adminPrincipal_ : ?Principal) = self {
 
   stable var assetsData : Vec.Vector<StableAssetInfo> = Vec.new();
   stable var auctionDataV1 : Auction.StableDataV1 = Auction.defaultStableDataV1();
+  stable var auctionDataV2 : Auction.StableDataV2 = Auction.migrateStableDataV2(auctionDataV1);
 
   type AssetInfo = {
     ledgerPrincipal : Principal;
@@ -234,7 +235,7 @@ actor class Icrc1AuctionAPI(adminPrincipal_ : ?Principal) = self {
         performanceCounter = Prim.performanceCounter;
       },
     );
-    a.unshare(auctionDataV1);
+    a.unshare(auctionDataV2);
     auction := ?a;
 
     ignore metrics.addPullValue("sessions_counter", "", func() = a.sessionsCounter);
@@ -559,7 +560,7 @@ actor class Icrc1AuctionAPI(adminPrincipal_ : ?Principal) = self {
             minAskVolume = x.minAskVolume;
           },
         );
-        auctionDataV1 := a.share();
+        auctionDataV2 := a.share();
       };
       case (null) {};
     };

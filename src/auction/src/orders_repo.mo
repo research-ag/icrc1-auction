@@ -5,7 +5,6 @@ import Int "mo:base/Int";
 import Iter "mo:base/Iter";
 import List "mo:base/List";
 import Nat "mo:base/Nat";
-import O "mo:base/Order";
 import Option "mo:base/Option";
 import Prim "mo:prim";
 import R "mo:base/Result";
@@ -50,18 +49,20 @@ module {
   public func getTotalPrice(volume : Nat, unitPrice : Float) : Nat = Int.abs(Float.toInt(Float.ceil(unitPrice * Float.fromInt(volume))));
 
   class OrdersService(
+    assetsRepo : AssetsRepo.AssetsRepo,
+    creditsRepo : CreditsRepo.CreditsRepo,
     trustedAssetId : T.AssetId,
     minimumOrder : Nat,
     minAskVolume : (T.AssetId, T.AssetInfo) -> Int,
-    assetsRepo : AssetsRepo.AssetsRepo,
-    creditsRepo : CreditsRepo.CreditsRepo,
-    // TODO check usage of everything below
     kind_ : { #ask; #bid },
-    assetOrderBookFunc : (assetInfo : T.AssetInfo) -> T.AssetOrderBook,
-    priorityComparator : (a : (T.OrderId, T.Order), b : (T.OrderId, T.Order)) -> O.Order,
+    assetOrderBookFunc_ : (assetInfo : T.AssetInfo) -> T.AssetOrderBook,
+    userOrderBookFunc_ : (userInfo : T.UserInfo) -> T.UserOrderBook,
+    // priorityComparator : (a : (T.OrderId, T.Order), b : (T.OrderId, T.Order)) -> O.Order,
   ) {
 
     public let kind : { #ask; #bid } = kind_;
+    public let assetOrderBookFunc : (assetInfo : T.AssetInfo) -> T.AssetOrderBook = assetOrderBookFunc_;
+    public let userOrderBookFunc : (userInfo : T.UserInfo) -> T.UserOrderBook = userOrderBookFunc_;
 
     // validation
     public func isOrderLow(orderAssetId : T.AssetId, orderAssetInfo : T.AssetInfo, volume : Nat, price : Float) : Bool = switch (kind) {
@@ -86,52 +87,30 @@ module {
       case (#bid) getTotalPrice(volume, price);
     };
 
-    // returns list of orders from user info
-    public func userList(userInfo : T.UserInfo) : AssocList.AssocList<T.OrderId, T.Order> = switch (kind) {
-      case (#ask) userInfo.currentAsks;
-      case (#bid) userInfo.currentBids;
-    };
-
-    // set list of orders in user info
-    public func userListSet(userInfo : T.UserInfo, list : AssocList.AssocList<T.OrderId, T.Order>) = switch (kind) {
-      case (#ask) { userInfo.currentAsks := list };
-      case (#bid) { userInfo.currentBids := list };
-    };
-
     public func place(userInfo : T.UserInfo, accountToCharge : T.Account, assetInfo : T.AssetInfo, orderId : T.OrderId, order : T.Order) {
       // charge user credits
       let (success, _) = creditsRepo.lockCredit(accountToCharge, chargeAmount(order.volume, order.price));
       assert success;
 
       // insert into order lists
-      let assetOrderBook = assetOrderBookFunc(assetInfo);
-      AssocList.replace<T.OrderId, T.Order>(userList(userInfo), orderId, Nat.equal, ?order) |> userListSet(userInfo, _.0);
-      assetOrderBook.queue := PriorityQueue.insert(assetOrderBook.queue, (orderId, order), priorityComparator);
-
-      // update stats
-      assetOrderBook.amount += 1;
-      assetOrderBook.totalVolume += order.volume;
+      let userOrderBook = userOrderBookFunc(userInfo);
+      AssocList.replace<T.OrderId, T.Order>(userOrderBook.map, orderId, Nat.equal, ?order) |> (userOrderBook.map := _.0);
+      assetsRepo.putOrder(assetInfo, kind, orderId, order);
     };
 
     public func cancel(userInfo : T.UserInfo, orderId : T.OrderId) : ?T.Order {
       // find and remove from order lists
-      let (updatedList, oldValue) = AssocList.replace(userList(userInfo), orderId, Nat.equal, null);
+      let userOrderBook = userOrderBookFunc(userInfo);
+      let (updatedList, oldValue) = AssocList.replace(userOrderBook.map, orderId, Nat.equal, null);
       let ?existingOrder = oldValue else return null;
-      userListSet(userInfo, updatedList);
+      userOrderBook.map := updatedList;
       let assetInfo = Vec.get(assetsRepo.assets, existingOrder.assetId);
-      let assetOrderBook = assetOrderBookFunc(assetInfo);
-      let (upd, deleted) = PriorityQueue.findOneAndDelete<(T.OrderId, T.Order)>(assetOrderBook.queue, func(id, _) = id == orderId);
-      assert deleted;
-      assetOrderBook.queue := upd;
+      assetsRepo.popOrder(assetInfo, kind, orderId);
 
       // return deposit to user
       let ?sourceAcc = creditsRepo.getAccount(userInfo, chargeToken(existingOrder.assetId)) else Prim.trap("Can never happen");
       let (success, _) = creditsRepo.unlockCredit(sourceAcc, chargeAmount(existingOrder.volume, existingOrder.price));
       assert success;
-
-      // update stats
-      assetOrderBook.amount -= 1;
-      assetOrderBook.totalVolume -= existingOrder.volume;
 
       ?existingOrder;
     };
@@ -150,24 +129,24 @@ module {
     public var ordersCounter = 0;
 
     public let asks : OrdersService = OrdersService(
+      assetsRepo,
+      creditsRepo,
       trustedAssetId,
       minimumOrder,
       minAskVolume,
-      assetsRepo,
-      creditsRepo,
       #ask,
       func(assetInfo) = assetInfo.asks,
-      func(a : (T.OrderId, T.Order), b : (T.OrderId, T.Order)) : O.Order = Float.compare(b.1.price, a.1.price),
+      func(userInfo) = userInfo.asks,
     );
     public let bids : OrdersService = OrdersService(
+      assetsRepo,
+      creditsRepo,
       trustedAssetId,
       minimumOrder,
       minAskVolume,
-      assetsRepo,
-      creditsRepo,
       #bid,
       func(assetInfo) = assetInfo.bids,
-      func(a : (T.OrderId, T.Order), b : (T.OrderId, T.Order)) : O.Order = Float.compare(a.1.price, b.1.price),
+      func(userInfo) = userInfo.bids,
     );
 
     public func manageOrders(
@@ -216,13 +195,14 @@ module {
 
       // prepare cancellation of all orders by type (ask or bid)
       func prepareBulkCancelation(ordersService : OrdersService) {
-        for ((orderId, order) in List.toIter(ordersService.userList(userInfo))) {
+        let userOrderBook = ordersService.userOrderBookFunc(userInfo);
+        for ((orderId, order) in List.toIter(userOrderBook.map)) {
           affectNewBalancesWithCancellation(ordersService, order);
         };
         cancellationCommitActions := List.push(
           func() {
             label l while (true) {
-              switch (ordersService.userList(userInfo)) {
+              switch (userOrderBook.map) {
                 case (?((orderId, _), _)) ignore ordersService.cancel(userInfo, orderId);
                 case (_) break l;
               };
@@ -235,8 +215,9 @@ module {
       // prepare cancellation of all orders by given filter function by type (ask or bid)
       func prepareBulkCancelationWithFilter(ordersService : OrdersService, isCancel : (assetId : T.AssetId, orderId : T.OrderId) -> Bool) {
         // TODO can be optimized: cancelOrderInternal searches for order by it's id with linear complexity
+        let userOrderBook = ordersService.userOrderBookFunc(userInfo);
         let orderIds : Vec.Vector<T.OrderId> = Vec.new();
-        for ((orderId, order) in List.toIter(ordersService.userList(userInfo))) {
+        for ((orderId, order) in List.toIter(userOrderBook.map)) {
           if (isCancel(order.assetId, orderId)) {
             affectNewBalancesWithCancellation(ordersService, order);
             Vec.add(orderIds, orderId);
@@ -273,15 +254,15 @@ module {
           bidsDelta.isOrderCancelled := func(_, orderId) = cancelledBids.get(orderId) |> not Option.isNull(_);
 
           for (i in orders.keys()) {
-            let (orderBook, orderId, cancelledTree) = switch (orders[i]) {
+            let (orderService, orderId, cancelledTree) = switch (orders[i]) {
               case (#ask orderId) (asks, orderId, cancelledAsks);
               case (#bid orderId) (bids, orderId, cancelledBids);
             };
-            let ?oldOrder = AssocList.find(orderBook.userList(userInfo), orderId, Nat.equal) else return #err(#cancellation({ index = i; error = #UnknownOrder }));
-            affectNewBalancesWithCancellation(orderBook, oldOrder);
+            let ?oldOrder = AssocList.find(orderService.userOrderBookFunc(userInfo).map, orderId, Nat.equal) else return #err(#cancellation({ index = i; error = #UnknownOrder }));
+            affectNewBalancesWithCancellation(orderService, oldOrder);
             cancelledTree.put(orderId, ());
             cancellationCommitActions := List.push(
-              func() = ignore orderBook.cancel(userInfo, orderId),
+              func() = ignore orderService.cancel(userInfo, orderId),
               cancellationCommitActions,
             );
           };
@@ -290,7 +271,7 @@ module {
 
       // validate and prepare placements
       for (i in placements.keys()) {
-        let (orderBook, (assetId, volume, price), ordersDelta, oppositeOrdersDelta) = switch (placements[i]) {
+        let (orderService, (assetId, volume, price), ordersDelta, oppositeOrdersDelta) = switch (placements[i]) {
           case (#ask(args)) (asks, args, asksDelta, bidsDelta);
           case (#bid(args)) (bids, args, bidsDelta, asksDelta);
         };
@@ -300,11 +281,11 @@ module {
 
         // validate order volume
         let assetInfo = Vec.get(assetsRepo.assets, assetId);
-        if (orderBook.isOrderLow(assetId, assetInfo, volume, price)) return #err(#placement({ index = i; error = #TooLowOrder }));
+        if (orderService.isOrderLow(assetId, assetInfo, volume, price)) return #err(#placement({ index = i; error = #TooLowOrder }));
 
         // validate user credit
-        let chargeToken = orderBook.chargeToken(assetId);
-        let chargeAmount = orderBook.chargeAmount(volume, price);
+        let chargeToken = orderService.chargeToken(assetId);
+        let chargeAmount = orderService.chargeAmount(volume, price);
         let ?chargeAcc = creditsRepo.getAccount(userInfo, chargeToken) else return #err(#placement({ index = i; error = #NoCredit }));
         let balance = switch (AssocList.find<T.AssetId, Nat>(newBalances, chargeToken, Nat.equal)) {
           case (?b) b;
@@ -323,7 +304,7 @@ module {
         |> iterConcat<(?T.OrderId, T.Order)>(_, List.toIter(delta.placed));
 
         // validate conflicting orders
-        for ((orderId, order) in buildOrdersList(orderBook.userList(userInfo), ordersDelta)) {
+        for ((orderId, order) in buildOrdersList(orderService.userOrderBookFunc(userInfo).map, ordersDelta)) {
           if (
             order.assetId == assetId and price == order.price and (
               switch (orderId) {
@@ -332,17 +313,17 @@ module {
               }
             )
           ) {
-            return #err(#placement({ index = i; error = #ConflictingOrder(orderBook.kind, orderId) }));
+            return #err(#placement({ index = i; error = #ConflictingOrder(orderService.kind, orderId) }));
           };
         };
 
-        let oppositeOrderManager = switch (orderBook.kind) {
+        let oppositeOrderManager = switch (orderService.kind) {
           case (#ask) { bids };
           case (#bid) { asks };
         };
-        for ((oppOrderId, oppOrder) in buildOrdersList(oppositeOrderManager.userList(userInfo), oppositeOrdersDelta)) {
+        for ((oppOrderId, oppOrder) in buildOrdersList(oppositeOrderManager.userOrderBookFunc(userInfo).map, oppositeOrdersDelta)) {
           if (
-            oppOrder.assetId == assetId and orderBook.isOppositeOrderConflicts(price, oppOrder.price) and (
+            oppOrder.assetId == assetId and orderService.isOppositeOrderConflicts(price, oppOrder.price) and (
               switch (oppOrderId) {
                 case (?oid) not oppositeOrdersDelta.isOrderCancelled(assetId, oid);
                 case (null) true;
@@ -365,7 +346,7 @@ module {
         placementCommitActions[i] := func() {
           let orderId = ordersCounter;
           ordersCounter += 1;
-          orderBook.place(userInfo, chargeAcc, assetInfo, orderId, order);
+          orderService.place(userInfo, chargeAcc, assetInfo, orderId, order);
           orderId;
         };
       };

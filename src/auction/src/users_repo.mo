@@ -17,8 +17,8 @@ module {
       case (?info) info;
       case (null) {
         let data : T.UserInfo = {
-          var currentAsks = null;
-          var currentBids = null;
+          asks = { var map = null };
+          bids = { var map = null };
           var credits = null;
           var history = null;
         };

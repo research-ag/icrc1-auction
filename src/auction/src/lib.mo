@@ -14,6 +14,7 @@ import Nat64 "mo:base/Nat64";
 import Prim "mo:prim";
 import Principal "mo:base/Principal";
 import R "mo:base/Result";
+import RBTree "mo:base/RBTree";
 
 import Vec "mo:vector";
 
@@ -29,6 +30,52 @@ import T "./types";
 import UsersRepo "users_repo";
 
 module {
+
+  public func defaultStableDataV2() : T.StableDataV2 = {
+    counters = (0, 0, 0, 0);
+    assets = Vec.new();
+    history = null;
+    users = #leaf;
+  };
+  public type StableDataV2 = T.StableDataV2;
+  public func migrateStableDataV2(data : StableDataV1) : StableDataV2 {
+    let assets : Vec.Vector<T.StableAssetInfoV2> = Vec.new();
+    for (i in Vec.keys(data.assets)) {
+      let x = Vec.get(data.assets, i);
+      let xs = Vec.get(data.stats.assets, i);
+      Vec.add(
+        assets,
+        {
+          lastRate = x.lastRate;
+          lastProcessingInstructions = xs.lastProcessingInstructions;
+        },
+      );
+    };
+    let usersData = RBTree.RBTree<Principal, T.StableUserInfoV1>(Principal.compare);
+    usersData.unshare(data.users);
+    let users = RBTree.RBTree<Principal, T.StableUserInfoV2>(Principal.compare);
+    for ((p, u) in usersData.entries()) {
+      users.put(
+        p,
+        {
+          asks = {
+            var map = List.map<(T.OrderId, T.StableOrderV1), (T.OrderId, T.StableOrderDataV2)>(u.currentAsks, func(oid, o) = (oid, { assetId = o.assetId; price = o.price; user = o.user; volume = o.volume }));
+          };
+          bids = {
+            var map = List.map<(T.OrderId, T.StableOrderV1), (T.OrderId, T.StableOrderDataV2)>(u.currentBids, func(oid, o) = (oid, { assetId = o.assetId; price = o.price; user = o.user; volume = o.volume }));
+          };
+          credits = u.credits;
+          history = u.history;
+        },
+      );
+    };
+    {
+      counters = (data.counters.0, data.counters.1, data.stats.usersAmount, data.stats.accountsAmount);
+      assets = assets;
+      history = data.history;
+      users = users.share();
+    };
+  };
 
   public func defaultStableDataV1() : T.StableDataV1 = {
     counters = (0, 0);
@@ -130,18 +177,18 @@ module {
 
     public func queryAssetAsks(p : Principal, assetId : AssetId) : [(OrderId, T.SharedOrder)] = queryOrders_(
       p,
-      func(info) = info.currentAsks |> List.filter<(OrderId, T.Order)>(_, func(_, o) = o.assetId == assetId),
+      func(info) = info.asks.map |> List.filter<(OrderId, T.Order)>(_, func(_, o) = o.assetId == assetId),
     );
     public func queryAssetBids(p : Principal, assetId : AssetId) : [(OrderId, T.SharedOrder)] = queryOrders_(
       p,
-      func(info) = info.currentBids |> List.filter<(OrderId, T.Order)>(_, func(_, o) = o.assetId == assetId),
+      func(info) = info.bids.map |> List.filter<(OrderId, T.Order)>(_, func(_, o) = o.assetId == assetId),
     );
 
-    public func queryAsks(p : Principal) : [(OrderId, T.SharedOrder)] = queryOrders_(p, func(info) = info.currentAsks);
-    public func queryBids(p : Principal) : [(OrderId, T.SharedOrder)] = queryOrders_(p, func(info) = info.currentBids);
+    public func queryAsks(p : Principal) : [(OrderId, T.SharedOrder)] = queryOrders_(p, func(info) = info.asks.map);
+    public func queryBids(p : Principal) : [(OrderId, T.SharedOrder)] = queryOrders_(p, func(info) = info.bids.map);
 
-    public func queryAsk(p : Principal, orderId : OrderId) : ?T.SharedOrder = queryOrder_(p, func(info) = info.currentAsks, orderId);
-    public func queryBid(p : Principal, orderId : OrderId) : ?T.SharedOrder = queryOrder_(p, func(info) = info.currentBids, orderId);
+    public func queryAsk(p : Principal, orderId : OrderId) : ?T.SharedOrder = queryOrder_(p, func(info) = info.asks.map, orderId);
+    public func queryBid(p : Principal, orderId : OrderId) : ?T.SharedOrder = queryOrder_(p, func(info) = info.bids.map, orderId);
 
     public func queryTransactionHistory(p : Principal, assetId : ?AssetId, limit : Nat, skip : Nat) : [T.TransactionHistoryItem] {
       let ?userInfo = usersRepo.get(p) else return [];
@@ -274,63 +321,86 @@ module {
       processAuction(assetsRepo, creditsRepo, assetId, sessionsCounter, trustedAssetId, settings.performanceCounter);
     };
 
-    public func share() : T.StableDataV1 = {
-      counters = (sessionsCounter, ordersRepo.ordersCounter);
-      assets = Vec.map<T.AssetInfo, T.StableAssetInfo>(
+    public func share() : T.StableDataV2 = {
+      counters = (sessionsCounter, ordersRepo.ordersCounter, usersRepo.usersAmount, creditsRepo.accountsAmount);
+      assets = Vec.map<T.AssetInfo, T.StableAssetInfoV2>(
         assetsRepo.assets,
         func(x) = {
-          asks = x.asks.queue;
-          bids = x.bids.queue;
           lastRate = x.lastRate;
+          lastProcessingInstructions = x.lastProcessingInstructions;
         },
       );
-      stats = {
-        usersAmount = usersRepo.usersAmount;
-        accountsAmount = creditsRepo.accountsAmount;
-        assets = Vec.map<T.AssetInfo, { bidsAmount : Nat; totalBidVolume : Nat; asksAmount : Nat; totalAskVolume : Nat; lastProcessingInstructions : Nat }>(
-          assetsRepo.assets,
-          func(x) = {
-            bidsAmount = x.bids.amount;
-            totalBidVolume = x.bids.totalVolume;
-            asksAmount = x.asks.amount;
-            totalAskVolume = x.asks.totalVolume;
-            lastProcessingInstructions = x.lastProcessingInstructions;
-          },
-        );
-      };
-      users = usersRepo.users.share();
       history = assetsRepo.history;
+      users = (
+        func() : RBTree.Tree<Principal, T.StableUserInfoV2> {
+          let users = RBTree.RBTree<Principal, T.StableUserInfoV2>(Principal.compare);
+          for ((p, u) in usersRepo.users.entries()) {
+            users.put(
+              p,
+              {
+                asks = {
+                  var map = List.map<(T.OrderId, T.Order), (T.OrderId, T.StableOrderDataV2)>(u.asks.map, func(oid, o) = (oid, { assetId = o.assetId; price = o.price; user = o.user; volume = o.volume }));
+                };
+                bids = {
+                  var map = List.map<(T.OrderId, T.Order), (T.OrderId, T.StableOrderDataV2)>(u.bids.map, func(oid, o) = (oid, { assetId = o.assetId; price = o.price; user = o.user; volume = o.volume }));
+                };
+                credits = u.credits;
+                history = u.history;
+              },
+            );
+          };
+          users.share();
+        }
+      )();
     };
 
-    public func unshare(data : T.StableDataV1) {
+    public func unshare(data : T.StableDataV2) {
       sessionsCounter := data.counters.0;
       ordersRepo.ordersCounter := data.counters.1;
-      assetsRepo.assets := Vec.new();
-      for (i in Vec.keys(data.assets)) {
-        let x = Vec.get(data.assets, i);
-        let xs = Vec.get(data.stats.assets, i);
-        Vec.add(
-          assetsRepo.assets,
-          {
-            asks = {
-              var queue = x.asks;
-              var amount = xs.asksAmount;
-              var totalVolume = xs.totalAskVolume;
-            };
-            bids = {
-              var queue = x.bids;
-              var amount = xs.bidsAmount;
-              var totalVolume = xs.totalBidVolume;
-            };
-            var lastRate = x.lastRate;
-            var lastProcessingInstructions = xs.lastProcessingInstructions;
-          },
-        );
-      };
-      creditsRepo.accountsAmount := data.stats.accountsAmount;
-      usersRepo.usersAmount := data.stats.usersAmount;
-      usersRepo.users.unshare(data.users);
+      usersRepo.usersAmount := data.counters.2;
+      creditsRepo.accountsAmount := data.counters.3;
+
+      assetsRepo.assets := Vec.map<T.StableAssetInfoV2, T.AssetInfo>(
+        data.assets,
+        func(x) = {
+          asks = { var queue = null; var amount = 0; var totalVolume = 0 };
+          bids = { var queue = null; var amount = 0; var totalVolume = 0 };
+          var lastRate = x.lastRate;
+          var lastProcessingInstructions = x.lastProcessingInstructions;
+        },
+      );
       assetsRepo.history := data.history;
+
+      let ud = RBTree.RBTree<Principal, T.StableUserInfoV2>(Principal.compare);
+      ud.unshare(data.users);
+      for ((p, u) in ud.entries()) {
+        let userData : UserInfo = {
+          asks = {
+            var map = null;
+          };
+          bids = {
+            var map = null;
+          };
+          var credits = u.credits;
+          var history = u.history;
+        };
+        for ((oid, orderData) in List.toIter(u.asks.map)) {
+          let order : T.Order = {
+            orderData with userInfoRef = userData;
+            var volume = orderData.volume;
+          };
+          assetsRepo.putOrder(Vec.get(assetsRepo.assets, order.assetId), #ask, oid, order);
+        };
+        for ((oid, orderData) in List.toIter(u.bids.map)) {
+          let order : T.Order = {
+            orderData with userInfoRef = userData;
+            var volume = orderData.volume;
+          };
+          assetsRepo.putOrder(Vec.get(assetsRepo.assets, order.assetId), #bid, oid, order);
+        };
+        usersRepo.users.put(p, userData);
+      };
+
     };
 
   };
