@@ -97,8 +97,8 @@ module {
           ignore a.appendCredit(user, 1, 5_000_000_000_000_000_000_000_000_000);
           ignore a.placeAsk(user, 1, dealVolume / Nat.max(nAsks, 1), criticalPrice - Prim.intToFloat((nAsks - i)) * 0.1);
         };
-        assert Vec.get(a.stats.assets, 1).asksAmount == nOrders / 2;
-        assert Vec.get(a.stats.assets, 1).bidsAmount == nOrders / 2;
+        assert Vec.get(a.assetsRepo.assets, 1).bids.amount == nOrders / 2;
+        assert Vec.get(a.assetsRepo.assets, 1).asks.amount == nOrders / 2;
         a;
       },
     );
@@ -113,8 +113,8 @@ module {
         // make sure everything worked as expected
         // let ?nOrders = Nat.fromText(col) else Prim.trap("Cannot parse nOrders");
         // let (nAsks, nBids) = get_nAsks_nBids(nOrders, ri);
-        // assert Vec.get(auction.stats.assets, 1).bidsAmount + nBids == nOrders / 2;
-        // assert Vec.get(auction.stats.assets, 1).asksAmount + nAsks == nOrders / 2;
+        // assert Vec.get(auction.assetsRepo.assets, 1).bids.amount + nBids == nOrders / 2;
+        // assert Vec.get(auction.assetsRepo.assets, 1).asks.amount + nAsks == nOrders / 2;
       }
     );
 

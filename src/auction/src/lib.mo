@@ -12,7 +12,6 @@ import Iter "mo:base/Iter";
 import List "mo:base/List";
 import Nat "mo:base/Nat";
 import Nat64 "mo:base/Nat64";
-import Option "mo:base/Option";
 import Prim "mo:prim";
 import Principal "mo:base/Principal";
 import R "mo:base/Result";
@@ -87,27 +86,14 @@ module {
 
     public func registerAssets(n : Nat) = assetsRepo.register(n);
 
-    public func queryCredit(p : Principal, assetId : AssetId) : CreditInfo = usersRepo.get(p)
-    |> Option.map<UserInfo, CreditInfo>(_, func(ui) = creditsRepo.info(ui, assetId))
-    |> Option.get(_, { total = 0; locked = 0; available = 0 });
+    public func queryCredit(p : Principal, assetId : AssetId) : CreditInfo = switch (usersRepo.get(p)) {
+      case (null) ({ total = 0; locked = 0; available = 0 });
+      case (?ui) creditsRepo.info(ui, assetId);
+    };
 
     public func queryCredits(p : Principal) : [(AssetId, CreditInfo)] = switch (usersRepo.get(p)) {
       case (null) [];
-      case (?ui) {
-        let length = List.size(ui.credits);
-        var list = ui.credits;
-        Array.tabulate<(AssetId, CreditInfo)>(
-          length,
-          func(i) {
-            let popped = List.pop(list);
-            list := popped.1;
-            switch (popped.0) {
-              case null { loop { assert false } };
-              case (?x) (x.0, creditsRepo.accountInfo(x.1));
-            };
-          },
-        );
-      };
+      case (?ui) creditsRepo.infoAll(ui);
     };
 
     private func queryOrders_(p : Principal, f : (ui : UserInfo) -> AssocList.AssocList<OrderId, T.Order>) : [(OrderId, T.SharedOrder)] = switch (usersRepo.get(p)) {
@@ -293,7 +279,7 @@ module {
       |> List.toIter<(OrderId, T.Order)>(_)
       |> Iter.map<(OrderId, T.Order), (Float, Nat)>(_, func(_, order) = (order.price, order.volume));
 
-      let (nAsks, nBids, dealVolume, price) = matchOrders(mapOrders(assetInfo.asks), mapOrders(assetInfo.bids));
+      let (nAsks, nBids, dealVolume, price) = matchOrders(mapOrders(assetInfo.asks.queue), mapOrders(assetInfo.bids.queue));
       if (nAsks == 0 or nBids == 0) {
         assetsRepo.history := List.push((Prim.time(), sessionsCounter, assetId, 0, 0.0), assetsRepo.history);
         return;
@@ -302,7 +288,7 @@ module {
       // process fulfilled asks
       var i = 0;
       var dealVolumeLeft = dealVolume;
-      var asksTail = assetInfo.asks;
+      var asksTail = assetInfo.asks.queue;
       label b while (i < nAsks) {
         let ?((orderId, order), next) = asksTail else Prim.trap("Can never happen: list shorter than before");
         let userInfo = order.userInfoRef;
@@ -313,7 +299,7 @@ module {
         } else {
           AssocList.replace<OrderId, T.Order>(userInfo.currentAsks, orderId, Nat.equal, null) |> (userInfo.currentAsks := _.0);
           asksTail := next;
-          assetInfo.asksAmount -= 1;
+          assetInfo.asks.amount -= 1;
           dealVolumeLeft -= order.volume;
           order.volume;
         };
@@ -329,17 +315,17 @@ module {
         let acc = creditsRepo.getOrCreate(userInfo, trustedAssetId);
         ignore creditsRepo.appendCredit(acc, OrdersRepo.getTotalPrice(volume, price));
         // update stats
-        assetInfo.totalAskVolume -= volume;
+        assetInfo.asks.totalVolume -= volume;
         // append to history
         userInfo.history := List.push((Prim.time(), sessionsCounter, #ask, assetId, volume, price), userInfo.history);
         i += 1;
       };
-      assetInfo.asks := asksTail;
+      assetInfo.asks.queue := asksTail;
 
       // process fulfilled bids
       i := 0;
       dealVolumeLeft := dealVolume;
-      var bidsTail = assetInfo.bids;
+      var bidsTail = assetInfo.bids.queue;
       label b while (i < nBids) {
         let ?((orderId, order), next) = bidsTail else Prim.trap("Can never happen: list shorter than before");
         let userInfo = order.userInfoRef;
@@ -350,7 +336,7 @@ module {
         } else {
           AssocList.replace<OrderId, T.Order>(userInfo.currentBids, orderId, Nat.equal, null) |> (userInfo.currentBids := _.0);
           bidsTail := next;
-          assetInfo.bidsAmount -= 1;
+          assetInfo.bids.amount -= 1;
           dealVolumeLeft -= order.volume;
           order.volume;
         };
@@ -364,12 +350,12 @@ module {
         let acc = creditsRepo.getOrCreate(userInfo, assetId);
         ignore creditsRepo.appendCredit(acc, volume);
         // update stats
-        assetInfo.totalBidVolume -= volume;
+        assetInfo.bids.totalVolume -= volume;
         // append to history
         userInfo.history := List.push((Prim.time(), sessionsCounter, #bid, assetId, volume, price), userInfo.history);
         i += 1;
       };
-      assetInfo.bids := bidsTail;
+      assetInfo.bids.queue := bidsTail;
 
       assetInfo.lastRate := price;
       // append to asset history
@@ -382,8 +368,8 @@ module {
       assets = Vec.map<T.AssetInfo, T.StableAssetInfo>(
         assetsRepo.assets,
         func(x) = {
-          asks = x.asks;
-          bids = x.bids;
+          asks = x.asks.queue;
+          bids = x.bids.queue;
           lastRate = x.lastRate;
         },
       );
@@ -393,10 +379,10 @@ module {
         assets = Vec.map<T.AssetInfo, { bidsAmount : Nat; totalBidVolume : Nat; asksAmount : Nat; totalAskVolume : Nat; lastProcessingInstructions : Nat }>(
           assetsRepo.assets,
           func(x) = {
-            bidsAmount = x.bidsAmount;
-            totalBidVolume = x.totalBidVolume;
-            asksAmount = x.asksAmount;
-            totalAskVolume = x.totalAskVolume;
+            bidsAmount = x.bids.amount;
+            totalBidVolume = x.bids.totalVolume;
+            asksAmount = x.asks.amount;
+            totalAskVolume = x.asks.totalVolume;
             lastProcessingInstructions = x.lastProcessingInstructions;
           },
         );
@@ -415,13 +401,17 @@ module {
         Vec.add(
           assetsRepo.assets,
           {
-            var asks = x.asks;
-            var bids = x.bids;
+            asks = {
+              var queue = x.asks;
+              var amount = xs.asksAmount;
+              var totalVolume = xs.totalAskVolume;
+            };
+            bids = {
+              var queue = x.bids;
+              var amount = xs.bidsAmount;
+              var totalVolume = xs.totalBidVolume;
+            };
             var lastRate = x.lastRate;
-            var bidsAmount = xs.bidsAmount;
-            var totalBidVolume = xs.totalBidVolume;
-            var asksAmount = xs.asksAmount;
-            var totalAskVolume = xs.totalAskVolume;
             var lastProcessingInstructions = xs.lastProcessingInstructions;
           },
         );

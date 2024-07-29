@@ -1,4 +1,6 @@
+import Array "mo:base/Array";
 import AssocList "mo:base/AssocList";
+import List "mo:base/List";
 import Nat "mo:base/Nat";
 
 import T "./types";
@@ -12,6 +14,7 @@ module {
   };
 
   public class CreditsRepo() {
+
     public var accountsAmount : Nat = 0;
 
     public func getAccount(userInfo : T.UserInfo, assetId : T.AssetId) : ?T.Account = AssocList.find<T.AssetId, T.Account>(userInfo.credits, assetId, Nat.equal);
@@ -38,7 +41,24 @@ module {
       case (null) ({ total = 0; locked = 0; available = 0 });
     };
 
+    public func infoAll(userInfo : T.UserInfo) : [(T.AssetId, CreditInfo)] {
+      let length = List.size(userInfo.credits);
+      var list = userInfo.credits;
+      Array.tabulate<(T.AssetId, CreditInfo)>(
+        length,
+        func(i) {
+          let popped = List.pop(list);
+          list := popped.1;
+          switch (popped.0) {
+            case null { loop { assert false } };
+            case (?x) (x.0, accountInfo(x.1));
+          };
+        },
+      );
+    };
+
     public func accountBalance(account : T.Account) : Nat = account.credit - account.lockedCredit;
+
     public func accountInfo(account : T.Account) : CreditInfo = {
       total = account.credit;
       locked = account.lockedCredit;

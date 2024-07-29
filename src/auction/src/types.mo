@@ -18,14 +18,16 @@ module {
     var lockedCredit : Nat;
   };
 
+  public type AssetOrderBook = {
+    var queue : PriorityQueue.PriorityQueue<(OrderId, Order)>;
+    var amount : Nat;
+    var totalVolume : Nat;
+  };
+
   public type AssetInfo = {
-    var asks : PriorityQueue.PriorityQueue<(OrderId, Order)>;
-    var bids : PriorityQueue.PriorityQueue<(OrderId, Order)>;
+    asks : AssetOrderBook;
+    bids : AssetOrderBook;
     var lastRate : Float;
-    var bidsAmount : Nat;
-    var totalBidVolume : Nat;
-    var asksAmount : Nat;
-    var totalAskVolume : Nat;
     var lastProcessingInstructions : Nat;
   };
 

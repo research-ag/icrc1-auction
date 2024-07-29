@@ -21,16 +21,18 @@ module {
       while (assetsVecSize < newAmount) {
         (
           {
-            var asks = List.nil();
-            var askCounter = 0;
-            var bids = List.nil();
-            var bidCounter = 0;
+            bids = {
+              var queue = List.nil();
+              var amount = 0;
+              var totalVolume = 0;
+            };
+            asks = {
+              var queue = List.nil();
+              var amount = 0;
+              var totalVolume = 0;
+            };
             var lastRate = 0;
-            var asksAmount = 0;
-            var bidsAmount = 0;
             var lastProcessingInstructions = 0;
-            var totalAskVolume = 0;
-            var totalBidVolume = 0;
           } : T.AssetInfo
         )
         |> Vec.add(assets, _);

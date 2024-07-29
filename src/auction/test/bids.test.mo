@@ -83,8 +83,8 @@ do {
   let ft = createFt(auction);
   ignore auction.placeBid(user, ft, 2_000, 15_000);
 
-  assert Vec.get(auction.assetsRepo.assets, ft).bidsAmount == 1;
-  assert Vec.get(auction.assetsRepo.assets, ft).totalBidVolume == 2000;
+  assert Vec.get(auction.assetsRepo.assets, ft).bids.amount == 1;
+  assert Vec.get(auction.assetsRepo.assets, ft).bids.totalVolume == 2000;
 
   let seller = Principal.fromText("ocqy6-3dphi-xgf54-vkr2e-lk4oz-3exc6-446gr-5e72g-bsdfo-4nzrm-hqe");
   ignore auction.appendCredit(seller, ft, 500_000_000);
@@ -92,8 +92,8 @@ do {
   auction.processAsset(ft);
 
   assert auction.queryAssetBids(user, ft).size() == 0;
-  assert Vec.get(auction.assetsRepo.assets, ft).bidsAmount == 0;
-  assert Vec.get(auction.assetsRepo.assets, ft).totalBidVolume == 0;
+  assert Vec.get(auction.assetsRepo.assets, ft).bids.amount == 0;
+  assert Vec.get(auction.assetsRepo.assets, ft).bids.totalVolume == 0;
 };
 
 do {
