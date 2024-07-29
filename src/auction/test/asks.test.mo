@@ -97,14 +97,14 @@ do {
   ignore auction.placeBid(buyer, ft, 2_000_000, 100);
   ignore auction.placeAsk(user, ft, 2_000_000, 100);
 
-  assert Vec.get(auction.stats.assets, ft).asksAmount == 1;
-  assert Vec.get(auction.stats.assets, ft).totalAskVolume == 2000000;
+  assert Vec.get(auction.assetsRepo.assets, ft).asksAmount == 1;
+  assert Vec.get(auction.assetsRepo.assets, ft).totalAskVolume == 2000000;
 
   auction.processAsset(ft);
 
   assert auction.queryAssetAsks(user, ft).size() == 0;
-  assert Vec.get(auction.stats.assets, ft).asksAmount == 0;
-  assert Vec.get(auction.stats.assets, ft).totalAskVolume == 0;
+  assert Vec.get(auction.assetsRepo.assets, ft).asksAmount == 0;
+  assert Vec.get(auction.assetsRepo.assets, ft).totalAskVolume == 0;
 };
 
 do {

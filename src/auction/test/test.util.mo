@@ -21,7 +21,7 @@ module {
   };
 
   public func createFt(auction : Auction.Auction) : Nat {
-    let id = Vec.size(auction.assets);
+    let id = Vec.size(auction.assetsRepo.assets);
     auction.registerAssets(1);
     id;
   };

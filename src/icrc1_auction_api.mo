@@ -303,14 +303,14 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     auction := ?a;
 
     ignore metrics.addPullValue("sessions_counter", "", func() = a.sessionsCounter);
-    ignore metrics.addPullValue("assets_amount", "", func() = Vec.size(a.assets));
-    ignore metrics.addPullValue("users_amount", "", func() = a.stats.usersAmount);
-    ignore metrics.addPullValue("accounts_amount", "", func() = a.stats.accountsAmount);
+    ignore metrics.addPullValue("assets_amount", "", func() = Vec.size(a.assetsRepo.assets));
+    ignore metrics.addPullValue("users_amount", "", func() = a.usersRepo.usersAmount);
+    ignore metrics.addPullValue("accounts_amount", "", func() = a.creditsRepo.accountsAmount);
 
     if (Vec.size(assets) == 0) {
       ignore U.requireOk(registerAsset_(trustedLedgerPrincipal, 0));
     } else {
-      for (assetId in Vec.keys(a.assets)) {
+      for (assetId in Vec.keys(a.assetsRepo.assets)) {
         registerAssetMetrics_(assetId);
       };
     };
@@ -515,7 +515,7 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
   };
 
   private func registerAssetMetrics_(assetId : Auction.AssetId) {
-    let stats = Vec.get(U.unwrapUninit(auction).stats.assets, assetId);
+    let stats = Vec.get(U.unwrapUninit(auction).assetsRepo.assets, assetId);
     ignore metrics.addPullValue("asks_amount", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = stats.asksAmount);
     ignore metrics.addPullValue("asks_volume", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = stats.totalAskVolume);
     ignore metrics.addPullValue("bids_amount", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = stats.bidsAmount);
@@ -528,7 +528,7 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
       if (Principal.equal(ledger, assetInfo.ledgerPrincipal)) return #err(#AlreadyRegistered(i));
     };
     let id = Vec.size(assets);
-    assert id == Vec.size(U.unwrapUninit(auction).assets);
+    assert id == Vec.size(U.unwrapUninit(auction).assetsRepo.assets);
     (actor (Principal.toText(ledger)) : ICRC1.ICRC1Ledger)
     |> {
       balance_of = _.icrc1_balance_of;
