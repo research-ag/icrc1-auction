@@ -96,14 +96,14 @@ module {
           };
           case (4) {
             switch (a.manageOrders(user, null, createBidsActions)) {
-              case (#ok oids) ();
+              case (#ok _) ();
               case (_) Prim.trap("Cannot prepare N set orders");
             };
             (? #all(null), []);
           };
           case (5) {
             switch (a.manageOrders(user, null, createBidsActions)) {
-              case (#ok oids) ();
+              case (#ok _) ();
               case (_) Prim.trap("Cannot prepare N set orders");
             };
             (? #all(?[1]), []);
@@ -124,14 +124,14 @@ module {
           };
           case (8) {
             switch (a.manageOrders(user, null, createBidsActions)) {
-              case (#ok oids) ();
+              case (#ok _) ();
               case (_) Prim.trap("Cannot prepare N set orders");
             };
             (? #all(null), createBidsActions);
           };
           case (9) {
             switch (a.manageOrders(user, null, createBidsActions)) {
-              case (#ok oids) ();
+              case (#ok _) ();
               case (_) Prim.trap("Cannot prepare N set orders");
             };
             (? #all(null), Array.reverse(createBidsActions));
