@@ -5,6 +5,13 @@ module {
 
   public type PriorityQueue<T> = List.List<T>;
 
+  public func next<T>(queue : PriorityQueue<T>) : ?T {
+    switch queue {
+      case null null;
+      case (?(h, _)) ?h;
+    };
+  };
+
   // inserts item to the queue, places it after all items with higher or equal priority
   public func insert<T>(queue : PriorityQueue<T>, item : T, comparePriority : (T, T) -> Order.Order) : PriorityQueue<T> {
     switch queue {

@@ -17,9 +17,6 @@ import CreditsRepo "./credits_repo";
 import UsersRepo "./users_repo";
 
 import T "./types";
-import {
-  iterConcat;
-} "./utils";
 
 module {
 
@@ -101,7 +98,7 @@ module {
     public func cancel(userInfo : T.UserInfo, orderId : T.OrderId) : ?T.Order {
       // find and remove from order lists
       let ?existingOrder = usersRepo.popOrder(userInfo, kind, orderId) else return null;
-      Vec.get(assetsRepo.assets, existingOrder.assetId) |> assetsRepo.popOrder(_, kind, orderId);
+      assetsRepo.getAsset(existingOrder.assetId) |> assetsRepo.popOrder(_, kind, orderId);
       // return deposit to user
       let ?sourceAcc = creditsRepo.getAccount(userInfo, chargeToken(existingOrder.assetId)) else Prim.trap("Can never happen");
       let (success, _) = creditsRepo.unlockCredit(sourceAcc, chargeAmount(existingOrder.volume, existingOrder.price));
@@ -146,6 +143,26 @@ module {
       func(assetInfo) = assetInfo.bids,
       func(userInfo) = userInfo.bids,
     );
+
+    /** concat two iterables into one */
+    private func iterConcat<T>(a : Iter.Iter<T>, b : Iter.Iter<T>) : Iter.Iter<T> {
+      var aEnded : Bool = false;
+      object {
+        public func next() : ?T {
+          if (aEnded) {
+            return b.next();
+          };
+          let nextA = a.next();
+          switch (nextA) {
+            case (?val) ?val;
+            case (null) {
+              aEnded := true;
+              b.next();
+            };
+          };
+        };
+      };
+    };
 
     public func manageOrders(
       p : Principal,
@@ -275,10 +292,10 @@ module {
         };
 
         // validate asset id
-        if (assetId == trustedAssetId or assetId >= Vec.size(assetsRepo.assets)) return #err(#placement({ index = i; error = #UnknownAsset }));
+        if (assetId == trustedAssetId or assetId >= assetsRepo.nAssets()) return #err(#placement({ index = i; error = #UnknownAsset }));
 
         // validate order volume
-        let assetInfo = Vec.get(assetsRepo.assets, assetId);
+        let assetInfo = assetsRepo.getAsset(assetId);
         if (orderService.isOrderLow(assetId, assetInfo, volume, price)) return #err(#placement({ index = i; error = #TooLowOrder }));
 
         // validate user credit

@@ -22,10 +22,6 @@ import AssetsRepo "assets_repo";
 import CreditsRepo "./credits_repo";
 import OrdersRepo "./orders_repo";
 import { processAuction } "./auction_processor";
-import {
-  sliceList;
-  sliceListWithFilter;
-} "./utils";
 import T "./types";
 import UsersRepo "users_repo";
 
@@ -106,6 +102,48 @@ module {
     #UnknownPrincipal;
   };
   public type ReplaceOrderError = CancelOrderError or PlaceOrderError;
+
+  private func sliceList<T>(list : List.List<T>, limit : Nat, skip : Nat) : [T] {
+    var tail = list;
+    var i = 0;
+    while (i < skip) {
+      let ?(_, next) = tail else return [];
+      tail := next;
+      i += 1;
+    };
+    let ret : Vec.Vector<T> = Vec.new();
+    i := 0;
+    label l while (i < limit) {
+      let ?(item, next) = tail else break l;
+      Vec.add(ret, item);
+      tail := next;
+      i += 1;
+    };
+    Vec.toArray(ret);
+  };
+
+  private func sliceListWithFilter<T>(list : List.List<T>, f : (item : T) -> Bool, limit : Nat, skip : Nat) : [T] {
+    var tail = list;
+    var i = 0;
+    while (i < skip) {
+      let ?(item, next) = tail else return [];
+      tail := next;
+      if (f(item)) {
+        i += 1;
+      };
+    };
+    let ret : Vec.Vector<T> = Vec.new();
+    i := 0;
+    label l while (i < limit) {
+      let ?(item, next) = tail else break l;
+      if (f(item)) {
+        Vec.add(ret, item);
+        i += 1;
+      };
+      tail := next;
+    };
+    Vec.toArray(ret);
+  };
 
   public class Auction(
     trustedAssetId : AssetId,
@@ -319,7 +357,7 @@ module {
     // processes auction for given asset
     public func processAsset(assetId : AssetId) : () {
       if (assetId == trustedAssetId) return;
-      processAuction(assetsRepo, creditsRepo, assetId, sessionsCounter, trustedAssetId, settings.performanceCounter);
+      processAuction(assetsRepo, creditsRepo, usersRepo, assetId, sessionsCounter, trustedAssetId, settings.performanceCounter);
     };
 
     public func share() : T.StableDataV2 = {

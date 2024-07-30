@@ -12,12 +12,14 @@ module {
 
   public class AssetsRepo() {
 
-    // TODO find usages and replace with some interface
-
     // asset info, index == assetId
     public var assets : Vec.Vector<T.AssetInfo> = Vec.new();
     // asset history
     public var history : List.List<T.PriceHistoryItem> = null;
+
+    public func nAssets() : Nat = Vec.size(assets);
+
+    public func getAsset(assetId : T.AssetId) : T.AssetInfo = Vec.get(assets, assetId);
 
     public func register(n : Nat) {
       var assetsVecSize = Vec.size(assets);
@@ -44,6 +46,14 @@ module {
       };
     };
 
+    public func peekOrder(asset : T.AssetInfo, kind : { #ask; #bid }) : ?(T.OrderId, T.Order) {
+      let orderBook = switch (kind) {
+        case (#ask) asset.asks;
+        case (#bid) asset.bids;
+      };
+      PriorityQueue.next(orderBook.queue);
+    };
+
     public func putOrder(asset : T.AssetInfo, kind : { #ask; #bid }, orderId : T.OrderId, order : T.Order) {
       let orderBook = switch (kind) {
         case (#ask) asset.asks;
@@ -61,7 +71,6 @@ module {
       orderBook.totalVolume += order.volume;
     };
 
-    // TODO check that nothing modifies totalVolume outside of this class
     public func popOrder(asset : T.AssetInfo, kind : { #ask; #bid }, orderId : T.OrderId) {
       let orderBook = switch (kind) {
         case (#ask) asset.asks;
@@ -72,6 +81,10 @@ module {
       orderBook.queue := upd;
       orderBook.amount -= 1;
       orderBook.totalVolume -= existingOrder.volume;
+    };
+
+    public func pushToHistory(item : T.PriceHistoryItem) {
+      history := List.push(item, history);
     };
 
   };
