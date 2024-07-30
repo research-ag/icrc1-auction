@@ -55,12 +55,6 @@ module {
   public type PriceHistoryItem = (timestamp : Nat64, sessionNumber : Nat, assetId : AssetId, volume : Nat, price : Float);
   public type TransactionHistoryItem = (timestamp : Nat64, sessionNumber : Nat, kind : { #ask; #bid }, assetId : AssetId, volume : Nat, price : Float);
 
-  public type SharedOrder = {
-    assetId : AssetId;
-    price : Float;
-    volume : Nat;
-  };
-
   // stable data types
   public type StableOrderDataV2 = {
     user : Principal;

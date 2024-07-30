@@ -34,19 +34,22 @@ module {
       };
     };
 
+    public func getOrderBook(user : T.UserInfo, kind : { #ask; #bid }) : T.UserOrderBook = switch (kind) {
+      case (#ask) user.asks;
+      case (#bid) user.bids;
+    };
+
+    public func findOrder(userInfo : T.UserInfo, kind : { #ask; #bid }, orderId : T.OrderId) : ?T.Order {
+      AssocList.find(getOrderBook(userInfo, kind).map, orderId, Nat.equal);
+    };
+
     public func putOrder(user : T.UserInfo, kind : { #ask; #bid }, orderId : T.OrderId, order : T.Order) {
-      let orderBook = switch (kind) {
-        case (#ask) user.asks;
-        case (#bid) user.bids;
-      };
+      let orderBook = getOrderBook(user, kind);
       AssocList.replace<T.OrderId, T.Order>(orderBook.map, orderId, Nat.equal, ?order) |> (orderBook.map := _.0);
     };
 
     public func popOrder(user : T.UserInfo, kind : { #ask; #bid }, orderId : T.OrderId) : ?T.Order {
-      let orderBook = switch (kind) {
-        case (#ask) user.asks;
-        case (#bid) user.bids;
-      };
+      let orderBook = getOrderBook(user, kind);
       let (updatedList, oldValue) = AssocList.replace(orderBook.map, orderId, Nat.equal, null);
       let ?existingOrder = oldValue else return null;
       orderBook.map := updatedList;

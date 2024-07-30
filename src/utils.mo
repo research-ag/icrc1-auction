@@ -1,5 +1,8 @@
+import Iter "mo:base/Iter";
 import Prim "mo:prim";
 import R "mo:base/Result";
+
+import Vec "mo:vector";
 
 module {
 
@@ -19,5 +22,21 @@ module {
       case (#ok ok) ok;
       case (_) Prim.trap(message);
     };
+  };
+
+  public func sliceIter<T>(iter : Iter.Iter<T>, limit : Nat, skip : Nat) : [T] {
+    var i = 0;
+    while (i < skip) {
+      let ?_ = iter.next() else return [];
+      i += 1;
+    };
+    let ret : Vec.Vector<T> = Vec.new();
+    i := 0;
+    label l while (i < limit) {
+      let ?x = iter.next() else break l;
+      Vec.add(ret, x);
+      i += 1;
+    };
+    Vec.toArray(ret);
   };
 };

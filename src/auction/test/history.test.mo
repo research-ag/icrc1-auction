@@ -1,3 +1,4 @@
+import Iter "mo:base/Iter";
 import Prim "mo:prim";
 import Principal "mo:base/Principal";
 
@@ -10,23 +11,23 @@ do {
 
   let ft1 = createFt(auction);
   ignore auction.appendCredit(seller, ft1, 500_000_000);
-  ignore auction.placeAsk(seller, ft1, 1_000, 0);
+  ignore auction.placeOrder(seller, #ask, ft1, 1_000, 0);
 
   let ft2 = createFt(auction);
   ignore auction.appendCredit(seller, ft2, 500_000_000);
-  ignore auction.placeAsk(seller, ft2, 1_000, 0);
+  ignore auction.placeOrder(seller, #ask, ft2, 1_000, 0);
 
   let ft3 = createFt(auction);
 
   ignore auction.appendCredit(user, 0, 500_000_000);
-  ignore auction.placeBid(user, ft1, 1_000, 100_000);
-  ignore auction.placeBid(user, ft2, 1_000, 100_000);
+  ignore auction.placeOrder(user, #bid, ft1, 1_000, 100_000);
+  ignore auction.placeOrder(user, #bid, ft2, 1_000, 100_000);
 
   auction.processAsset(ft1);
   auction.processAsset(ft2);
   auction.processAsset(ft3);
 
-  let history = auction.queryPriceHistory(null, 3, 0);
+  let history = Iter.toArray(auction.getPriceHistory(null));
   assert history.size() == 3;
   assert history[0].2 == ft3;
   assert history[0].3 == 0;
@@ -46,20 +47,20 @@ do {
 
   let ft1 = createFt(auction);
   ignore auction.appendCredit(seller, ft1, 500_000_000);
-  ignore auction.placeAsk(seller, ft1, 1_000, 0);
+  ignore auction.placeOrder(seller, #ask, ft1, 1_000, 0);
 
   let ft2 = createFt(auction);
   ignore auction.appendCredit(seller, ft2, 500_000_000);
-  ignore auction.placeAsk(seller, ft2, 1_000, 0);
+  ignore auction.placeOrder(seller, #ask, ft2, 1_000, 0);
 
   ignore auction.appendCredit(user, 0, 500_000_000);
-  ignore auction.placeBid(user, ft1, 1_000, 100_000);
-  ignore auction.placeBid(user, ft2, 1_000, 100_000);
+  ignore auction.placeOrder(user, #bid, ft1, 1_000, 100_000);
+  ignore auction.placeOrder(user, #bid, ft2, 1_000, 100_000);
 
   auction.processAsset(ft1);
   auction.processAsset(ft2);
 
-  let history = auction.queryTransactionHistory(user, null, 2, 0);
+  let history = Iter.toArray(auction.getTransactionHistory(user, null));
   assert history[0].3 == ft2;
   assert history[1].3 == ft1;
 };

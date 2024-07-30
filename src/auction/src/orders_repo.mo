@@ -53,15 +53,9 @@ module {
     minimumOrder : Nat,
     minAskVolume : (T.AssetId, T.AssetInfo) -> Int,
     kind_ : { #ask; #bid },
-    // TODO maye those are not needed: use assetRepo and usersRepo API
-    assetOrderBookFunc_ : (assetInfo : T.AssetInfo) -> T.AssetOrderBook,
-    userOrderBookFunc_ : (userInfo : T.UserInfo) -> T.UserOrderBook,
-    // priorityComparator : (a : (T.OrderId, T.Order), b : (T.OrderId, T.Order)) -> O.Order,
   ) {
 
     public let kind : { #ask; #bid } = kind_;
-    public let assetOrderBookFunc : (assetInfo : T.AssetInfo) -> T.AssetOrderBook = assetOrderBookFunc_;
-    public let userOrderBookFunc : (userInfo : T.UserInfo) -> T.UserOrderBook = userOrderBookFunc_;
 
     // validation
     public func isOrderLow(orderAssetId : T.AssetId, orderAssetInfo : T.AssetInfo, volume : Nat, price : Float) : Bool = switch (kind) {
@@ -112,7 +106,6 @@ module {
     assetsRepo : AssetsRepo.AssetsRepo,
     creditsRepo : CreditsRepo.CreditsRepo,
     usersRepo : UsersRepo.UsersRepo,
-    // TODO double check whether these are needed after finishing refactoring
     trustedAssetId : T.AssetId,
     minimumOrder : Nat,
     minAskVolume : (T.AssetId, T.AssetInfo) -> Int,
@@ -129,8 +122,6 @@ module {
       minimumOrder,
       minAskVolume,
       #ask,
-      func(assetInfo) = assetInfo.asks,
-      func(userInfo) = userInfo.asks,
     );
     public let bids : OrdersService = OrdersService(
       assetsRepo,
@@ -140,29 +131,7 @@ module {
       minimumOrder,
       minAskVolume,
       #bid,
-      func(assetInfo) = assetInfo.bids,
-      func(userInfo) = userInfo.bids,
     );
-
-    /** concat two iterables into one */
-    private func iterConcat<T>(a : Iter.Iter<T>, b : Iter.Iter<T>) : Iter.Iter<T> {
-      var aEnded : Bool = false;
-      object {
-        public func next() : ?T {
-          if (aEnded) {
-            return b.next();
-          };
-          let nextA = a.next();
-          switch (nextA) {
-            case (?val) ?val;
-            case (null) {
-              aEnded := true;
-              b.next();
-            };
-          };
-        };
-      };
-    };
 
     public func manageOrders(
       p : Principal,
@@ -210,7 +179,7 @@ module {
 
       // prepare cancellation of all orders by type (ask or bid)
       func prepareBulkCancelation(ordersService : OrdersService) {
-        let userOrderBook = ordersService.userOrderBookFunc(userInfo);
+        let userOrderBook = usersRepo.getOrderBook(userInfo, ordersService.kind);
         for ((orderId, order) in List.toIter(userOrderBook.map)) {
           affectNewBalancesWithCancellation(ordersService, order);
         };
@@ -230,7 +199,7 @@ module {
       // prepare cancellation of all orders by given filter function by type (ask or bid)
       func prepareBulkCancelationWithFilter(ordersService : OrdersService, isCancel : (assetId : T.AssetId, orderId : T.OrderId) -> Bool) {
         // TODO can be optimized: cancelOrderInternal searches for order by it's id with linear complexity
-        let userOrderBook = ordersService.userOrderBookFunc(userInfo);
+        let userOrderBook = usersRepo.getOrderBook(userInfo, ordersService.kind);
         let orderIds : Vec.Vector<T.OrderId> = Vec.new();
         for ((orderId, order) in List.toIter(userOrderBook.map)) {
           if (isCancel(order.assetId, orderId)) {
@@ -269,15 +238,15 @@ module {
           bidsDelta.isOrderCancelled := func(_, orderId) = cancelledBids.get(orderId) |> not Option.isNull(_);
 
           for (i in orders.keys()) {
-            let (orderService, orderId, cancelledTree) = switch (orders[i]) {
+            let (ordersService, orderId, cancelledTree) = switch (orders[i]) {
               case (#ask orderId) (asks, orderId, cancelledAsks);
               case (#bid orderId) (bids, orderId, cancelledBids);
             };
-            let ?oldOrder = AssocList.find(orderService.userOrderBookFunc(userInfo).map, orderId, Nat.equal) else return #err(#cancellation({ index = i; error = #UnknownOrder }));
-            affectNewBalancesWithCancellation(orderService, oldOrder);
+            let ?oldOrder = usersRepo.findOrder(userInfo, ordersService.kind, orderId) else return #err(#cancellation({ index = i; error = #UnknownOrder }));
+            affectNewBalancesWithCancellation(ordersService, oldOrder);
             cancelledTree.put(orderId, ());
             cancellationCommitActions := List.push(
-              func() = ignore orderService.cancel(userInfo, orderId),
+              func() = ignore ordersService.cancel(userInfo, orderId),
               cancellationCommitActions,
             );
           };
@@ -286,7 +255,7 @@ module {
 
       // validate and prepare placements
       for (i in placements.keys()) {
-        let (orderService, (assetId, volume, price), ordersDelta, oppositeOrdersDelta) = switch (placements[i]) {
+        let (ordersService, (assetId, volume, price), ordersDelta, oppositeOrdersDelta) = switch (placements[i]) {
           case (#ask(args)) (asks, args, asksDelta, bidsDelta);
           case (#bid(args)) (bids, args, bidsDelta, asksDelta);
         };
@@ -296,11 +265,11 @@ module {
 
         // validate order volume
         let assetInfo = assetsRepo.getAsset(assetId);
-        if (orderService.isOrderLow(assetId, assetInfo, volume, price)) return #err(#placement({ index = i; error = #TooLowOrder }));
+        if (ordersService.isOrderLow(assetId, assetInfo, volume, price)) return #err(#placement({ index = i; error = #TooLowOrder }));
 
         // validate user credit
-        let chargeToken = orderService.chargeToken(assetId);
-        let chargeAmount = orderService.chargeAmount(volume, price);
+        let chargeToken = ordersService.chargeToken(assetId);
+        let chargeAmount = ordersService.chargeAmount(volume, price);
         let ?chargeAcc = creditsRepo.getAccount(userInfo, chargeToken) else return #err(#placement({ index = i; error = #NoCredit }));
         let balance = switch (AssocList.find<T.AssetId, Nat>(newBalances, chargeToken, Nat.equal)) {
           case (?b) b;
@@ -313,13 +282,13 @@ module {
         |> (newBalances := _.0);
 
         // build list of placed orders + orders to be placed during this call
-        func buildOrdersList(userList : List.List<(T.OrderId, T.Order)>, delta : OrdersDelta) : Iter.Iter<(?T.OrderId, T.Order)> = userList
+        func buildOrdersList(user : T.UserInfo, kind : { #ask; #bid }, delta : OrdersDelta) : Iter.Iter<(?T.OrderId, T.Order)> = usersRepo.getOrderBook(user, kind).map
         |> List.toIter(_)
         |> Iter.map<(T.OrderId, T.Order), (?T.OrderId, T.Order)>(_, func(oid, o) = (?oid, o))
         |> iterConcat<(?T.OrderId, T.Order)>(_, List.toIter(delta.placed));
 
         // validate conflicting orders
-        for ((orderId, order) in buildOrdersList(orderService.userOrderBookFunc(userInfo).map, ordersDelta)) {
+        for ((orderId, order) in buildOrdersList(userInfo, ordersService.kind, ordersDelta)) {
           if (
             order.assetId == assetId and price == order.price and (
               switch (orderId) {
@@ -328,17 +297,17 @@ module {
               }
             )
           ) {
-            return #err(#placement({ index = i; error = #ConflictingOrder(orderService.kind, orderId) }));
+            return #err(#placement({ index = i; error = #ConflictingOrder(ordersService.kind, orderId) }));
           };
         };
 
-        let oppositeOrderManager = switch (orderService.kind) {
+        let oppositeOrderManager = switch (ordersService.kind) {
           case (#ask) { bids };
           case (#bid) { asks };
         };
-        for ((oppOrderId, oppOrder) in buildOrdersList(oppositeOrderManager.userOrderBookFunc(userInfo).map, oppositeOrdersDelta)) {
+        for ((oppOrderId, oppOrder) in buildOrdersList(userInfo, oppositeOrderManager.kind, oppositeOrdersDelta)) {
           if (
-            oppOrder.assetId == assetId and orderService.isOppositeOrderConflicts(price, oppOrder.price) and (
+            oppOrder.assetId == assetId and ordersService.isOppositeOrderConflicts(price, oppOrder.price) and (
               switch (oppOrderId) {
                 case (?oid) not oppositeOrdersDelta.isOrderCancelled(assetId, oid);
                 case (null) true;
@@ -361,7 +330,7 @@ module {
         placementCommitActions[i] := func() {
           let orderId = ordersCounter;
           ordersCounter += 1;
-          orderService.place(userInfo, chargeAcc, assetInfo, orderId, order);
+          ordersService.place(userInfo, chargeAcc, assetInfo, orderId, order);
           orderId;
         };
       };
@@ -371,6 +340,26 @@ module {
         cancel();
       };
       #ok(Array.tabulate<T.OrderId>(placementCommitActions.size(), func(i) = placementCommitActions[i]()));
+    };
+  };
+
+  /** concat two iterables into one */
+  private func iterConcat<T>(a : Iter.Iter<T>, b : Iter.Iter<T>) : Iter.Iter<T> {
+    var aEnded : Bool = false;
+    object {
+      public func next() : ?T {
+        if (aEnded) {
+          return b.next();
+        };
+        let nextA = a.next();
+        switch (nextA) {
+          case (?val) ?val;
+          case (null) {
+            aEnded := true;
+            b.next();
+          };
+        };
+      };
     };
   };
 

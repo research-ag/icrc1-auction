@@ -13,12 +13,12 @@ do {
   ignore auction.appendCredit(user, 0, 500_000_000);
 
   // should be fulfilled
-  switch (auction.placeBid(user, ft, 5_000_000, 1)) {
+  switch (auction.placeOrder(user, #bid, ft, 5_000_000, 1)) {
     case (#ok _) ();
     case (_) assert false;
   };
   // should not be fulfilled, too low bid
-  switch (auction.placeBid(user, ft, 5_000_000, 0.1)) {
+  switch (auction.placeOrder(user, #bid, ft, 5_000_000, 0.1)) {
     case (#ok _) ();
     case (_) assert false;
   };
@@ -27,19 +27,19 @@ do {
   ignore auction.appendCredit(user2, ft, 500_000_000);
 
   // should be fulfilled
-  switch (auction.placeAsk(user2, ft, 5_000_000, 0.8)) {
+  switch (auction.placeOrder(user2, #ask, ft, 5_000_000, 0.8)) {
     case (#ok _) ();
     case (_) assert false;
   };
   // should not be fulfilled
-  switch (auction.placeAsk(user2, ft, 5_000_000, 100)) {
+  switch (auction.placeOrder(user2, #ask, ft, 5_000_000, 100)) {
     case (#ok _) ();
     case (_) assert false;
   };
 
   auction.processAsset(ft);
 
-  let priceHistoryItem = auction.queryPriceHistory(?ft, 1, 0)[0];
+  let ?priceHistoryItem = auction.getPriceHistory(?ft).next() else Prim.trap("");
   assert priceHistoryItem.3 == 5_000_000; // volume
   assert priceHistoryItem.4 == 0.9; // average price, ask 0.8, bid 1
 };
@@ -52,12 +52,12 @@ do {
 
   ignore auction.appendCredit(user, 0, 500_000_000);
   // should be fulfilled partially
-  switch (auction.placeBid(user, ft, 6_009_999, 1)) {
+  switch (auction.placeOrder(user, #bid, ft, 6_009_999, 1)) {
     case (#ok _) ();
     case (_) assert false;
   };
   // should not be fulfilled, too low bid
-  switch (auction.placeBid(user, ft, 5_000_000, 0.1)) {
+  switch (auction.placeOrder(user, #bid, ft, 5_000_000, 0.1)) {
     case (#ok _) ();
     case (_) assert false;
   };
@@ -65,19 +65,19 @@ do {
   let user2 = Principal.fromText("tbsil-wffo6-dnxyb-b27v7-c5ghk-jsiqs-gsok7-bmtyu-w7u3b-el75k-iae");
   ignore auction.appendCredit(user2, ft, 500_000_000);
   // should be fulfilled
-  switch (auction.placeAsk(user2, ft, 5_000_000, 0.8)) {
+  switch (auction.placeOrder(user2, #ask, ft, 5_000_000, 0.8)) {
     case (#ok _) ();
     case (_) assert false;
   };
   // should not be fulfilled
-  switch (auction.placeAsk(user2, ft, 5_000_000, 100)) {
+  switch (auction.placeOrder(user2, #ask, ft, 5_000_000, 100)) {
     case (#ok _) ();
     case (_) assert false;
   };
 
   auction.processAsset(ft);
 
-  let priceHistoryItem = auction.queryPriceHistory(?ft, 1, 0)[0];
+  let ?priceHistoryItem = auction.getPriceHistory(?ft).next() else Prim.trap("");
   assert priceHistoryItem.3 == 5_000_000; // volume
   assert priceHistoryItem.4 == 0.9; // average price, ask 0.8, bid 1
 };
@@ -90,12 +90,12 @@ do {
 
   ignore auction.appendCredit(user, 0, 500_000_000);
   // should be fulfilled partially
-  switch (auction.placeBid(user, ft, 5_010_000, 1)) {
+  switch (auction.placeOrder(user, #bid, ft, 5_010_000, 1)) {
     case (#ok _) ();
     case (_) assert false;
   };
   // should not be fulfilled, too low bid
-  switch (auction.placeBid(user, ft, 5_000_000, 0.1)) {
+  switch (auction.placeOrder(user, #bid, ft, 5_000_000, 0.1)) {
     case (#ok _) ();
     case (_) assert false;
   };
@@ -103,19 +103,19 @@ do {
   let user2 = Principal.fromText("tbsil-wffo6-dnxyb-b27v7-c5ghk-jsiqs-gsok7-bmtyu-w7u3b-el75k-iae");
   ignore auction.appendCredit(user2, ft, 500_000_000);
   // should be fulfilled partially
-  switch (auction.placeAsk(user2, ft, 6_000_000, 0.8)) {
+  switch (auction.placeOrder(user2, #ask, ft, 6_000_000, 0.8)) {
     case (#ok _) ();
     case (_) assert false;
   };
   // should not be fulfilled
-  switch (auction.placeAsk(user2, ft, 5_000_000, 100)) {
+  switch (auction.placeOrder(user2, #ask, ft, 5_000_000, 100)) {
     case (#ok _) ();
     case (_) assert false;
   };
 
   auction.processAsset(ft);
 
-  let priceHistoryItem = auction.queryPriceHistory(?ft, 1, 0)[0];
+  let ?priceHistoryItem = auction.getPriceHistory(?ft).next() else Prim.trap("");
   assert priceHistoryItem.3 == 5_010_000; // volume
   assert priceHistoryItem.4 == 0.9; // average price, ask 0.8, bid 1
 };
@@ -143,7 +143,7 @@ do {
   ignore auction.appendCredit(user, 0, 500_000_000);
   userExpectedCredits[0] += 500_000_000;
 
-  switch (auction.placeBid(user, ft, 5_000_000, 0.1)) {
+  switch (auction.placeOrder(user, #bid, ft, 5_000_000, 0.1)) {
     case (#ok _) ();
     case (_) assert false;
   };
@@ -152,7 +152,7 @@ do {
   ignore auction.appendCredit(user, ft, 500_000_000);
   userExpectedCredits[1] += 500_000_000;
 
-  switch (auction.placeAsk(user, ft, 500_000, 26)) {
+  switch (auction.placeOrder(user, #ask, ft, 500_000, 26)) {
     case (#ok _) ();
     case (_) assert false;
   };
@@ -164,7 +164,7 @@ do {
   ignore auction.appendCredit(user2, ft, 500_000_000);
   user2ExpectedCredits[1] += 500_000_000;
 
-  switch (auction.placeAsk(user2, ft, 980_000, 0.08)) {
+  switch (auction.placeOrder(user2, #ask, ft, 980_000, 0.08)) {
     case (#ok _) ();
     case (_) assert false;
   };
@@ -184,7 +184,7 @@ do {
   // note user2 [1] balance not changed: whole volume was locked and then charged
   user2ExpectedCredits[0] += 88_200; // credited from sold token
 
-  let priceHistoryItem = auction.queryPriceHistory(?ft, 1, 0)[0];
+  let ?priceHistoryItem = auction.getPriceHistory(?ft).next() else Prim.trap("");
   assert priceHistoryItem.3 == 980_000;
   assert priceHistoryItem.4 == 0.09;
 

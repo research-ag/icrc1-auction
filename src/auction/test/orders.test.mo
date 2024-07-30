@@ -9,16 +9,16 @@ do {
   auction.processAsset(ft);
   ignore auction.appendCredit(user, 0, 500_000_000);
   ignore auction.appendCredit(user, ft, 500_000_000);
-  switch (auction.placeBid(user, ft, 2_000, 250)) {
+  switch (auction.placeOrder(user, #bid, ft, 2_000, 250)) {
     case (#ok _) ();
     case (_) assert false;
   };
-  switch (auction.placeAsk(user, ft, 2_000_000, 300)) {
+  switch (auction.placeOrder(user, #ask, ft, 2_000_000, 300)) {
     case (#ok _) ();
     case (_) assert false;
   };
-  assert auction.queryAssetAsks(user, ft).size() == 1;
-  assert auction.queryAssetBids(user, ft).size() == 1;
+  assert auction.queryOrders(user, #ask, ?ft).size() == 1;
+  assert auction.queryOrders(user, #bid, ?ft).size() == 1;
 };
 
 do {
@@ -28,16 +28,16 @@ do {
   auction.processAsset(ft);
   ignore auction.appendCredit(user, 0, 500_000_000);
   ignore auction.appendCredit(user, ft, 500_000_000);
-  let orderId = switch (auction.placeBid(user, ft, 2_000, 250)) {
+  let orderId = switch (auction.placeOrder(user, #bid, ft, 2_000, 250)) {
     case (#ok id) id;
     case (_) { assert false; 0 };
   };
-  switch (auction.placeAsk(user, ft, 2_000_000, 200)) {
+  switch (auction.placeOrder(user, #ask, ft, 2_000_000, 200)) {
     case (#err(#ConflictingOrder(#bid, oid))) assert oid == ?orderId;
     case (_) assert false;
   };
-  assert auction.queryAssetBids(user, ft).size() == 1;
-  assert auction.queryAssetAsks(user, ft).size() == 0;
+  assert auction.queryOrders(user, #bid, ?ft).size() == 1;
+  assert auction.queryOrders(user, #ask, ?ft).size() == 0;
 };
 
 do {
@@ -47,16 +47,16 @@ do {
   auction.processAsset(ft);
   ignore auction.appendCredit(user, 0, 500_000_000);
   ignore auction.appendCredit(user, ft, 500_000_000);
-  let orderId = switch (auction.placeAsk(user, ft, 2_000_000, 200)) {
+  let orderId = switch (auction.placeOrder(user, #ask, ft, 2_000_000, 200)) {
     case (#ok id) id;
     case (_) { assert false; 0 };
   };
-  switch (auction.placeBid(user, ft, 2_000, 250)) {
+  switch (auction.placeOrder(user, #bid, ft, 2_000, 250)) {
     case (#err(#ConflictingOrder(#ask, oid))) assert oid == ?orderId;
     case (_) assert false;
   };
-  assert auction.queryAssetAsks(user, ft).size() == 1;
-  assert auction.queryAssetBids(user, ft).size() == 0;
+  assert auction.queryOrders(user, #ask, ?ft).size() == 1;
+  assert auction.queryOrders(user, #bid, ?ft).size() == 0;
 };
 
 do {
@@ -79,8 +79,8 @@ do {
     case (#err(#placement({ index = 1; error = #ConflictingOrder(#ask, null) }))) ();
     case (_) assert false;
   };
-  assert auction.queryAssetAsks(user, ft).size() == 0;
-  assert auction.queryAssetBids(user, ft).size() == 0;
+  assert auction.queryOrders(user, #ask, ?ft).size() == 0;
+  assert auction.queryOrders(user, #bid, ?ft).size() == 0;
 };
 
 do {
@@ -90,7 +90,7 @@ do {
   auction.processAsset(ft);
   ignore auction.appendCredit(user, 0, 500_000_000);
   ignore auction.appendCredit(user, ft, 500_000_000);
-  let orderId = switch (auction.placeAsk(user, ft, 2_000_000, 200)) {
+  let orderId = switch (auction.placeOrder(user, #ask, ft, 2_000_000, 200)) {
     case (#ok id) id;
     case (_) { assert false; 0 };
   };
@@ -104,8 +104,8 @@ do {
     case (#ok(_)) ();
     case (_) assert false;
   };
-  assert auction.queryAssetAsks(user, ft).size() == 0;
-  assert auction.queryAssetBids(user, ft).size() == 1;
+  assert auction.queryOrders(user, #ask, ?ft).size() == 0;
+  assert auction.queryOrders(user, #bid, ?ft).size() == 1;
 };
 
 do {
@@ -135,10 +135,10 @@ do {
     case (#ok _) ();
     case (_) assert false;
   };
-  assert auction.queryAssetAsks(user, ft1).size() == 2;
-  assert auction.queryAssetBids(user, ft1).size() == 2;
-  assert auction.queryAssetAsks(user, ft2).size() == 2;
-  assert auction.queryAssetBids(user, ft2).size() == 2;
+  assert auction.queryOrders(user, #ask, ?ft1).size() == 2;
+  assert auction.queryOrders(user, #bid, ?ft1).size() == 2;
+  assert auction.queryOrders(user, #ask, ?ft2).size() == 2;
+  assert auction.queryOrders(user, #bid, ?ft2).size() == 2;
   assert auction.queryCredit(user, 0).available == 497_800_000;
   assert auction.queryCredit(user, ft1).available == 496_000_000;
   assert auction.queryCredit(user, ft2).available == 496_000_000;
@@ -175,10 +175,10 @@ do {
     case (#ok _) ();
     case (_) assert false;
   };
-  assert auction.queryAssetAsks(user, ft1).size() == 0;
-  assert auction.queryAssetBids(user, ft1).size() == 0;
-  assert auction.queryAssetAsks(user, ft2).size() == 0;
-  assert auction.queryAssetBids(user, ft2).size() == 0;
+  assert auction.queryOrders(user, #ask, ?ft1).size() == 0;
+  assert auction.queryOrders(user, #bid, ?ft1).size() == 0;
+  assert auction.queryOrders(user, #ask, ?ft2).size() == 0;
+  assert auction.queryOrders(user, #bid, ?ft2).size() == 0;
   assert auction.queryCredit(user, 0).available == 500_000_000;
   assert auction.queryCredit(user, ft1).available == 500_000_000;
   assert auction.queryCredit(user, ft2).available == 500_000_000;
@@ -215,10 +215,10 @@ do {
     case (#ok _) ();
     case (_) assert false;
   };
-  assert auction.queryAssetAsks(user, ft1).size() == 0;
-  assert auction.queryAssetBids(user, ft1).size() == 0;
-  assert auction.queryAssetAsks(user, ft2).size() == 2;
-  assert auction.queryAssetBids(user, ft2).size() == 2;
+  assert auction.queryOrders(user, #ask, ?ft1).size() == 0;
+  assert auction.queryOrders(user, #bid, ?ft1).size() == 0;
+  assert auction.queryOrders(user, #ask, ?ft2).size() == 2;
+  assert auction.queryOrders(user, #bid, ?ft2).size() == 2;
   assert auction.queryCredit(user, 0).available == 498_900_000;
   assert auction.queryCredit(user, ft1).available == 500_000_000;
   assert auction.queryCredit(user, ft2).available == 496_000_000;
@@ -258,10 +258,10 @@ do {
     case (#ok _) ();
     case (_) assert false;
   };
-  assert auction.queryAssetAsks(user, ft1).size() == 0;
-  assert auction.queryAssetBids(user, ft1).size() == 1;
-  assert auction.queryAssetAsks(user, ft2).size() == 2;
-  assert auction.queryAssetBids(user, ft2).size() == 2;
+  assert auction.queryOrders(user, #ask, ?ft1).size() == 0;
+  assert auction.queryOrders(user, #bid, ?ft1).size() == 1;
+  assert auction.queryOrders(user, #ask, ?ft2).size() == 2;
+  assert auction.queryOrders(user, #bid, ?ft2).size() == 2;
   assert auction.queryCredit(user, 0).available == 498_400_000;
   assert auction.queryCredit(user, ft1).available == 500_000_000;
   assert auction.queryCredit(user, ft2).available == 496_000_000;

@@ -90,12 +90,12 @@ module {
         for (i in Iter.range(1, nOrders / 2)) {
           let user = users[i - 1];
           ignore a.appendCredit(user, 0, 5_000_000_000_000_000_000_000_000_000);
-          ignore a.placeBid(user, 1, dealVolume / Nat.max(nBids, 1), criticalPrice + Prim.intToFloat((nBids - i)) * 0.1);
+          ignore a.placeOrder(user, #bid, 1, dealVolume / Nat.max(nBids, 1), criticalPrice + Prim.intToFloat((nBids - i)) * 0.1);
         };
         for (i in Iter.range(1, nOrders / 2)) {
           let user = users[nOrders / 2 + i - 1];
           ignore a.appendCredit(user, 1, 5_000_000_000_000_000_000_000_000_000);
-          ignore a.placeAsk(user, 1, dealVolume / Nat.max(nAsks, 1), criticalPrice - Prim.intToFloat((nAsks - i)) * 0.1);
+          ignore a.placeOrder(user, #ask, 1, dealVolume / Nat.max(nAsks, 1), criticalPrice - Prim.intToFloat((nAsks - i)) * 0.1);
         };
         assert Vec.get(a.assetsRepo.assets, 1).bids.amount == nOrders / 2;
         assert Vec.get(a.assetsRepo.assets, 1).asks.amount == nOrders / 2;

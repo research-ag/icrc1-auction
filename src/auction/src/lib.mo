@@ -4,10 +4,9 @@
 /// Main author: Andy Gura
 /// Contributors: Timo Hanke
 
-import Array "mo:base/Array";
-import AssocList "mo:base/AssocList";
 import Float "mo:base/Float";
 import Int "mo:base/Int";
+import Iter "mo:base/Iter";
 import List "mo:base/List";
 import Nat "mo:base/Nat";
 import Nat64 "mo:base/Nat64";
@@ -88,9 +87,11 @@ module {
 
   public type AssetId = T.AssetId;
   public type OrderId = T.OrderId;
+  public type Order = T.Order;
   public type CreditInfo = CreditsRepo.CreditInfo;
-  public type SharedOrder = T.SharedOrder;
   public type UserInfo = T.UserInfo;
+  public type TransactionHistoryItem = T.TransactionHistoryItem;
+  public type PriceHistoryItem = T.PriceHistoryItem;
 
   public type CancellationAction = OrdersRepo.CancellationAction;
   public type PlaceOrderAction = OrdersRepo.PlaceOrderAction;
@@ -102,48 +103,6 @@ module {
     #UnknownPrincipal;
   };
   public type ReplaceOrderError = CancelOrderError or PlaceOrderError;
-
-  private func sliceList<T>(list : List.List<T>, limit : Nat, skip : Nat) : [T] {
-    var tail = list;
-    var i = 0;
-    while (i < skip) {
-      let ?(_, next) = tail else return [];
-      tail := next;
-      i += 1;
-    };
-    let ret : Vec.Vector<T> = Vec.new();
-    i := 0;
-    label l while (i < limit) {
-      let ?(item, next) = tail else break l;
-      Vec.add(ret, item);
-      tail := next;
-      i += 1;
-    };
-    Vec.toArray(ret);
-  };
-
-  private func sliceListWithFilter<T>(list : List.List<T>, f : (item : T) -> Bool, limit : Nat, skip : Nat) : [T] {
-    var tail = list;
-    var i = 0;
-    while (i < skip) {
-      let ?(item, next) = tail else return [];
-      tail := next;
-      if (f(item)) {
-        i += 1;
-      };
-    };
-    let ret : Vec.Vector<T> = Vec.new();
-    i := 0;
-    label l while (i < limit) {
-      let ?(item, next) = tail else break l;
-      if (f(item)) {
-        Vec.add(ret, item);
-        i += 1;
-      };
-      tail := next;
-    };
-    Vec.toArray(ret);
-  };
 
   public class Auction(
     trustedAssetId : AssetId,
@@ -171,6 +130,7 @@ module {
 
     public func registerAssets(n : Nat) = assetsRepo.register(n);
 
+    // TODO rename queries below
     public func queryCredit(p : Principal, assetId : AssetId) : CreditInfo = switch (usersRepo.get(p)) {
       case (null) ({ total = 0; locked = 0; available = 0 });
       case (?ui) creditsRepo.info(ui, assetId);
@@ -181,67 +141,40 @@ module {
       case (?ui) creditsRepo.infoAll(ui);
     };
 
-    private func queryOrders_(p : Principal, f : (ui : UserInfo) -> AssocList.AssocList<OrderId, T.Order>) : [(OrderId, T.SharedOrder)] = switch (usersRepo.get(p)) {
+    public func queryOrder(p : Principal, kind : { #ask; #bid }, orderId : OrderId) : ?T.Order = switch (usersRepo.get(p)) {
+      case (null) null;
+      case (?ui) usersRepo.findOrder(ui, kind, orderId);
+    };
+
+    public func queryOrders(p : Principal, kind : { #ask; #bid }, assetId : ?AssetId) : [(OrderId, T.Order)] = switch (usersRepo.get(p)) {
       case (null) [];
       case (?ui) {
-        var list = f(ui);
-        let length = List.size(list);
-        Array.tabulate<(OrderId, T.SharedOrder)>(
-          length,
-          func(i) {
-            let popped = List.pop(list);
-            list := popped.1;
-            switch (popped.0) {
-              case null { loop { assert false } };
-              case (?(orderId, order)) (orderId, { order with volume = order.volume });
-            };
-          },
-        );
-      };
-    };
-
-    private func queryOrder_(p : Principal, f : (ui : UserInfo) -> AssocList.AssocList<OrderId, T.Order>, orderId : OrderId) : ?T.SharedOrder {
-      switch (usersRepo.get(p)) {
-        case (null) null;
-        case (?ui) {
-          for ((oid, order) in List.toIter(f(ui))) {
-            if (oid == orderId) {
-              return ?{ order with volume = order.volume };
-            };
-          };
-          null;
+        var list = usersRepo.getOrderBook(ui, kind).map;
+        switch (assetId) {
+          case (?aid) list := List.filter<(OrderId, T.Order)>(list, func(_, o) = o.assetId == aid);
+          case (_) {};
         };
+        List.toArray(list);
       };
     };
 
-    public func queryAssetAsks(p : Principal, assetId : AssetId) : [(OrderId, T.SharedOrder)] = queryOrders_(
-      p,
-      func(info) = info.asks.map |> List.filter<(OrderId, T.Order)>(_, func(_, o) = o.assetId == assetId),
-    );
-    public func queryAssetBids(p : Principal, assetId : AssetId) : [(OrderId, T.SharedOrder)] = queryOrders_(
-      p,
-      func(info) = info.bids.map |> List.filter<(OrderId, T.Order)>(_, func(_, o) = o.assetId == assetId),
-    );
-
-    public func queryAsks(p : Principal) : [(OrderId, T.SharedOrder)] = queryOrders_(p, func(info) = info.asks.map);
-    public func queryBids(p : Principal) : [(OrderId, T.SharedOrder)] = queryOrders_(p, func(info) = info.bids.map);
-
-    public func queryAsk(p : Principal, orderId : OrderId) : ?T.SharedOrder = queryOrder_(p, func(info) = info.asks.map, orderId);
-    public func queryBid(p : Principal, orderId : OrderId) : ?T.SharedOrder = queryOrder_(p, func(info) = info.bids.map, orderId);
-
-    public func queryTransactionHistory(p : Principal, assetId : ?AssetId, limit : Nat, skip : Nat) : [T.TransactionHistoryItem] {
-      let ?userInfo = usersRepo.get(p) else return [];
+    public func getTransactionHistory(p : Principal, assetId : ?AssetId) : Iter.Iter<T.TransactionHistoryItem> {
+      let ?userInfo = usersRepo.get(p) else return { next = func() = null };
+      var list = userInfo.history;
       switch (assetId) {
-        case (?aid) sliceListWithFilter(userInfo.history, func(item : T.TransactionHistoryItem) : Bool = item.3 == aid, limit, skip);
-        case (null) sliceList(userInfo.history, limit, skip);
+        case (?aid) list := List.filter<T.TransactionHistoryItem>(list, func x = x.3 == aid);
+        case (_) {};
       };
+      List.toIter(list);
     };
 
-    public func queryPriceHistory(assetId : ?AssetId, limit : Nat, skip : Nat) : [T.PriceHistoryItem] {
+    public func getPriceHistory(assetId : ?AssetId) : Iter.Iter<T.PriceHistoryItem> {
+      var list = assetsRepo.history;
       switch (assetId) {
-        case (?aid) sliceListWithFilter(assetsRepo.history, func(item : T.PriceHistoryItem) : Bool = item.2 == aid, limit, skip);
-        case (null) sliceList(assetsRepo.history, limit, skip);
+        case (?aid) list := List.filter<T.PriceHistoryItem>(list, func x = x.2 == aid);
+        case (_) {};
       };
+      List.toIter(list);
     };
 
     public func appendCredit(p : Principal, assetId : AssetId, amount : Nat) : Nat {
@@ -268,8 +201,12 @@ module {
       ordersRepo.manageOrders(p, userInfo, cancellations, placements);
     };
 
-    public func placeAsk(p : Principal, assetId : AssetId, volume : Nat, price : Float) : R.Result<OrderId, PlaceOrderError> {
-      switch (manageOrders(p, null, [#ask(assetId, volume, price)])) {
+    public func placeOrder(p : Principal, kind : { #ask; #bid }, assetId : AssetId, volume : Nat, price : Float) : R.Result<OrderId, PlaceOrderError> {
+      let placement = switch (kind) {
+        case (#ask) #ask(assetId, volume, price);
+        case (#bid) #bid(assetId, volume, price);
+      };
+      switch (manageOrders(p, null, [placement])) {
         case (#ok orderIds) #ok(orderIds[0]);
         case (#err(#UnknownPrincipal)) #err(#UnknownPrincipal);
         case (#err(#placement { error })) switch (error) {
@@ -278,61 +215,20 @@ module {
           case (#TooLowOrder) #err(#TooLowOrder);
           case (#UnknownAsset) #err(#UnknownAsset);
         };
-        case (_) Prim.trap("Can never happen");
+        case (#err(#cancellation _)) Prim.trap("Can never happen");
       };
     };
 
-    public func replaceAsk(p : Principal, orderId : OrderId, volume : Nat, price : Float) : R.Result<OrderId, ReplaceOrderError> {
-      let assetId = switch (queryAsk(p, orderId)) {
-        case (?ask) ask.assetId;
+    public func replaceOrder(p : Principal, kind : { #ask; #bid }, orderId : OrderId, volume : Nat, price : Float) : R.Result<OrderId, ReplaceOrderError> {
+      let assetId = switch (queryOrder(p, kind, orderId)) {
+        case (?o) o.assetId;
         case (null) return #err(#UnknownOrder);
       };
-      switch (manageOrders(p, ? #orders([#ask(orderId)]), [#ask(assetId, volume, price)])) {
-        case (#ok orderIds) #ok(orderIds[0]);
-        case (#err(#UnknownPrincipal)) #err(#UnknownPrincipal);
-        case (#err(#cancellation({ error }))) switch (error) {
-          case (#UnknownOrder) #err(#UnknownOrder);
-        };
-        case (#err(#placement({ error }))) switch (error) {
-          case (#ConflictingOrder x) #err(#ConflictingOrder(x));
-          case (#NoCredit) #err(#NoCredit);
-          case (#TooLowOrder) #err(#TooLowOrder);
-          case (#UnknownAsset) #err(#UnknownAsset);
-        };
+      let (cancellation, placement) = switch (kind) {
+        case (#ask) (#ask(orderId), #ask(assetId, volume, price));
+        case (#bid) (#bid(orderId), #bid(assetId, volume, price));
       };
-    };
-
-    public func cancelAsk(p : Principal, orderId : OrderId) : R.Result<(), CancelOrderError> {
-      switch (manageOrders(p, ? #orders([#ask(orderId)]), [])) {
-        case (#ok _) #ok();
-        case (#err(#UnknownPrincipal)) #err(#UnknownPrincipal);
-        case (#err(#placement _)) Prim.trap("Can never happen");
-        case (#err(#cancellation({ error }))) switch (error) {
-          case (#UnknownOrder) #err(#UnknownOrder);
-        };
-      };
-    };
-
-    public func placeBid(p : Principal, assetId : AssetId, volume : Nat, price : Float) : R.Result<OrderId, PlaceOrderError> {
-      switch (manageOrders(p, null, [#bid(assetId, volume, price)])) {
-        case (#ok orderIds) #ok(orderIds[0]);
-        case (#err(#UnknownPrincipal)) #err(#UnknownPrincipal);
-        case (#err(#placement { error })) switch (error) {
-          case (#ConflictingOrder x) #err(#ConflictingOrder(x));
-          case (#NoCredit) #err(#NoCredit);
-          case (#TooLowOrder) #err(#TooLowOrder);
-          case (#UnknownAsset) #err(#UnknownAsset);
-        };
-        case (_) Prim.trap("Can never happen");
-      };
-    };
-
-    public func replaceBid(p : Principal, orderId : OrderId, volume : Nat, price : Float) : R.Result<OrderId, ReplaceOrderError> {
-      let assetId = switch (queryBid(p, orderId)) {
-        case (?bid) bid.assetId;
-        case (null) return #err(#UnknownOrder);
-      };
-      switch (manageOrders(p, ? #orders([#bid(orderId)]), [#bid(assetId, volume, price)])) {
+      switch (manageOrders(p, ? #orders([cancellation]), [placement])) {
         case (#ok orderIds) #ok(orderIds[0]);
         case (#err(#UnknownPrincipal)) #err(#UnknownPrincipal);
         case (#err(#cancellation({ error }))) #err(error);
@@ -345,8 +241,12 @@ module {
       };
     };
 
-    public func cancelBid(p : Principal, orderId : OrderId) : R.Result<(), CancelOrderError> {
-      switch (manageOrders(p, ? #orders([#bid(orderId)]), [])) {
+    public func cancelOrder(p : Principal, kind : { #ask; #bid }, orderId : OrderId) : R.Result<(), CancelOrderError> {
+      let cancellation = switch (kind) {
+        case (#ask) #ask(orderId);
+        case (#bid) #bid(orderId);
+      };
+      switch (manageOrders(p, ? #orders([cancellation]), [])) {
         case (#ok _) #ok();
         case (#err(#UnknownPrincipal)) #err(#UnknownPrincipal);
         case (#err(#cancellation({ error }))) #err(error);
@@ -354,7 +254,6 @@ module {
       };
     };
 
-    // processes auction for given asset
     public func processAsset(assetId : AssetId) : () {
       if (assetId == trustedAssetId) return;
       processAuction(assetsRepo, creditsRepo, usersRepo, assetId, sessionsCounter, trustedAssetId, settings.performanceCounter);
