@@ -125,6 +125,7 @@ module {
     public let ordersRepo = OrdersRepo.OrdersRepo(
       assetsRepo,
       creditsRepo,
+      usersRepo,
       trustedAssetId,
       settings.minimumOrder,
       settings.minAskVolume,
@@ -389,6 +390,7 @@ module {
             orderData with userInfoRef = userData;
             var volume = orderData.volume;
           };
+          usersRepo.putOrder(userData, #ask, oid, order);
           assetsRepo.putOrder(Vec.get(assetsRepo.assets, order.assetId), #ask, oid, order);
         };
         for ((oid, orderData) in List.toIter(u.bids.map)) {
@@ -396,6 +398,7 @@ module {
             orderData with userInfoRef = userData;
             var volume = orderData.volume;
           };
+          usersRepo.putOrder(userData, #bid, oid, order);
           assetsRepo.putOrder(Vec.get(assetsRepo.assets, order.assetId), #bid, oid, order);
         };
         usersRepo.users.put(p, userData);

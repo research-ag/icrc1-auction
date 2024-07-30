@@ -1,3 +1,5 @@
+import AssocList "mo:base/AssocList";
+import Nat "mo:base/Nat";
 import Prim "mo:prim";
 import Principal "mo:base/Principal";
 import RBTree "mo:base/RBTree";
@@ -30,6 +32,25 @@ module {
         usersAmount += 1;
         data;
       };
+    };
+
+    public func putOrder(user : T.UserInfo, kind : { #ask; #bid }, orderId : T.OrderId, order : T.Order) {
+      let orderBook = switch (kind) {
+        case (#ask) user.asks;
+        case (#bid) user.bids;
+      };
+      AssocList.replace<T.OrderId, T.Order>(orderBook.map, orderId, Nat.equal, ?order) |> (orderBook.map := _.0);
+    };
+
+    public func popOrder(user : T.UserInfo, kind : { #ask; #bid }, orderId : T.OrderId) : ?T.Order {
+      let orderBook = switch (kind) {
+        case (#ask) user.asks;
+        case (#bid) user.bids;
+      };
+      let (updatedList, oldValue) = AssocList.replace(orderBook.map, orderId, Nat.equal, null);
+      let ?existingOrder = oldValue else return null;
+      orderBook.map := updatedList;
+      ?existingOrder;
     };
 
   };

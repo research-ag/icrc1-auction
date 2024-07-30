@@ -14,8 +14,8 @@ import Vec "mo:vector";
 
 import AssetsRepo "./assets_repo";
 import CreditsRepo "./credits_repo";
+import UsersRepo "./users_repo";
 
-import PriorityQueue "./priority_queue";
 import T "./types";
 import {
   iterConcat;
@@ -51,10 +51,12 @@ module {
   class OrdersService(
     assetsRepo : AssetsRepo.AssetsRepo,
     creditsRepo : CreditsRepo.CreditsRepo,
+    usersRepo : UsersRepo.UsersRepo,
     trustedAssetId : T.AssetId,
     minimumOrder : Nat,
     minAskVolume : (T.AssetId, T.AssetInfo) -> Int,
     kind_ : { #ask; #bid },
+    // TODO maye those are not needed: use assetRepo and usersRepo API
     assetOrderBookFunc_ : (assetInfo : T.AssetInfo) -> T.AssetOrderBook,
     userOrderBookFunc_ : (userInfo : T.UserInfo) -> T.UserOrderBook,
     // priorityComparator : (a : (T.OrderId, T.Order), b : (T.OrderId, T.Order)) -> O.Order,
@@ -91,22 +93,15 @@ module {
       // charge user credits
       let (success, _) = creditsRepo.lockCredit(accountToCharge, chargeAmount(order.volume, order.price));
       assert success;
-
       // insert into order lists
-      let userOrderBook = userOrderBookFunc(userInfo);
-      AssocList.replace<T.OrderId, T.Order>(userOrderBook.map, orderId, Nat.equal, ?order) |> (userOrderBook.map := _.0);
+      usersRepo.putOrder(userInfo, kind, orderId, order);
       assetsRepo.putOrder(assetInfo, kind, orderId, order);
     };
 
     public func cancel(userInfo : T.UserInfo, orderId : T.OrderId) : ?T.Order {
       // find and remove from order lists
-      let userOrderBook = userOrderBookFunc(userInfo);
-      let (updatedList, oldValue) = AssocList.replace(userOrderBook.map, orderId, Nat.equal, null);
-      let ?existingOrder = oldValue else return null;
-      userOrderBook.map := updatedList;
-      let assetInfo = Vec.get(assetsRepo.assets, existingOrder.assetId);
-      assetsRepo.popOrder(assetInfo, kind, orderId);
-
+      let ?existingOrder = usersRepo.popOrder(userInfo, kind, orderId) else return null;
+      Vec.get(assetsRepo.assets, existingOrder.assetId) |> assetsRepo.popOrder(_, kind, orderId);
       // return deposit to user
       let ?sourceAcc = creditsRepo.getAccount(userInfo, chargeToken(existingOrder.assetId)) else Prim.trap("Can never happen");
       let (success, _) = creditsRepo.unlockCredit(sourceAcc, chargeAmount(existingOrder.volume, existingOrder.price));
@@ -119,6 +114,7 @@ module {
   public class OrdersRepo(
     assetsRepo : AssetsRepo.AssetsRepo,
     creditsRepo : CreditsRepo.CreditsRepo,
+    usersRepo : UsersRepo.UsersRepo,
     // TODO double check whether these are needed after finishing refactoring
     trustedAssetId : T.AssetId,
     minimumOrder : Nat,
@@ -131,6 +127,7 @@ module {
     public let asks : OrdersService = OrdersService(
       assetsRepo,
       creditsRepo,
+      usersRepo,
       trustedAssetId,
       minimumOrder,
       minAskVolume,
@@ -141,6 +138,7 @@ module {
     public let bids : OrdersService = OrdersService(
       assetsRepo,
       creditsRepo,
+      usersRepo,
       trustedAssetId,
       minimumOrder,
       minAskVolume,
