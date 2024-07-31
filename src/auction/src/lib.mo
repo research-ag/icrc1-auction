@@ -17,12 +17,12 @@ import RBTree "mo:base/RBTree";
 
 import Vec "mo:vector";
 
-import AssetsRepo "assets_repo";
-import CreditsRepo "./credits_repo";
-import OrdersRepo "./orders_repo";
+import Assets "./assets";
+import Credits "./credits";
+import Orders "./orders";
+import Users "./users";
 import { processAuction } "./auction_processor";
 import T "./types";
-import UsersRepo "users_repo";
 
 module {
 
@@ -88,18 +88,18 @@ module {
   public type AssetId = T.AssetId;
   public type OrderId = T.OrderId;
   public type Order = T.Order;
-  public type CreditInfo = CreditsRepo.CreditInfo;
+  public type CreditInfo = Credits.CreditInfo;
   public type UserInfo = T.UserInfo;
   public type TransactionHistoryItem = T.TransactionHistoryItem;
   public type PriceHistoryItem = T.PriceHistoryItem;
 
-  public type CancellationAction = OrdersRepo.CancellationAction;
-  public type PlaceOrderAction = OrdersRepo.PlaceOrderAction;
+  public type CancellationAction = Orders.CancellationAction;
+  public type PlaceOrderAction = Orders.PlaceOrderAction;
 
-  public type CancelOrderError = OrdersRepo.InternalCancelOrderError or {
+  public type CancelOrderError = Orders.InternalCancelOrderError or {
     #UnknownPrincipal;
   };
-  public type PlaceOrderError = OrdersRepo.InternalPlaceOrderError or {
+  public type PlaceOrderError = Orders.InternalPlaceOrderError or {
     #UnknownPrincipal;
   };
   public type ReplaceOrderError = CancelOrderError or PlaceOrderError;
@@ -116,40 +116,64 @@ module {
     // a counter of conducted auction sessions
     public var sessionsCounter = 0;
 
-    public let usersRepo = UsersRepo.UsersRepo();
-    public let creditsRepo = CreditsRepo.CreditsRepo();
-    public let assetsRepo = AssetsRepo.AssetsRepo();
-    public let ordersRepo = OrdersRepo.OrdersRepo(
-      assetsRepo,
-      creditsRepo,
-      usersRepo,
+    public let users = Users.Users();
+    public let credits = Credits.Credits();
+    public let assets = Assets.Assets();
+    public let orders = Orders.Orders(
+      assets,
+      credits,
+      users,
       trustedAssetId,
       settings.minimumOrder,
       settings.minAskVolume,
     );
 
-    public func registerAssets(n : Nat) = assetsRepo.register(n);
+    // ============= assets interface =============
+    public func registerAssets(n : Nat) = assets.register(n);
 
-    // TODO rename queries below
-    public func queryCredit(p : Principal, assetId : AssetId) : CreditInfo = switch (usersRepo.get(p)) {
+    public func processAsset(assetId : AssetId) : () {
+      if (assetId == trustedAssetId) return;
+      processAuction(assets, credits, users, assetId, sessionsCounter, trustedAssetId, settings.performanceCounter);
+    };
+    // ============= assets interface =============
+
+    // ============= credits interface ============
+    public func getCredit(p : Principal, assetId : AssetId) : CreditInfo = switch (users.get(p)) {
       case (null) ({ total = 0; locked = 0; available = 0 });
-      case (?ui) creditsRepo.info(ui, assetId);
+      case (?ui) credits.info(ui, assetId);
     };
 
-    public func queryCredits(p : Principal) : [(AssetId, CreditInfo)] = switch (usersRepo.get(p)) {
+    public func getCredits(p : Principal) : [(AssetId, CreditInfo)] = switch (users.get(p)) {
       case (null) [];
-      case (?ui) creditsRepo.infoAll(ui);
+      case (?ui) credits.infoAll(ui);
     };
 
-    public func queryOrder(p : Principal, kind : { #ask; #bid }, orderId : OrderId) : ?T.Order = switch (usersRepo.get(p)) {
+    public func appendCredit(p : Principal, assetId : AssetId, amount : Nat) : Nat {
+      let userInfo = users.getOrCreate(p);
+      let acc = credits.getOrCreate(userInfo, assetId);
+      credits.appendCredit(acc, amount);
+    };
+
+    public func deductCredit(p : Principal, assetId : AssetId, amount : Nat) : R.Result<(Nat, rollback : () -> ()), { #NoCredit }> {
+      let ?user = users.get(p) else return #err(#NoCredit);
+      let ?creditAcc = credits.getAccount(user, assetId) else return #err(#NoCredit);
+      switch (credits.deductCredit(creditAcc, amount)) {
+        case (true, balance) #ok(balance, func() = ignore credits.appendCredit(creditAcc, amount));
+        case (false, _) #err(#NoCredit);
+      };
+    };
+    // ============= credits interface ============
+
+    // ============= orders interface =============
+    public func getOrder(p : Principal, kind : { #ask; #bid }, orderId : OrderId) : ?T.Order = switch (users.get(p)) {
       case (null) null;
-      case (?ui) usersRepo.findOrder(ui, kind, orderId);
+      case (?ui) users.findOrder(ui, kind, orderId);
     };
 
-    public func queryOrders(p : Principal, kind : { #ask; #bid }, assetId : ?AssetId) : [(OrderId, T.Order)] = switch (usersRepo.get(p)) {
+    public func getOrders(p : Principal, kind : { #ask; #bid }, assetId : ?AssetId) : [(OrderId, T.Order)] = switch (users.get(p)) {
       case (null) [];
       case (?ui) {
-        var list = usersRepo.getOrderBook(ui, kind).map;
+        var list = users.getOrderBook(ui, kind).map;
         switch (assetId) {
           case (?aid) list := List.filter<(OrderId, T.Order)>(list, func(_, o) = o.assetId == aid);
           case (_) {};
@@ -158,47 +182,13 @@ module {
       };
     };
 
-    public func getTransactionHistory(p : Principal, assetId : ?AssetId) : Iter.Iter<T.TransactionHistoryItem> {
-      let ?userInfo = usersRepo.get(p) else return { next = func() = null };
-      var list = userInfo.history;
-      switch (assetId) {
-        case (?aid) list := List.filter<T.TransactionHistoryItem>(list, func x = x.3 == aid);
-        case (_) {};
-      };
-      List.toIter(list);
-    };
-
-    public func getPriceHistory(assetId : ?AssetId) : Iter.Iter<T.PriceHistoryItem> {
-      var list = assetsRepo.history;
-      switch (assetId) {
-        case (?aid) list := List.filter<T.PriceHistoryItem>(list, func x = x.2 == aid);
-        case (_) {};
-      };
-      List.toIter(list);
-    };
-
-    public func appendCredit(p : Principal, assetId : AssetId, amount : Nat) : Nat {
-      let userInfo = usersRepo.getOrCreate(p);
-      let acc = creditsRepo.getOrCreate(userInfo, assetId);
-      creditsRepo.appendCredit(acc, amount);
-    };
-
-    public func deductCredit(p : Principal, assetId : AssetId, amount : Nat) : R.Result<(Nat, rollback : () -> ()), { #NoCredit }> {
-      let ?user = usersRepo.get(p) else return #err(#NoCredit);
-      let ?creditAcc = creditsRepo.getAccount(user, assetId) else return #err(#NoCredit);
-      switch (creditsRepo.deductCredit(creditAcc, amount)) {
-        case (true, balance) #ok(balance, func() = ignore creditsRepo.appendCredit(creditAcc, amount));
-        case (false, _) #err(#NoCredit);
-      };
-    };
-
     public func manageOrders(
       p : Principal,
-      cancellations : ?OrdersRepo.CancellationAction,
-      placements : [OrdersRepo.PlaceOrderAction],
-    ) : R.Result<[OrderId], OrdersRepo.OrderManagementError or { #UnknownPrincipal }> {
-      let ?userInfo = usersRepo.get(p) else return #err(#UnknownPrincipal);
-      ordersRepo.manageOrders(p, userInfo, cancellations, placements);
+      cancellations : ?Orders.CancellationAction,
+      placements : [Orders.PlaceOrderAction],
+    ) : R.Result<[OrderId], Orders.OrderManagementError or { #UnknownPrincipal }> {
+      let ?userInfo = users.get(p) else return #err(#UnknownPrincipal);
+      orders.manageOrders(p, userInfo, cancellations, placements);
     };
 
     public func placeOrder(p : Principal, kind : { #ask; #bid }, assetId : AssetId, volume : Nat, price : Float) : R.Result<OrderId, PlaceOrderError> {
@@ -220,7 +210,7 @@ module {
     };
 
     public func replaceOrder(p : Principal, kind : { #ask; #bid }, orderId : OrderId, volume : Nat, price : Float) : R.Result<OrderId, ReplaceOrderError> {
-      let assetId = switch (queryOrder(p, kind, orderId)) {
+      let assetId = switch (getOrder(p, kind, orderId)) {
         case (?o) o.assetId;
         case (null) return #err(#UnknownOrder);
       };
@@ -253,27 +243,45 @@ module {
         case (#err(#placement _)) Prim.trap("Can never happen");
       };
     };
+    // ============= orders interface =============
 
-    public func processAsset(assetId : AssetId) : () {
-      if (assetId == trustedAssetId) return;
-      processAuction(assetsRepo, creditsRepo, usersRepo, assetId, sessionsCounter, trustedAssetId, settings.performanceCounter);
+    // ============ history interface =============
+    public func getTransactionHistory(p : Principal, assetId : ?AssetId) : Iter.Iter<T.TransactionHistoryItem> {
+      let ?userInfo = users.get(p) else return { next = func() = null };
+      var list = userInfo.history;
+      switch (assetId) {
+        case (?aid) list := List.filter<T.TransactionHistoryItem>(list, func x = x.3 == aid);
+        case (_) {};
+      };
+      List.toIter(list);
     };
 
+    public func getPriceHistory(assetId : ?AssetId) : Iter.Iter<T.PriceHistoryItem> {
+      var list = assets.history;
+      switch (assetId) {
+        case (?aid) list := List.filter<T.PriceHistoryItem>(list, func x = x.2 == aid);
+        case (_) {};
+      };
+      List.toIter(list);
+    };
+    // ============ history interface =============
+
+    // ============= system interface =============
     public func share() : T.StableDataV2 = {
-      counters = (sessionsCounter, ordersRepo.ordersCounter, usersRepo.usersAmount, creditsRepo.accountsAmount);
+      counters = (sessionsCounter, orders.ordersCounter, users.usersAmount, credits.accountsAmount);
       assets = Vec.map<T.AssetInfo, T.StableAssetInfoV2>(
-        assetsRepo.assets,
+        assets.assets,
         func(x) = {
           lastRate = x.lastRate;
           lastProcessingInstructions = x.lastProcessingInstructions;
         },
       );
-      history = assetsRepo.history;
+      history = assets.history;
       users = (
         func() : RBTree.Tree<Principal, T.StableUserInfoV2> {
-          let users = RBTree.RBTree<Principal, T.StableUserInfoV2>(Principal.compare);
-          for ((p, u) in usersRepo.users.entries()) {
-            users.put(
+          let stableUsers = RBTree.RBTree<Principal, T.StableUserInfoV2>(Principal.compare);
+          for ((p, u) in users.users.entries()) {
+            stableUsers.put(
               p,
               {
                 asks = {
@@ -287,18 +295,18 @@ module {
               },
             );
           };
-          users.share();
+          stableUsers.share();
         }
       )();
     };
 
     public func unshare(data : T.StableDataV2) {
       sessionsCounter := data.counters.0;
-      ordersRepo.ordersCounter := data.counters.1;
-      usersRepo.usersAmount := data.counters.2;
-      creditsRepo.accountsAmount := data.counters.3;
+      orders.ordersCounter := data.counters.1;
+      users.usersAmount := data.counters.2;
+      credits.accountsAmount := data.counters.3;
 
-      assetsRepo.assets := Vec.map<T.StableAssetInfoV2, T.AssetInfo>(
+      assets.assets := Vec.map<T.StableAssetInfoV2, T.AssetInfo>(
         data.assets,
         func(x) = {
           asks = { var queue = null; var amount = 0; var totalVolume = 0 };
@@ -307,7 +315,7 @@ module {
           var lastProcessingInstructions = x.lastProcessingInstructions;
         },
       );
-      assetsRepo.history := data.history;
+      assets.history := data.history;
 
       let ud = RBTree.RBTree<Principal, T.StableUserInfoV2>(Principal.compare);
       ud.unshare(data.users);
@@ -327,22 +335,22 @@ module {
             orderData with userInfoRef = userData;
             var volume = orderData.volume;
           };
-          usersRepo.putOrder(userData, #ask, oid, order);
-          assetsRepo.putOrder(Vec.get(assetsRepo.assets, order.assetId), #ask, oid, order);
+          users.putOrder(userData, #ask, oid, order);
+          assets.putOrder(assets.getAsset(order.assetId), #ask, oid, order);
         };
         for ((oid, orderData) in List.toIter(u.bids.map)) {
           let order : T.Order = {
             orderData with userInfoRef = userData;
             var volume = orderData.volume;
           };
-          usersRepo.putOrder(userData, #bid, oid, order);
-          assetsRepo.putOrder(Vec.get(assetsRepo.assets, order.assetId), #bid, oid, order);
+          users.putOrder(userData, #bid, oid, order);
+          assets.putOrder(assets.getAsset(order.assetId), #bid, oid, order);
         };
-        usersRepo.users.put(p, userData);
+        users.users.put(p, userData);
       };
 
     };
-
+    // ============= system interface =============
   };
 
 };

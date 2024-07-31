@@ -10,7 +10,7 @@ import T "./types";
 
 module {
 
-  public class AssetsRepo() {
+  public class Assets() {
 
     // asset info, index == assetId
     public var assets : Vec.Vector<T.AssetInfo> = Vec.new();
@@ -46,19 +46,17 @@ module {
       };
     };
 
+    public func getOrderBook(asset : T.AssetInfo, kind : { #ask; #bid }) : T.AssetOrderBook = switch (kind) {
+      case (#ask) asset.asks;
+      case (#bid) asset.bids;
+    };
+
     public func peekOrder(asset : T.AssetInfo, kind : { #ask; #bid }) : ?(T.OrderId, T.Order) {
-      let orderBook = switch (kind) {
-        case (#ask) asset.asks;
-        case (#bid) asset.bids;
-      };
-      PriorityQueue.next(orderBook.queue);
+      PriorityQueue.next(getOrderBook(asset, kind).queue);
     };
 
     public func putOrder(asset : T.AssetInfo, kind : { #ask; #bid }, orderId : T.OrderId, order : T.Order) {
-      let orderBook = switch (kind) {
-        case (#ask) asset.asks;
-        case (#bid) asset.bids;
-      };
+      let orderBook = getOrderBook(asset, kind);
       orderBook.queue := PriorityQueue.insert(
         orderBook.queue,
         (orderId, order),
@@ -72,10 +70,7 @@ module {
     };
 
     public func popOrder(asset : T.AssetInfo, kind : { #ask; #bid }, orderId : T.OrderId) {
-      let orderBook = switch (kind) {
-        case (#ask) asset.asks;
-        case (#bid) asset.bids;
-      };
+      let orderBook = getOrderBook(asset, kind);
       let (upd, oldValue) = PriorityQueue.findOneAndDelete<(T.OrderId, T.Order)>(orderBook.queue, func(id, _) = id == orderId);
       let ?(_, existingOrder) = oldValue else Prim.trap("Cannot pop order from asset order book");
       orderBook.queue := upd;

@@ -13,9 +13,11 @@ module {
     locked : Nat;
   };
 
-  public class CreditsRepo() {
+  public class Credits() {
 
     public var accountsAmount : Nat = 0;
+
+    public func nAccounts() : Nat = accountsAmount;
 
     public func getAccount(userInfo : T.UserInfo, assetId : T.AssetId) : ?T.Account = AssocList.find<T.AssetId, T.Account>(userInfo.credits, assetId, Nat.equal);
 

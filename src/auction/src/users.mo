@@ -8,10 +8,12 @@ import T "./types";
 
 module {
 
-  public class UsersRepo() {
+  public class Users() {
 
     public var usersAmount : Nat = 0;
     public let users : RBTree.RBTree<Principal, T.UserInfo> = RBTree.RBTree<Principal, T.UserInfo>(Principal.compare);
+
+    public func nUsers() : Nat = usersAmount;
 
     public func get(p : Principal) : ?T.UserInfo = users.get(p);
 

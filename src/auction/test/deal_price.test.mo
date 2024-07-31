@@ -129,7 +129,7 @@ do {
   let userExpectedCredits : [var Nat] = Array.init(2, 0);
   let user2ExpectedCredits : [var Nat] = Array.init(2, 0);
   func assertBalances(u : Principal, expectedCredits : [var Nat]) : () {
-    let cr = auction.queryCredits(u);
+    let cr = auction.getCredits(u);
     if (cr[0].0 == 0) {
       assert cr[0].1.available == expectedCredits[0];
       assert cr[1].1.available == expectedCredits[1];

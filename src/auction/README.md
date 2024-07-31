@@ -73,19 +73,19 @@ let seller = Principal.fromText("ocqy6-3dphi-xgf54-vkr2e-lk4oz-3exc6-446gr-5e72g
 ignore a.appendCredit(seller, 1, 1_000);
 
 // buyer wants to buy 10 assets with max price 50
-ignore a.placeBid(buyer, 1, 10, 50.0);
+ignore a.placeOrder(buyer, #bid, 1, 10, 50.0);
 // seller wants to sell 10 assets with min price 10
-ignore a.placeAsk(seller, 1, 10, 10.0);
+ignore a.placeOrder(seller, #ask, 1, 10, 10.0);
 
 // process trading pair 0<->1
 a.processAsset(1);
 
 // check user credits, deal price was 30 (an average)
-assert a.queryCredit(buyer, 0) == 700; // spent 300;
-assert a.queryCredit(buyer, 1) == 10; // bought 10;
+assert a.getCredit(buyer, 0) == { total = 700; locked = 0; avaliable = 700 }; // spent 300;
+assert a.getCredit(buyer, 1) == { total = 10; locked = 0; avaliable = 10 }; // bought 10;
 
-assert a.queryCredit(seller, 0) == 300; // gained 300;
-assert a.queryCredit(seller, 1) == 990; // sold 10;
+assert a.getCredit(seller, 0) == { total = 300; locked = 0; avaliable = 300 }; // gained 300;
+assert a.getCredit(seller, 1) == { total = 990; locked = 0; avaliable = 990 }; // sold 10;
 ```
 
 [Executable version of above example](https://embed.motoko.org/motoko/g/3iXE51p6Wej8KA2Ejkw8b4DpYt8oveQ7JvWdMdDEa5AE6UKLYEZBR4Hr8SEo7Cx9tDTxN7NHrFy83Ems8Z8JKziGZ72rpPQjrt95YDUncMhcjA7rm1148wGXqcTZnpBmuTLq35beebZb5dDEkpXngsipyqFMu9UsQhdFxhaKrqrmxjEQoVYq3zAwBDFWyMfVADbmqMvWoJo4j23yXM58nKU6qB8Gh7VaEQqU58aWdS4oEyzCoZ8ZrbBE2m6JDgaYftNTkY7EbbPGP1ykExiKFmoCqYizpj9RgWRP73vm6DsHzyXbdzz6DYwxaHSA1zBEzt3MLALQjG774MbPENg1Ep6uSMiUedDoEu6QXsboS2W4wiZhSor4Ei4JqmF3M3zPe1zL7rXH4FNj6tTBHrwJYocbLD4AYawAZ8PdhN4oKUVACCFTgKoXZrbQBpN8LLnnszo1zYsBbMcszoAhQ8icgqQ7VpvNMitUnVeXSJs656enEeyQD2MXi1voos7nFwASM7vPqrkk9WBqpeF31CZD3LRcfe2DRdYV6bS7g99nEA3aCExdZpxtBdSTtKn7dmHZJkZEfhGR6HpvWgyBN2iujnweJEB6R4164VLrfogk7kk7KiSX8B9137N2grvmgUqamKUWyBr2sHHNzDAf6UNHJMe3YGyZ5CLA3seqo3z92niGPvBLTQhTeqHDKKeCxjV9xF3iyWKPHV6PSiRsAGDYTcziDSNK39YjvxSrNdjce4Z8NzY9FhS9ejZSJmfLkyYKCY7xr6LUuuG7AqKsDdrhj6cxwtuSK5qjqSDy4a9Qkdy3ZhcmJRFMheRwdxVDSeGKyG37BZfxfZSYPKhTKwx55sTivQnPSZwmP6So1zDDerpgG97PBpW2BFNuibLT6jmhzL7nAhpc1A?lines=43)

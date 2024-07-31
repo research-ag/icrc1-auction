@@ -12,9 +12,9 @@ import RBTree "mo:base/RBTree";
 
 import Vec "mo:vector";
 
-import AssetsRepo "./assets_repo";
-import CreditsRepo "./credits_repo";
-import UsersRepo "./users_repo";
+import Assets "./assets";
+import Credits "./credits";
+import Users "./users";
 
 import T "./types";
 
@@ -46,9 +46,9 @@ module {
   public func getTotalPrice(volume : Nat, unitPrice : Float) : Nat = Int.abs(Float.toInt(Float.ceil(unitPrice * Float.fromInt(volume))));
 
   class OrdersService(
-    assetsRepo : AssetsRepo.AssetsRepo,
-    creditsRepo : CreditsRepo.CreditsRepo,
-    usersRepo : UsersRepo.UsersRepo,
+    assets : Assets.Assets,
+    credits : Credits.Credits,
+    users : Users.Users,
     trustedAssetId : T.AssetId,
     minimumOrder : Nat,
     minAskVolume : (T.AssetId, T.AssetInfo) -> Int,
@@ -59,7 +59,7 @@ module {
 
     // validation
     public func isOrderLow(orderAssetId : T.AssetId, orderAssetInfo : T.AssetInfo, volume : Nat, price : Float) : Bool = switch (kind) {
-      case (#ask) volume == 0 or (price > 0 and volume < minAskVolume(orderAssetId, orderAssetInfo));
+      case (#ask) volume < minAskVolume(orderAssetId, orderAssetInfo);
       case (#bid) getTotalPrice(volume, price) < minimumOrder;
     };
 
@@ -82,30 +82,30 @@ module {
 
     public func place(userInfo : T.UserInfo, accountToCharge : T.Account, assetInfo : T.AssetInfo, orderId : T.OrderId, order : T.Order) {
       // charge user credits
-      let (success, _) = creditsRepo.lockCredit(accountToCharge, chargeAmount(order.volume, order.price));
+      let (success, _) = credits.lockCredit(accountToCharge, chargeAmount(order.volume, order.price));
       assert success;
       // insert into order lists
-      usersRepo.putOrder(userInfo, kind, orderId, order);
-      assetsRepo.putOrder(assetInfo, kind, orderId, order);
+      users.putOrder(userInfo, kind, orderId, order);
+      assets.putOrder(assetInfo, kind, orderId, order);
     };
 
     public func cancel(userInfo : T.UserInfo, orderId : T.OrderId) : ?T.Order {
       // find and remove from order lists
-      let ?existingOrder = usersRepo.popOrder(userInfo, kind, orderId) else return null;
-      assetsRepo.getAsset(existingOrder.assetId) |> assetsRepo.popOrder(_, kind, orderId);
+      let ?existingOrder = users.popOrder(userInfo, kind, orderId) else return null;
+      assets.getAsset(existingOrder.assetId) |> assets.popOrder(_, kind, orderId);
       // return deposit to user
-      let ?sourceAcc = creditsRepo.getAccount(userInfo, chargeToken(existingOrder.assetId)) else Prim.trap("Can never happen");
-      let (success, _) = creditsRepo.unlockCredit(sourceAcc, chargeAmount(existingOrder.volume, existingOrder.price));
+      let ?sourceAcc = credits.getAccount(userInfo, chargeToken(existingOrder.assetId)) else Prim.trap("Can never happen");
+      let (success, _) = credits.unlockCredit(sourceAcc, chargeAmount(existingOrder.volume, existingOrder.price));
       assert success;
 
       ?existingOrder;
     };
   };
 
-  public class OrdersRepo(
-    assetsRepo : AssetsRepo.AssetsRepo,
-    creditsRepo : CreditsRepo.CreditsRepo,
-    usersRepo : UsersRepo.UsersRepo,
+  public class Orders(
+    assets : Assets.Assets,
+    credits : Credits.Credits,
+    users : Users.Users,
     trustedAssetId : T.AssetId,
     minimumOrder : Nat,
     minAskVolume : (T.AssetId, T.AssetInfo) -> Int,
@@ -115,18 +115,18 @@ module {
     public var ordersCounter = 0;
 
     public let asks : OrdersService = OrdersService(
-      assetsRepo,
-      creditsRepo,
-      usersRepo,
+      assets,
+      credits,
+      users,
       trustedAssetId,
       minimumOrder,
       minAskVolume,
       #ask,
     );
     public let bids : OrdersService = OrdersService(
-      assetsRepo,
-      creditsRepo,
-      usersRepo,
+      assets,
+      credits,
+      users,
       trustedAssetId,
       minimumOrder,
       minAskVolume,
@@ -167,7 +167,7 @@ module {
         let chargeToken = ordersService.chargeToken(order.assetId);
         let balance = switch (AssocList.find<T.AssetId, Nat>(newBalances, chargeToken, Nat.equal)) {
           case (?b) b;
-          case (null) creditsRepo.balance(userInfo, chargeToken);
+          case (null) credits.balance(userInfo, chargeToken);
         };
         AssocList.replace<T.AssetId, Nat>(
           newBalances,
@@ -179,7 +179,7 @@ module {
 
       // prepare cancellation of all orders by type (ask or bid)
       func prepareBulkCancelation(ordersService : OrdersService) {
-        let userOrderBook = usersRepo.getOrderBook(userInfo, ordersService.kind);
+        let userOrderBook = users.getOrderBook(userInfo, ordersService.kind);
         for ((orderId, order) in List.toIter(userOrderBook.map)) {
           affectNewBalancesWithCancellation(ordersService, order);
         };
@@ -199,7 +199,7 @@ module {
       // prepare cancellation of all orders by given filter function by type (ask or bid)
       func prepareBulkCancelationWithFilter(ordersService : OrdersService, isCancel : (assetId : T.AssetId, orderId : T.OrderId) -> Bool) {
         // TODO can be optimized: cancelOrderInternal searches for order by it's id with linear complexity
-        let userOrderBook = usersRepo.getOrderBook(userInfo, ordersService.kind);
+        let userOrderBook = users.getOrderBook(userInfo, ordersService.kind);
         let orderIds : Vec.Vector<T.OrderId> = Vec.new();
         for ((orderId, order) in List.toIter(userOrderBook.map)) {
           if (isCancel(order.assetId, orderId)) {
@@ -242,7 +242,7 @@ module {
               case (#ask orderId) (asks, orderId, cancelledAsks);
               case (#bid orderId) (bids, orderId, cancelledBids);
             };
-            let ?oldOrder = usersRepo.findOrder(userInfo, ordersService.kind, orderId) else return #err(#cancellation({ index = i; error = #UnknownOrder }));
+            let ?oldOrder = users.findOrder(userInfo, ordersService.kind, orderId) else return #err(#cancellation({ index = i; error = #UnknownOrder }));
             affectNewBalancesWithCancellation(ordersService, oldOrder);
             cancelledTree.put(orderId, ());
             cancellationCommitActions := List.push(
@@ -261,19 +261,19 @@ module {
         };
 
         // validate asset id
-        if (assetId == trustedAssetId or assetId >= assetsRepo.nAssets()) return #err(#placement({ index = i; error = #UnknownAsset }));
+        if (assetId == trustedAssetId or assetId >= assets.nAssets()) return #err(#placement({ index = i; error = #UnknownAsset }));
 
         // validate order volume
-        let assetInfo = assetsRepo.getAsset(assetId);
+        let assetInfo = assets.getAsset(assetId);
         if (ordersService.isOrderLow(assetId, assetInfo, volume, price)) return #err(#placement({ index = i; error = #TooLowOrder }));
 
         // validate user credit
         let chargeToken = ordersService.chargeToken(assetId);
         let chargeAmount = ordersService.chargeAmount(volume, price);
-        let ?chargeAcc = creditsRepo.getAccount(userInfo, chargeToken) else return #err(#placement({ index = i; error = #NoCredit }));
+        let ?chargeAcc = credits.getAccount(userInfo, chargeToken) else return #err(#placement({ index = i; error = #NoCredit }));
         let balance = switch (AssocList.find<T.AssetId, Nat>(newBalances, chargeToken, Nat.equal)) {
           case (?b) b;
-          case (null) creditsRepo.accountBalance(chargeAcc);
+          case (null) credits.accountBalance(chargeAcc);
         };
         if (balance < chargeAmount) {
           return #err(#placement({ index = i; error = #NoCredit }));
@@ -282,7 +282,7 @@ module {
         |> (newBalances := _.0);
 
         // build list of placed orders + orders to be placed during this call
-        func buildOrdersList(user : T.UserInfo, kind : { #ask; #bid }, delta : OrdersDelta) : Iter.Iter<(?T.OrderId, T.Order)> = usersRepo.getOrderBook(user, kind).map
+        func buildOrdersList(user : T.UserInfo, kind : { #ask; #bid }, delta : OrdersDelta) : Iter.Iter<(?T.OrderId, T.Order)> = users.getOrderBook(user, kind).map
         |> List.toIter(_)
         |> Iter.map<(T.OrderId, T.Order), (?T.OrderId, T.Order)>(_, func(oid, o) = (?oid, o))
         |> iterConcat<(?T.OrderId, T.Order)>(_, List.toIter(delta.placed));
