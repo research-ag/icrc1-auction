@@ -133,7 +133,14 @@ module {
 
     public func processAsset(assetId : AssetId) : () {
       if (assetId == trustedAssetId) return;
-      processAuction(assets, credits, users, assetId, sessionsCounter, trustedAssetId, settings.performanceCounter);
+      let startInstructions = settings.performanceCounter(0);
+      let assetInfo = assets.getAsset(assetId);
+      let (volume, price) = processAuction(assets, credits, users, assetId, sessionsCounter, trustedAssetId);
+      assets.pushToHistory(Prim.time(), sessionsCounter, assetId, volume, price);
+      if (volume > 0) {
+        assetInfo.lastProcessingInstructions := Nat64.toNat(settings.performanceCounter(0) - startInstructions);
+        assetInfo.lastRate := price;
+      }
     };
     // ============= assets interface =============
 

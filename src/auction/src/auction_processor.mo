@@ -1,7 +1,6 @@
 import Iter "mo:base/Iter";
 import List "mo:base/List";
 import Nat "mo:base/Nat";
-import Nat64 "mo:base/Nat64";
 import Prim "mo:prim";
 
 import { matchOrders } "mo:auction";
@@ -21,9 +20,7 @@ module {
     assetId : T.AssetId,
     sessionsCounter : Nat,
     trustedAssetId : T.AssetId,
-    performanceCounter : Nat32 -> Nat64,
-  ) {
-    let startInstructions = performanceCounter(0);
+  ) : (volume : Nat, price : Float) {
     let assetInfo = assets.getAsset(assetId);
     let mapOrders = func(orders : List.List<(T.OrderId, T.Order)>) : Iter.Iter<(Float, Nat)> = orders
     |> List.toIter<(T.OrderId, T.Order)>(_)
@@ -31,8 +28,7 @@ module {
 
     let (_, _, dealVolume, price) = matchOrders(mapOrders(assetInfo.asks.queue), mapOrders(assetInfo.bids.queue));
     if (dealVolume == 0) {
-      assets.pushToHistory(Prim.time(), sessionsCounter, assetId, 0, 0.0);
-      return;
+      return (0, 0.0);
     };
 
     // process fulfilled asks
@@ -90,11 +86,7 @@ module {
       // append to history
       userInfo.history := List.push((Prim.time(), sessionsCounter, #bid, assetId, volume, price), userInfo.history);
     };
-
-    assetInfo.lastRate := price;
-    // append to asset history
-    assets.pushToHistory(Prim.time(), sessionsCounter, assetId, dealVolume, price);
-    assetInfo.lastProcessingInstructions := Nat64.toNat(performanceCounter(0) - startInstructions);
+    (dealVolume, price);
   };
 
 };
