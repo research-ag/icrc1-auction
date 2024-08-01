@@ -8,8 +8,6 @@ import Prim "mo:prim";
 import Principal "mo:base/Principal";
 import Text "mo:base/Text";
 
-import Vec "mo:vector";
-
 import Auction "../src";
 
 module {

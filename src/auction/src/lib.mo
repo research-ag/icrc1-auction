@@ -135,12 +135,15 @@ module {
       if (assetId == trustedAssetId) return;
       let startInstructions = settings.performanceCounter(0);
       let assetInfo = assets.getAsset(assetId);
-      let (volume, price) = processAuction(assets, credits, users, assetId, sessionsCounter, trustedAssetId);
+      let (volume, price) = processAuction(
+        orders.asks.createOrderBook(assetId, assetInfo, sessionsCounter),
+        orders.bids.createOrderBook(assetId, assetInfo, sessionsCounter),
+      );
       assets.pushToHistory(Prim.time(), sessionsCounter, assetId, volume, price);
       if (volume > 0) {
         assetInfo.lastProcessingInstructions := Nat64.toNat(settings.performanceCounter(0) - startInstructions);
         assetInfo.lastRate := price;
-      }
+      };
     };
     // ============= assets interface =============
 

@@ -43,7 +43,63 @@ module {
     #placement : { index : Nat; error : InternalPlaceOrderError };
   };
 
-  public func getTotalPrice(volume : Nat, unitPrice : Float) : Nat = Int.abs(Float.toInt(Float.ceil(unitPrice * Float.fromInt(volume))));
+  func getTotalPrice(volume : Nat, unitPrice : Float) : Nat = Int.abs(Float.toInt(Float.ceil(unitPrice * Float.fromInt(volume))));
+
+  public class OrderBook(
+    assets : Assets.Assets,
+    credits : Credits.Credits,
+    users : Users.Users,
+    assetInfo : T.AssetInfo,
+    kind : { #ask; #bid },
+    srcAssetId : T.AssetId,
+    trgAssetId : T.AssetId,
+    onOrderFulfilled : (order : T.Order, volume : Nat, price : Float) -> (),
+  ) {
+
+    public func list() : List.List<(T.OrderId, T.Order)> = switch (kind) {
+      case (#ask) assetInfo.asks.queue;
+      case (#bid) assetInfo.bids.queue;
+    };
+
+    public func next() : ?(T.OrderId, T.Order) = switch (list()) {
+      case (?(x, _)) ?x;
+      case (_) null;
+    };
+
+    public func fulfilOrder(orderId : T.OrderId, order : T.Order, maxVolume : Nat, price : Float) : Nat {
+
+      // determine volume, remove from order lists
+      let volume = if (maxVolume < order.volume) {
+        assets.deductOrderVolume(assetInfo, kind, order, maxVolume);
+        maxVolume;
+      } else {
+        ignore users.deleteOrder(order.userInfoRef, kind, orderId);
+        assets.deleteOrder(assetInfo, kind, orderId);
+        order.volume;
+      };
+
+      // functions to determine credit/debit amount
+      let vf : (volume : Nat, price : Float) -> Nat = func(volume : Nat, price : Float) = volume;
+      let pf : (volume : Nat, price : Float) -> Nat = getTotalPrice;
+      let (srcVolume, destVolume) = switch (kind) {
+        case (#ask) (vf, pf);
+        case (#bid) (pf, vf);
+      };
+
+      // debit user (source asset)
+      let ?sourceAcc = credits.getAccount(order.userInfoRef, srcAssetId) else Prim.trap("Can never happen");
+      let (s1, _) = credits.unlockCredit(sourceAcc, srcVolume(volume, order.price));
+      let (s2, _) = credits.deductCredit(sourceAcc, srcVolume(volume, price));
+      assert s1 and s2;
+
+      // credit user (target asset)
+      let acc = credits.getOrCreate(order.userInfoRef, trgAssetId);
+      ignore credits.appendCredit(acc, destVolume(volume, price));
+
+      onOrderFulfilled(order, volume, price);
+      volume;
+    };
+  };
 
   class OrdersService(
     assets : Assets.Assets,
@@ -69,12 +125,30 @@ module {
     };
 
     // returns asset id, which will be charged from user upon placing order
-    public func chargeToken(orderAssetId : T.AssetId) : T.AssetId = switch (kind) {
+    public func srcAssetId(orderAssetId : T.AssetId) : T.AssetId = switch (kind) {
       case (#ask) orderAssetId;
       case (#bid) trustedAssetId;
     };
 
-    // returns amount to charge from "chargeToken" account
+    public func destAssetId(orderAssetId : T.AssetId) : T.AssetId = switch (kind) {
+      case (#ask) trustedAssetId;
+      case (#bid) orderAssetId;
+    };
+
+    public func createOrderBook(assetId : T.AssetId, assetInfo : T.AssetInfo, sessionsCounter : Nat) : OrderBook = OrderBook(
+      assets,
+      credits,
+      users,
+      assetInfo,
+      kind,
+      srcAssetId(assetId),
+      destAssetId(assetId),
+      func(order, volume, price) {
+        order.userInfoRef.history := List.push((Prim.time(), sessionsCounter, kind, assetId, volume, price), order.userInfoRef.history);
+      },
+    );
+
+    // returns amount to charge from "srcAssetId" account
     public func chargeAmount(volume : Nat, price : Float) : Nat = switch (kind) {
       case (#ask) volume;
       case (#bid) getTotalPrice(volume, price);
@@ -94,7 +168,7 @@ module {
       let ?existingOrder = users.deleteOrder(userInfo, kind, orderId) else return null;
       assets.getAsset(existingOrder.assetId) |> assets.deleteOrder(_, kind, orderId);
       // return deposit to user
-      let ?sourceAcc = credits.getAccount(userInfo, chargeToken(existingOrder.assetId)) else Prim.trap("Can never happen");
+      let ?sourceAcc = credits.getAccount(userInfo, srcAssetId(existingOrder.assetId)) else Prim.trap("Can never happen");
       let (success, _) = credits.unlockCredit(sourceAcc, chargeAmount(existingOrder.volume, existingOrder.price));
       assert success;
 
@@ -164,14 +238,14 @@ module {
 
       // update temporary balances: add unlocked credits for each cancelled order
       func affectNewBalancesWithCancellation(ordersService : OrdersService, order : T.Order) {
-        let chargeToken = ordersService.chargeToken(order.assetId);
-        let balance = switch (AssocList.find<T.AssetId, Nat>(newBalances, chargeToken, Nat.equal)) {
+        let srcAssetId = ordersService.srcAssetId(order.assetId);
+        let balance = switch (AssocList.find<T.AssetId, Nat>(newBalances, srcAssetId, Nat.equal)) {
           case (?b) b;
-          case (null) credits.balance(userInfo, chargeToken);
+          case (null) credits.balance(userInfo, srcAssetId);
         };
         AssocList.replace<T.AssetId, Nat>(
           newBalances,
-          chargeToken,
+          srcAssetId,
           Nat.equal,
           ?(balance + ordersService.chargeAmount(order.volume, order.price)),
         ) |> (newBalances := _.0);
@@ -268,17 +342,17 @@ module {
         if (ordersService.isOrderLow(assetId, assetInfo, volume, price)) return #err(#placement({ index = i; error = #TooLowOrder }));
 
         // validate user credit
-        let chargeToken = ordersService.chargeToken(assetId);
+        let srcAssetId = ordersService.srcAssetId(assetId);
         let chargeAmount = ordersService.chargeAmount(volume, price);
-        let ?chargeAcc = credits.getAccount(userInfo, chargeToken) else return #err(#placement({ index = i; error = #NoCredit }));
-        let balance = switch (AssocList.find<T.AssetId, Nat>(newBalances, chargeToken, Nat.equal)) {
+        let ?chargeAcc = credits.getAccount(userInfo, srcAssetId) else return #err(#placement({ index = i; error = #NoCredit }));
+        let balance = switch (AssocList.find<T.AssetId, Nat>(newBalances, srcAssetId, Nat.equal)) {
           case (?b) b;
           case (null) credits.accountBalance(chargeAcc);
         };
         if (balance < chargeAmount) {
           return #err(#placement({ index = i; error = #NoCredit }));
         };
-        AssocList.replace<T.AssetId, Nat>(newBalances, chargeToken, Nat.equal, ?(balance - chargeAmount))
+        AssocList.replace<T.AssetId, Nat>(newBalances, srcAssetId, Nat.equal, ?(balance - chargeAmount))
         |> (newBalances := _.0);
 
         // build list of placed orders + orders to be placed during this call

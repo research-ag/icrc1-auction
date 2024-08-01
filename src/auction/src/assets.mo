@@ -49,8 +49,10 @@ module {
       case (#bid) asset.bids;
     };
 
-    public func peekOrder(asset : T.AssetInfo, kind : { #ask; #bid }) : ?(T.OrderId, T.Order) {
-      PriorityQueue.next(getOrderBook(asset, kind).queue);
+    public func deductOrderVolume(asset : T.AssetInfo, kind : { #ask; #bid }, order : T.Order, amount : Nat) {
+      let orderBook = getOrderBook(asset, kind);
+      order.volume -= amount;
+      orderBook.totalVolume -= amount;
     };
 
     public func putOrder(asset : T.AssetInfo, kind : { #ask; #bid }, orderId : T.OrderId, order : T.Order) {
@@ -70,7 +72,7 @@ module {
     public func deleteOrder(asset : T.AssetInfo, kind : { #ask; #bid }, orderId : T.OrderId) {
       let orderBook = getOrderBook(asset, kind);
       let (upd, oldValue) = PriorityQueue.findOneAndDelete<(T.OrderId, T.Order)>(orderBook.queue, func(id, _) = id == orderId);
-      let ?(_, existingOrder) = oldValue else Prim.trap("Cannot pop order from asset order book");
+      let ?(_, existingOrder) = oldValue else Prim.trap("Cannot delete order from asset order book");
       orderBook.queue := upd;
       orderBook.size -= 1;
       orderBook.totalVolume -= existingOrder.volume;
