@@ -28,7 +28,7 @@ module {
 
   type AssetOrderBook_<O> = {
     var queue : PriorityQueue.PriorityQueue<(OrderId, O)>;
-    var amount : Nat;
+    var size : Nat;
     var totalVolume : Nat;
   };
   public type AssetOrderBook = AssetOrderBook_<Order>;

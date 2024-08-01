@@ -6,16 +6,6 @@ A module which implements auction functionality for various trading pairs agains
 
 ### Links
 
-The package is published on [MOPS](https://mops.one/auction) and [GitHub](https://github.com/research-ag/auction).
-
-The API documentation can be found [here](https://mops.one/auction/docs).
-
-For updates, help, questions, feedback and other requests related to this package join us on:
-
-* [OpenChat group](https://oc.app/2zyqk-iqaaa-aaaar-anmra-cai)
-* [Twitter](https://twitter.com/mr_research_ag)
-* [Dfinity forum](https://forum.dfinity.org/)
-
 ### Motivation
 
 ### Interface
@@ -24,32 +14,23 @@ For updates, help, questions, feedback and other requests related to this packag
 
 Stable data should be declared as
 ```motoko
-stable var auctionDataV1 : Auction.StableDataV1 = Auction.defaultStableDataV1();
+stable var auctionDataV2 : Auction.StableDataV2 = Auction.defaultStableDataV2();
 ```
 
-In `preupgrade` and `postupgrade` hooks top-level app should run `auctionDataV1 := auction.share();` and `auction.unshare(auctionDataV1);` respectively
+In `preupgrade` and `postupgrade` hooks top-level app should run `auctionDataV2 := auction.share();` and `auction.unshare(auctionDataV2);` respectively
 
-Note: `V1` stands for first version of stable data. Later auction package will provide migration functions to carry top-level app auction stable data over to the newer version of the auction.
+Note: `V2` stands for second version of stable data. If you already use older stable data type, you should declare new one like this to save your data:
+```motoko
+stable var auctionDataV2 : Auction.StableDataV2 = Auction.migrateStableDataV2(auctionDataV1);
+```
 
 ## Usage
-
-### Install with mops
-
-You need `mops` installed. In your project directory run:
-```
-mops add auction
-```
-
-In the Motoko source file import the package as:
-```
-import Auction "mo:auction";
-```
 
 ### Example
 
 ```motoko
 import Principal "mo:base/Principal";
-import Auction "mo:auction";
+import Auction "./auction";
 import Vec "mo:vector";
 
 let a = Auction.Auction(
@@ -92,12 +73,8 @@ assert a.getCredit(seller, 1) == { total = 990; locked = 0; avaliable = 990 }; /
 
 ### Build & test
 
-We need up-to-date versions of `node`, `moc` and `mops` installed.
-
-Then run:
+Run:
 ```
-git clone git@github.com:research-ag/auction.git
-mops install
 mops test
 ```
 

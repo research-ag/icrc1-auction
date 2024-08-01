@@ -2,8 +2,6 @@ import Iter "mo:base/Iter";
 import Prim "mo:prim";
 import R "mo:base/Result";
 
-import Vec "mo:vector";
-
 module {
 
   public func unwrapUninit<T>(o : ?T) : T = requireMsg(o, "Not initialized");
@@ -30,13 +28,17 @@ module {
       let ?_ = iter.next() else return [];
       i += 1;
     };
-    let ret : Vec.Vector<T> = Vec.new();
     i := 0;
-    label l while (i < limit) {
-      let ?x = iter.next() else break l;
-      Vec.add(ret, x);
-      i += 1;
-    };
-    Vec.toArray(ret);
+    (
+      object {
+        public func next() : ?T {
+          if (i == limit) {
+            return null;
+          };
+          i += 1;
+          iter.next();
+        };
+      }
+    ) |> Iter.toArray(_);
   };
 };

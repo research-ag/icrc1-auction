@@ -91,8 +91,8 @@ module {
 
     public func cancel(userInfo : T.UserInfo, orderId : T.OrderId) : ?T.Order {
       // find and remove from order lists
-      let ?existingOrder = users.popOrder(userInfo, kind, orderId) else return null;
-      assets.getAsset(existingOrder.assetId) |> assets.popOrder(_, kind, orderId);
+      let ?existingOrder = users.deleteOrder(userInfo, kind, orderId) else return null;
+      assets.getAsset(existingOrder.assetId) |> assets.deleteOrder(_, kind, orderId);
       // return deposit to user
       let ?sourceAcc = credits.getAccount(userInfo, chargeToken(existingOrder.assetId)) else Prim.trap("Can never happen");
       let (success, _) = credits.unlockCredit(sourceAcc, chargeAmount(existingOrder.volume, existingOrder.price));

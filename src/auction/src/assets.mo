@@ -1,4 +1,5 @@
 import Float "mo:base/Float";
+import Iter "mo:base/Iter";
 import List "mo:base/List";
 import O "mo:base/Order";
 import Prim "mo:prim";
@@ -22,19 +23,17 @@ module {
     public func getAsset(assetId : T.AssetId) : T.AssetInfo = Vec.get(assets, assetId);
 
     public func register(n : Nat) {
-      var assetsVecSize = Vec.size(assets);
-      let newAmount = assetsVecSize + n;
-      while (assetsVecSize < newAmount) {
+      for (i in Iter.range(1, n)) {
         (
           {
             bids = {
               var queue = List.nil();
-              var amount = 0;
+              var size = 0;
               var totalVolume = 0;
             };
             asks = {
               var queue = List.nil();
-              var amount = 0;
+              var size = 0;
               var totalVolume = 0;
             };
             var lastRate = 0;
@@ -42,7 +41,6 @@ module {
           } : T.AssetInfo
         )
         |> Vec.add(assets, _);
-        assetsVecSize += 1;
       };
     };
 
@@ -65,16 +63,16 @@ module {
           case (#bid) func(a : (T.OrderId, T.Order), b : (T.OrderId, T.Order)) : O.Order = Float.compare(a.1.price, b.1.price);
         },
       );
-      orderBook.amount += 1;
+      orderBook.size += 1;
       orderBook.totalVolume += order.volume;
     };
 
-    public func popOrder(asset : T.AssetInfo, kind : { #ask; #bid }, orderId : T.OrderId) {
+    public func deleteOrder(asset : T.AssetInfo, kind : { #ask; #bid }, orderId : T.OrderId) {
       let orderBook = getOrderBook(asset, kind);
       let (upd, oldValue) = PriorityQueue.findOneAndDelete<(T.OrderId, T.Order)>(orderBook.queue, func(id, _) = id == orderId);
       let ?(_, existingOrder) = oldValue else Prim.trap("Cannot pop order from asset order book");
       orderBook.queue := upd;
-      orderBook.amount -= 1;
+      orderBook.size -= 1;
       orderBook.totalVolume -= existingOrder.volume;
     };
 

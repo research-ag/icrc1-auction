@@ -45,8 +45,8 @@ module {
         order.volume -= dealVolumeLeft;
         dealVolumeLeft;
       } else {
-        ignore users.popOrder(userInfo, #ask, orderId);
-        assets.popOrder(assetInfo, #ask, orderId);
+        ignore users.deleteOrder(userInfo, #ask, orderId);
+        assets.deleteOrder(assetInfo, #ask, orderId);
         order.volume;
       };
       dealVolumeLeft -= volume;
@@ -74,8 +74,8 @@ module {
         order.volume -= dealVolumeLeft;
         dealVolumeLeft;
       } else {
-        ignore users.popOrder(userInfo, #bid, orderId);
-        assets.popOrder(assetInfo, #bid, orderId);
+        ignore users.deleteOrder(userInfo, #bid, orderId);
+        assets.deleteOrder(assetInfo, #bid, orderId);
         order.volume;
       };
       dealVolumeLeft -= volume;

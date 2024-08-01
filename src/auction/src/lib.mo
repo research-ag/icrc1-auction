@@ -309,8 +309,8 @@ module {
       assets.assets := Vec.map<T.StableAssetInfoV2, T.AssetInfo>(
         data.assets,
         func(x) = {
-          asks = { var queue = null; var amount = 0; var totalVolume = 0 };
-          bids = { var queue = null; var amount = 0; var totalVolume = 0 };
+          asks = { var queue = null; var size = 0; var totalVolume = 0 };
+          bids = { var queue = null; var size = 0; var totalVolume = 0 };
           var lastRate = x.lastRate;
           var lastProcessingInstructions = x.lastProcessingInstructions;
         },

@@ -50,7 +50,7 @@ module {
       AssocList.replace<T.OrderId, T.Order>(orderBook.map, orderId, Nat.equal, ?order) |> (orderBook.map := _.0);
     };
 
-    public func popOrder(user : T.UserInfo, kind : { #ask; #bid }, orderId : T.OrderId) : ?T.Order {
+    public func deleteOrder(user : T.UserInfo, kind : { #ask; #bid }, orderId : T.OrderId) : ?T.Order {
       let orderBook = getOrderBook(user, kind);
       let (updatedList, oldValue) = AssocList.replace(orderBook.map, orderId, Nat.equal, null);
       let ?existingOrder = oldValue else return null;

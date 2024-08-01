@@ -523,9 +523,9 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
 
   private func registerAssetMetrics_(assetId : Auction.AssetId) {
     let stats = U.unwrapUninit(auction).assets.getAsset(assetId);
-    ignore metrics.addPullValue("asks_amount", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = stats.asks.amount);
+    ignore metrics.addPullValue("asks_amount", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = stats.asks.size);
     ignore metrics.addPullValue("asks_volume", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = stats.asks.totalVolume);
-    ignore metrics.addPullValue("bids_amount", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = stats.bids.amount);
+    ignore metrics.addPullValue("bids_amount", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = stats.bids.size);
     ignore metrics.addPullValue("bids_volume", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = stats.bids.totalVolume);
     ignore metrics.addPullValue("processing_instructions", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = stats.lastProcessingInstructions);
   };
