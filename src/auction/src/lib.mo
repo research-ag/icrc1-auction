@@ -136,8 +136,9 @@ module {
       let startInstructions = settings.performanceCounter(0);
       let assetInfo = assets.getAsset(assetId);
       let (volume, price) = processAuction(
-        orders.asks.createOrderBook(assetId, assetInfo, sessionsCounter),
-        orders.bids.createOrderBook(assetId, assetInfo, sessionsCounter),
+        sessionsCounter,
+        orders.asks.createOrderBookService(assetInfo),
+        orders.bids.createOrderBookService(assetInfo),
       );
       assets.pushToHistory(Prim.time(), sessionsCounter, assetId, volume, price);
       if (volume > 0) {
