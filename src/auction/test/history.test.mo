@@ -11,11 +11,11 @@ do {
 
   let ft1 = createFt(auction);
   ignore auction.appendCredit(seller, ft1, 500_000_000);
-  ignore auction.placeOrder(seller, #ask, ft1, 1_000, 0);
+  ignore auction.placeOrder(seller, #ask, ft1, 1_000, 100_000);
 
   let ft2 = createFt(auction);
   ignore auction.appendCredit(seller, ft2, 500_000_000);
-  ignore auction.placeOrder(seller, #ask, ft2, 1_000, 0);
+  ignore auction.placeOrder(seller, #ask, ft2, 1_000, 100_000);
 
   let ft3 = createFt(auction);
 
@@ -47,11 +47,11 @@ do {
 
   let ft1 = createFt(auction);
   ignore auction.appendCredit(seller, ft1, 500_000_000);
-  ignore auction.placeOrder(seller, #ask, ft1, 1_000, 0);
+  ignore auction.placeOrder(seller, #ask, ft1, 1_000, 100_000);
 
   let ft2 = createFt(auction);
   ignore auction.appendCredit(seller, ft2, 500_000_000);
-  ignore auction.placeOrder(seller, #ask, ft2, 1_000, 0);
+  ignore auction.placeOrder(seller, #ask, ft2, 1_000, 100_000);
 
   ignore auction.appendCredit(user, 0, 500_000_000);
   ignore auction.placeOrder(user, #bid, ft1, 1_000, 100_000);

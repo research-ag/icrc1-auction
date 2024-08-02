@@ -101,7 +101,7 @@ module {
 
     // validation
     public func isOrderLow(orderAssetId : T.AssetId, orderAssetInfo : T.AssetInfo, volume : Nat, price : Float) : Bool = switch (kind) {
-      case (#ask) volume < minAskVolume(orderAssetId, orderAssetInfo);
+      case (#ask) price <= 0.0 or volume < minAskVolume(orderAssetId, orderAssetInfo);
       case (#bid) getTotalPrice(volume, price) < minimumOrder;
     };
 
@@ -219,8 +219,6 @@ module {
       // array of functions which will write all changes to the state
       var cancellationCommitActions : List.List<() -> ()> = null;
       let placementCommitActions : [var () -> T.OrderId] = Array.init<() -> T.OrderId>(placements.size(), func() = 0);
-
-      // validate and prepare cancellations
 
       // update temporary balances: add unlocked credits for each cancelled order
       func affectNewBalancesWithCancellation(ordersService : OrdersService, order : T.Order) {

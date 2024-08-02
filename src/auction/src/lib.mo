@@ -135,7 +135,7 @@ module {
       if (assetId == trustedAssetId) return;
       let startInstructions = settings.performanceCounter(0);
       let assetInfo = assets.getAsset(assetId);
-      let (volume, price) = processAuction(
+      let (price, volume) = processAuction(
         sessionsCounter,
         orders.asks.createOrderBookService(assetInfo),
         orders.bids.createOrderBookService(assetInfo),

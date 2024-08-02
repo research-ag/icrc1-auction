@@ -277,7 +277,7 @@ do {
 
   let seller = Principal.fromText("ocqy6-3dphi-xgf54-vkr2e-lk4oz-3exc6-446gr-5e72g-bsdfo-4nzrm-hqe");
   ignore auction.appendCredit(seller, ft, 500_000_000);
-  ignore auction.placeOrder(seller, #ask, ft, 2_000, 0);
+  ignore auction.placeOrder(seller, #ask, ft, 2_000, 100_000);
   assert auction.getOrders(seller, #ask, ?ft).size() == 1;
 
   ignore auction.appendCredit(user, 0, 500_000_000);
@@ -303,50 +303,13 @@ do {
 };
 
 do {
-  Prim.debugPrint("should charge lowest price...");
-  let (auction, user) = init(0);
-  let ft = createFt(auction);
-
-  let seller = Principal.fromText("ocqy6-3dphi-xgf54-vkr2e-lk4oz-3exc6-446gr-5e72g-bsdfo-4nzrm-hqe");
-  ignore auction.appendCredit(seller, ft, 500_000_000);
-  ignore auction.placeOrder(seller, #ask, ft, 3_000, 0);
-  assert auction.getOrders(seller, #ask, ?ft).size() == 1;
-
-  ignore auction.appendCredit(user, 0, 500_000_000);
-  ignore auction.placeOrder(user, #bid, ft, 1_500, 200_000);
-  assert auction.getOrders(user, #bid, ?ft).size() == 1;
-
-  let user2 = Principal.fromText("tbsil-wffo6-dnxyb-b27v7-c5ghk-jsiqs-gsok7-bmtyu-w7u3b-el75k-iae");
-  ignore auction.appendCredit(user2, 0, 500_000_000);
-  ignore auction.placeOrder(user2, #bid, ft, 1_500, 100_000);
-  assert auction.getOrders(user2, #bid, ?ft).size() == 1;
-
-  // should be ignored (no supply)
-  let user3 = Principal.fromText("3ekl2-xv73q-5v4oc-u3edq-dykz6-ps2k6-jxjiu-34myc-zc6rg-ucex3-4qe");
-  ignore auction.appendCredit(user3, 0, 500_000_000);
-  ignore auction.placeOrder(user3, #bid, ft, 1_500, 50_000);
-  assert auction.getOrders(user3, #bid, ?ft).size() == 1;
-
-  auction.processAsset(ft);
-
-  assert auction.getOrders(user, #bid, ?ft).size() == 0;
-  assert auction.getOrders(user2, #bid, ?ft).size() == 0;
-  assert auction.getOrders(user3, #bid, ?ft).size() == 1;
-  // check that price was 100 (lowest fulfilled bid) for both user and user2
-  assert auction.getCredit(user, ft).available == 1_500;
-  assert auction.getCredit(user, 0).available == 350_000_000;
-  assert auction.getCredit(user2, ft).available == 1_500;
-  assert auction.getCredit(user2, 0).available == 350_000_000;
-};
-
-do {
   Prim.debugPrint("should fulfil lowest bid partially...");
   let (auction, user) = init(0);
   let ft = createFt(auction);
 
   let seller = Principal.fromText("ocqy6-3dphi-xgf54-vkr2e-lk4oz-3exc6-446gr-5e72g-bsdfo-4nzrm-hqe");
   ignore auction.appendCredit(seller, ft, 500_000_000);
-  ignore auction.placeOrder(seller, #ask, ft, 3_500, 0);
+  ignore auction.placeOrder(seller, #ask, ft, 3_500, 100_000);
   assert auction.getOrders(seller, #ask, ?ft).size() == 1;
 
   ignore auction.appendCredit(user, 0, 500_000_000);
@@ -403,7 +366,7 @@ do {
 
   let seller = Principal.fromText("ocqy6-3dphi-xgf54-vkr2e-lk4oz-3exc6-446gr-5e72g-bsdfo-4nzrm-hqe");
   ignore auction.appendCredit(seller, ft, 500_000_000);
-  ignore auction.placeOrder(seller, #ask, ft, 1_000, 0);
+  ignore auction.placeOrder(seller, #ask, ft, 1_000, 100_000);
   assert auction.getOrders(seller, #ask, ?ft).size() == 1;
 
   auction.processAsset(ft);
@@ -414,7 +377,7 @@ do {
   assert auction.getCredit(user, ft).available == 1_000; // was partially fulfilled
 
   // add another ask
-  ignore auction.placeOrder(seller, #ask, ft, 1_000, 0);
+  ignore auction.placeOrder(seller, #ask, ft, 1_000, 100_000);
   assert auction.getOrders(seller, #ask, ?ft).size() == 1;
 
   auction.processAsset(ft);
@@ -446,14 +409,14 @@ do {
   assert auction.getOrders(lowBidder, #bid, ?ft).size() == 1;
 
   // allow one additional bid next session
-  ignore auction.placeOrder(seller, #ask, ft, 1_500, 0);
+  ignore auction.placeOrder(seller, #ask, ft, 1_500, 1_000);
   auction.processAsset(ft);
   assert auction.getOrders(highBidder, #bid, ?ft).size() == 0;
   assert auction.getOrders(mediumBidder, #bid, ?ft).size() == 1;
   assert auction.getOrders(lowBidder, #bid, ?ft).size() == 1;
 
   // allow one additional bid next session
-  ignore auction.placeOrder(seller, #ask, ft, 1_500, 0);
+  ignore auction.placeOrder(seller, #ask, ft, 1_500, 1_000);
   auction.processAsset(ft);
   assert auction.getOrders(mediumBidder, #bid, ?ft).size() == 0;
   assert auction.getOrders(lowBidder, #bid, ?ft).size() == 1;
@@ -464,13 +427,13 @@ do {
   assert auction.getOrders(newBidder, #bid, ?ft).size() == 1;
 
   // allow one additional bid next session
-  ignore auction.placeOrder(seller, #ask, ft, 1_500, 0);
+  ignore auction.placeOrder(seller, #ask, ft, 1_500, 1_000);
   auction.processAsset(ft);
   // new bidder joined later, but should be fulfilled since priority greater than priority of low bid
   assert auction.getOrders(newBidder, #bid, ?ft).size() == 0;
   assert auction.getOrders(lowBidder, #bid, ?ft).size() == 1;
 
-  ignore auction.placeOrder(seller, #ask, ft, 1_500, 0);
+  ignore auction.placeOrder(seller, #ask, ft, 1_500, 1_000);
   auction.processAsset(ft);
   // finally low bid will be fulfilled
   assert auction.getOrders(lowBidder, #bid, ?ft).size() == 0;
@@ -482,7 +445,7 @@ do {
   let ft = createFt(auction);
   let seller = Principal.fromText("ocqy6-3dphi-xgf54-vkr2e-lk4oz-3exc6-446gr-5e72g-bsdfo-4nzrm-hqe");
   ignore auction.appendCredit(seller, ft, 500_000_000);
-  ignore auction.placeOrder(seller, #ask, ft, 1_000, 0);
+  ignore auction.placeOrder(seller, #ask, ft, 1_000, 100_000);
   assert auction.getOrders(seller, #ask, ?ft).size() == 1;
 
   ignore auction.appendCredit(user, 0, 500_000_000);
@@ -494,7 +457,7 @@ do {
   assert auction.getOrders(seller, #ask, ?ft).size() == 0;
   assert auction.getOrders(user, #bid, ?ft).size() == 0;
 
-  ignore auction.placeOrder(seller, #ask, ft, 1_000, 0);
+  ignore auction.placeOrder(seller, #ask, ft, 1_000, 100_000);
   assert auction.getOrders(seller, #ask, ?ft).size() == 1;
   ignore auction.placeOrder(user, #bid, ft, 1_000, 100_000);
   assert auction.getOrders(user, #bid, ?ft).size() == 1;

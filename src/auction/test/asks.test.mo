@@ -1,8 +1,6 @@
 import Prim "mo:prim";
 import Principal "mo:base/Principal";
 
-import Vec "mo:vector";
-
 import { init; createFt } "./test.util";
 
 do {
@@ -35,7 +33,7 @@ do {
   let ft = createFt(auction);
   ignore auction.appendCredit(user, ft, 500_000_000);
 
-  switch (auction.placeOrder(user, #ask, ft, 500_000_001, 0)) {
+  switch (auction.placeOrder(user, #ask, ft, 500_000_001, 0.1)) {
     case (#err(#NoCredit)) ();
     case (_) assert false;
   };
@@ -246,9 +244,9 @@ do {
   assert auction.getOrders(lowSeller, #ask, ?ft).size() == 0;
   assert auction.getOrders(mediumSeller, #ask, ?ft).size() == 1;
   assert auction.getOrders(highSeller, #ask, ?ft).size() == 1;
-  // deal between buyer and lowSeller should have average price (500, 50 => 275)
-  assert auction.getCredit(lowSeller, 0).available == 275 * 1_500_000;
-  assert auction.getCredit(buyer, 0).available + 275 * 1_500_000 == 5_000_000_000;
+  // deal between buyer and lowSeller should have ask price (500, 50 => 50)
+  assert auction.getCredit(lowSeller, 0).available == 50 * 1_500_000;
+  assert auction.getCredit(buyer, 0).available + 50 * 1_500_000 == 5_000_000_000;
 
   // allow one additional ask to be fulfilled
   ignore auction.placeOrder(buyer, #bid, ft, 1_500_000, 500);
@@ -256,7 +254,7 @@ do {
 
   assert auction.getOrders(mediumSeller, #ask, ?ft).size() == 0;
   assert auction.getOrders(highSeller, #ask, ?ft).size() == 1;
-  assert auction.getCredit(mediumSeller, 0).available == 350 * 1_500_000;
+  assert auction.getCredit(mediumSeller, 0).available == 200 * 1_500_000;
 
   ignore auction.placeOrder(newSeller, #ask, ft, 1_500_000, 300);
   assert auction.getOrders(newSeller, #ask, ?ft).size() == 1;
@@ -268,7 +266,7 @@ do {
   // new seller joined later, but should be fulfilled since priority greater than priority of high seller
   assert auction.getOrders(newSeller, #ask, ?ft).size() == 0;
   assert auction.getOrders(highSeller, #ask, ?ft).size() == 1;
-  assert auction.getCredit(newSeller, 0).available == 400 * 1_500_000;
+  assert auction.getCredit(newSeller, 0).available == 300 * 1_500_000;
 
   // allow one additional ask to be fulfilled
   ignore auction.placeOrder(buyer, #bid, ft, 1_500_000, 500);
