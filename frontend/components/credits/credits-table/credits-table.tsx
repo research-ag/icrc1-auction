@@ -48,8 +48,8 @@ const CreditsTable = () => {
               <td>
                 {symbols && <InfoItem content={getTokenInfo(ledger).symbol} withCopy={true} />}
               </td>
-              <td>{displayWithDecimals(credit.available, getTokenInfo(ledger).decimals)}</td>
-              <td>{displayWithDecimals(credit.total, getTokenInfo(ledger).decimals)}</td>
+              <td>{displayWithDecimals(credit.available, getTokenInfo(ledger).decimals, 6)}</td>
+              <td>{displayWithDecimals(credit.total, getTokenInfo(ledger).decimals, 6)}</td>
               <td>
                 <Button onClick={() => openWithdrawModal(ledger)} color="danger" size="sm">
                   Withdraw
