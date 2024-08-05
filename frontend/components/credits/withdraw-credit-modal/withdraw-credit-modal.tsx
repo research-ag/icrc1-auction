@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z as zod } from 'zod';
 import { Box, Button, FormControl, FormLabel, Input, Modal, ModalClose, ModalDialog, Typography } from '@mui/joy';
 
-import { useWithdrawCredit } from '../../../integration';
+import { useTokenInfoMap, useWithdrawCredit } from '@fe/integration';
 import ErrorAlert from '../../../components/error-alert';
 import { enqueueSnackbar } from 'notistack';
 
@@ -22,7 +22,7 @@ interface WithdrawCreditModalProps {
 const schema = zod.object({
   amount: zod
     .string()
-    .min(1)
+    .min(0)
     .refine(value => !isNaN(Number(value))),
   subaccount: zod.string(),
 });
@@ -50,6 +50,15 @@ const WithdrawCreditModal = ({ isOpen, onClose, ledger }: WithdrawCreditModalPro
 
   const { mutate: withdraw, error, isLoading, reset: resetApi } = useWithdrawCredit();
 
+  const { data: symbols } = useTokenInfoMap();
+  const getTokenDecimals = (ledger: string): number => {
+    const mapItem = (symbols || []).find(([p, s]) => p.toText() == ledger);
+    if (!mapItem) {
+      throw new Error('Unknown token');
+    }
+    return mapItem[1].decimals;
+  };
+
   const submit: SubmitHandler<WithdrawCreditFormValues> = data => {
     let subaccountStr = data.subaccount.replace(/\s/g, '');
     if (subaccountStr.startsWith('0x')) {
@@ -66,8 +75,9 @@ const WithdrawCreditModal = ({ isOpen, onClose, ledger }: WithdrawCreditModalPro
         subaccount[i] = parseInt(subaccountStr.substring(i * 2, i * 2 + 2), 16);
       }
     }
+    let decimals = getTokenDecimals(ledger);
     withdraw(
-      { ledger, subaccount, amount: data.amount },
+      { ledger, subaccount, amount: Math.round(data.amount * Math.pow(10, decimals)) },
       {
         onSuccess: () => {
           onClose();
