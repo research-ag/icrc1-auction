@@ -179,7 +179,6 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     };
     let assetInfo = Vec.get(assets, assetId);
     let result = try {
-      ignore await* assetInfo.handler.fetchFee();
       await* assetInfo.handler.notify(caller);
     } catch (err) {
       return #Err(#CallLedgerError({ message = Error.message(err) }));
