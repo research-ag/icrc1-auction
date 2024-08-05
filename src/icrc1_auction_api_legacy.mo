@@ -174,21 +174,20 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     };
     let assetInfo = Vec.get(assets, assetId);
     let result = try {
-      ignore await* assetInfo.handler.fetchFee();
       await* assetInfo.handler.notify(caller);
     } catch (err) {
       return #Err(#CallLedgerError({ message = Error.message(err) }));
     };
     switch (result) {
-      case (?_) {
+      case (?(depositInc, creditInc)) {
         let userCredit = assetInfo.handler.userCredit(caller);
         if (userCredit > 0) {
           let inc = Int.abs(userCredit);
           assert assetInfo.handler.debitUser(caller, inc);
           ignore a.appendCredit(caller, assetId, inc);
           #Ok({
-            deposit_inc = inc;
-            credit_inc = inc;
+            deposit_inc = depositInc;
+            credit_inc = creditInc;
             credit = a.queryCredit(caller, assetId).available;
           });
         } else {
