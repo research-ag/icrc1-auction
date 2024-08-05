@@ -97,7 +97,7 @@ const Root = () => {
             <InfoItem label="Quote currency ledger" content={trustedLedger?.toText() || ''} withCopy />
             <InfoItem label="Auction principal" content={canisterId} withCopy />
             <InfoItem label="Minimum order size"
-                      content={displayWithDecimals(minimumOrder || 0, getInfo(trustedLedger!).decimals)} />
+                      content={displayWithDecimals(minimumOrder || 0, getInfo(trustedLedger!).decimals, 6)} />
           </Box>
         </Box>
         <Box

@@ -34,7 +34,7 @@ const numberToString = (num: number): string => {
 }
 
 // string-based decimal point transformation
-export const displayWithDecimals = (value: bigint | number, decimals: number, maxSignificantDigits: number = 6): string => {
+export const displayWithDecimals = (value: bigint | number, decimals: number, maxSignificantDigits: number = 0): string => {
   if (value < 0) {
     throw new Error('Wrong natural number provided: ' + value.toString());
   }

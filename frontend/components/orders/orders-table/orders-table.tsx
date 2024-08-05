@@ -42,7 +42,7 @@ const OrdersTable = ({ kind }: OrdersTableProps) => {
               <td>
                 <InfoItem content={getInfo(order.icrc1Ledger).symbol} withCopy={true} />
               </td>
-              <td>{displayWithDecimals(order.price, getInfo(trustedLedger!).decimals - getInfo(order.icrc1Ledger).decimals)}</td>
+              <td>{displayWithDecimals(order.price, getInfo(trustedLedger!).decimals - getInfo(order.icrc1Ledger).decimals, 6)}</td>
               <td>{displayWithDecimals(order.volume, getInfo(order.icrc1Ledger).decimals)}</td>
               <td>
                 <Button onClick={() => cancelOrder(orderId)} color="danger" size="sm">

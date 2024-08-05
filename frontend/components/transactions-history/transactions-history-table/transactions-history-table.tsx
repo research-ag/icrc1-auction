@@ -47,7 +47,7 @@ const TransactionsHistoryTable = () => {
                 <InfoItem content={getInfo(ledger).symbol} withCopy={true} />
               </td>
               <td>{displayWithDecimals(volume, getInfo(ledger).decimals)}</td>
-              <td>{displayWithDecimals(price, getInfo(trustedLedger!).decimals - getInfo(ledger).decimals)}</td>
+              <td>{displayWithDecimals(price, getInfo(trustedLedger!).decimals - getInfo(ledger).decimals, 6)}</td>
             </tr>
           );
         })}
