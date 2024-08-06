@@ -43,6 +43,8 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
   stable var auctionDataV1 : Auction.StableDataV1 = Auction.defaultStableDataV1();
   stable var auctionDataV2 : Auction.StableDataV2 = Auction.migrateStableDataV2(auctionDataV1);
 
+  var tokenHandlersJournal : Vec.Vector<(ledger : Principal, p : Principal, logEvent : TokenHandler.LogEvent)> = Vec.new();
+
   type AssetInfo = {
     ledgerPrincipal : Principal;
     minAskVolume : Nat;
@@ -279,7 +281,7 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
             ownPrincipal = Principal.fromActor(self);
             initialFee = 0;
             triggerOnNotifications = true;
-            log = func(p : Principal, logEvent : TokenHandler.LogEvent) = ();
+            log = func(p : Principal, logEvent : TokenHandler.LogEvent) = Vec.add(tokenHandlersJournal, (x.ledgerPrincipal, p, logEvent));
           });
         };
         r.handler.unshare(x.handler);
@@ -415,6 +417,11 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     );
   };
 
+  public query func isTokenHandlerFrozen(ledger : Principal) : async Bool = async switch (getAssetId(ledger)) {
+    case (?aid) Vec.get(assets, aid) |> _.handler.isFrozen();
+    case (_) throw Error.reject("Unknown asset");
+  };
+
   public query func queryTokenHandlerState(ledger : Principal) : async {
     balance : {
       deposited : Nat;
@@ -438,6 +445,13 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
       case (?aid) Vec.get(assets, aid) |> _.handler.state();
       case (_) throw Error.reject("Unknown asset");
     };
+  };
+
+  public query func queryTokenHandlerJournal(ledger : Principal) : async [(Principal, TokenHandler.LogEvent)] {
+    Vec.vals(tokenHandlersJournal)
+    |> Iter.filter<(Principal, Principal, TokenHandler.LogEvent)>(_, func(l, _, _) = Principal.equal(l, ledger))
+    |> Iter.map<(Principal, Principal, TokenHandler.LogEvent), (Principal, TokenHandler.LogEvent)>(_, func(_, p, e) = (p, e))
+    |> Iter.toArray(_);
   };
 
   public query func listAdmins() : async [Principal] = async adminsMap.entries()
@@ -493,7 +507,7 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
         ownPrincipal = Principal.fromActor(self);
         initialFee = 0;
         triggerOnNotifications = true;
-        log = func(p : Principal, logEvent : TokenHandler.LogEvent) = ();
+        log = func(p : Principal, logEvent : TokenHandler.LogEvent) = Vec.add(tokenHandlersJournal, (ledger, p, logEvent));
       });
     }
     |> Vec.add<AssetInfo>(assets, _);
