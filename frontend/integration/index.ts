@@ -38,6 +38,11 @@ export const useSessionsCounter = () => {
   return useQuery('sessionsCounter', () => auction.sessionsCounter());
 };
 
+export const useMinimumOrder = () => {
+  const { auction } = useAuction();
+  return useQuery('minimumOrder', () => auction.minimumOrder());
+};
+
 export const usePrincipalToSubaccount = (p: Principal) => {
   const { auction } = useAuction();
   return useQuery('subaccount_' + p.toText(), async () => auction.principalToSubaccount(p));
@@ -59,7 +64,7 @@ export const useAddAsset = () => {
           enqueueSnackbar(`Failed to add ledger: ${JSON.stringify(res.Err, bigIntReplacer)}`, { variant: 'error' });
         } else {
           queryClient.invalidateQueries('assets');
-          queryClient.invalidateQueries('assetSymbols');
+          queryClient.invalidateQueries('assetInfos');
           enqueueSnackbar(`Ledger ${principal.toText()} added. Asset index: ${minAskVolume}`, { variant: 'success' });
         }
       },
@@ -79,7 +84,7 @@ export const useListAssets = () => {
     'assets',
     async () => auction.icrc84_supported_tokens(),
     {
-      onSettled: _ => queryClient.invalidateQueries('assetSymbols'),
+      onSettled: _ => queryClient.invalidateQueries('assetInfos'),
       onError: err => {
         enqueueSnackbar(`Failed to fetch credits: ${err}`, { variant: 'error' });
       },
@@ -87,20 +92,40 @@ export const useListAssets = () => {
   );
 };
 
-export const useTokenSymbolsMap = () => {
+export const useTokenInfoMap = () => {
   useListAssets();
   const { enqueueSnackbar } = useSnackbar();
   const queryClient = useQueryClient();
   return useQuery(
-    'assetSymbols',
+    'assetInfos',
     async () => {
       const assets = queryClient.getQueryData('assets') as (Principal[] | undefined);
-      const symbols = await Promise.all((assets || []).map(async p => createLedgerActor(p).icrc1_symbol()));
-      return (assets || []).map((p, i) => ([p, symbols[i]])) as [Principal, string][];
+      const info = await Promise.all((assets || []).map(async p => createLedgerActor(p).icrc1_metadata()));
+      const mapInfo = (info: ['icrc1:decimals' | 'icrc1:symbol', { 'Nat': bigint } | { 'Text': string }][]): {
+        symbol: string,
+        decimals: number
+      } => {
+        const ret = {
+          symbol: '-',
+          decimals: 0,
+        };
+        for (const [k, v] of info) {
+          if (k === 'icrc1:decimals') {
+            ret.decimals = Number((v as any).Nat as bigint);
+          } else if (k === 'icrc1:symbol') {
+            ret.symbol = (v as any).Text;
+          }
+        }
+        return ret;
+      };
+      return (assets || []).map((p, i) => ([p, mapInfo(info[i] as any)])) as [Principal, {
+        symbol: string,
+        decimals: number
+      }][];
     },
     {
       onError: err => {
-        enqueueSnackbar(`Failed to fetch symbols: ${err}`, { variant: 'error' });
+        enqueueSnackbar(`Failed to fetch asset info: ${err}`, { variant: 'error' });
       },
     },
   );
@@ -128,7 +153,7 @@ export const useListCredits = () => {
   return useQuery(
     'myCredits',
     async () => {
-      return auction.icrc84_all_credits();
+      return auction.queryCredits();
     },
     {
       onError: err => {

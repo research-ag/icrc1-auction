@@ -8,10 +8,11 @@
   "type": "module",
   "scripts": {
     "create": "dfx canister create --all",
-    "setup": "mkdir -p .dfx/local/canisters/frontend && mkdir -p .dfx/local/canisters/frontend_legacy && wget https://raw.githubusercontent.com/jamesbeadle/OpenFPL/master/candid/assetstorage.did -O .dfx/local/canisters/frontend/assetstorage.did && cp .dfx/local/canisters/frontend/assetstorage.did .dfx/local/canisters/frontend_legacy && dfx generate && dfx deploy",
+    "setup": "mkdir -p .dfx/local/canisters/frontend && mkdir -p .dfx/local/canisters/frontend_legacy mkdir -p .dfx/local/canisters/frontend_mock && wget https://raw.githubusercontent.com/jamesbeadle/OpenFPL/master/candid/assetstorage.did -O .dfx/local/canisters/frontend/assetstorage.did && cp .dfx/local/canisters/frontend/assetstorage.did .dfx/local/canisters/frontend_legacy && cp .dfx/local/canisters/frontend/assetstorage.did .dfx/local/canisters/frontend_mock && dfx generate && dfx deploy",
     "dev:frontend": "vite --port 3993 --host",
     "build:frontend": "rm -rf ./dist/ && tsc && vite build",
     "build:frontend_legacy": "mv frontend/integration/index.ts frontend/integration/index.ts.bak && cp frontend/integration/index_legacy.ts frontend/integration/index.ts && npm run build:frontend && rm -rf ./dist_legacy/ && mkdir ./dist_legacy && mv ./dist/* ./dist_legacy/; mv frontend/integration/index.ts.bak frontend/integration/index.ts",
+    "build:frontend_mock": "mv frontend/integration/index.ts frontend/integration/index.ts.bak && cp frontend/integration/index_mock.ts frontend/integration/index.ts && npm run build:frontend && rm -rf ./dist_mock/ && mkdir ./dist_mock && mv ./dist/* ./dist_mock/; mv frontend/integration/index.ts.bak frontend/integration/index.ts",
     "prettier-format": "prettier --config frontend/.prettierrc 'frontend/**/*.ts' --write",
     "test": "jest -c ./test/jest.config.ts"
   },

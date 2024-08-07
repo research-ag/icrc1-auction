@@ -4,8 +4,7 @@ import { useSnackbar } from 'notistack';
 import { useIdentity } from './identity';
 import { Principal } from '@dfinity/principal';
 import { useMemo } from 'react';
-import { canisterId as cid, createActor } from '@declarations/icrc1_auction_legacy';
-import { createActor as createLedgerActor } from '@declarations/icrc1_ledger_mock';
+import { canisterId as cid, createActor } from '@declarations/icrc1_auction_mock';
 
 // Custom replacer function for JSON.stringify
 const bigIntReplacer = (key: string, value: any): any => {
@@ -65,6 +64,7 @@ export const useAddAsset = () => {
           enqueueSnackbar(`Failed to add ledger: ${JSON.stringify(res.Err, bigIntReplacer)}`, { variant: 'error' });
         } else {
           queryClient.invalidateQueries('assets');
+          queryClient.invalidateQueries('assetInfos');
           enqueueSnackbar(`Ledger ${principal.toText()} added. Asset index: ${minAskVolume}`, { variant: 'success' });
         }
       },
@@ -100,25 +100,7 @@ export const useTokenInfoMap = () => {
     'assetInfos',
     async () => {
       const assets = queryClient.getQueryData('assets') as (Principal[] | undefined);
-      const info = await Promise.all((assets || []).map(async p => createLedgerActor(p).icrc1_metadata()));
-      const mapInfo = (info: ['icrc1:decimals' | 'icrc1:symbol', { 'Nat': bigint } | { 'Text': string }][]): {
-        symbol: string,
-        decimals: number
-      } => {
-        const ret = {
-          symbol: '-',
-          decimals: 0,
-        };
-        for (const [k, v] of info) {
-          if (k === 'icrc1:decimals') {
-            ret.decimals = Number((v as any).Nat as bigint);
-          } else if (k === 'icrc1:symbol') {
-            ret.symbol = (v as any).Text;
-          }
-        }
-        return ret;
-      };
-      return (assets || []).map((p, i) => ([p, mapInfo(info[i] as any)])) as [Principal, {
+      return (assets || []).map((p, i) => ([p, { symbol: 'TKN_' + i, decimals: i == 0 ? 6 : (i % 5) * 2 }])) as [Principal, {
         symbol: string,
         decimals: number
       }][];
@@ -214,6 +196,7 @@ export const useDeposit = () => {
           owner: arg.owner,
           subaccount: arg.subaccount ? [arg.subaccount] : [],
         },
+        expected_fee: [],
       }),
     {
       onSuccess: res => {
@@ -324,6 +307,7 @@ export const useWithdrawCredit = () => {
         token: Principal.fromText(formObj.ledger),
         to_subaccount: formObj.subaccount ? [formObj.subaccount] : [],
         amount: BigInt(formObj.amount),
+        expected_fee: [],
       }),
     {
       onSuccess: res => {
