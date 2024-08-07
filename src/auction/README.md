@@ -89,6 +89,79 @@ mops bench --replica pocket-ic
 
 ## Implementation notes
 
+Auction core consist of modules:
+
+### Auction
+
+Main module of the auction core. Caller app needs to import only this module
+
+### Assets
+
+Consists of class `Assets` with assets management functionality: encapsulates asset registry, provides 
+interface for managing assets and asset orders. Does not have any dependencies
+
+### Credits
+
+Consists of class `Credits` with user credits registry, provides API to get, update, lock, unlock user credits. 
+Does not have any dependencies
+
+### Users
+
+Consists of class `Users` with users management functionality: encapsulates users registry, provides
+interface for managing users and user orders. Does not have any dependencies
+
+### Orders
+
+Module with functionality to manage orders. Contains 3 classes:
+
+**Orders** (public)
+
+Contains orders management functionality on higher level than `Assets` or `Users`, makes sure that any changes in 
+orders are reflected properly in both `Assets` and `Users`. Contains all the logic to place/cancel orders and execute them.
+
+Depends on: `Assets`, `Credits`, `Users`.
+
+**OrdersService** (private)
+
+Private class for internal usage: implements lower level functionality, related to orders management. `Orders` class
+defines two instances of `OrdersService`: one for asks, second for bids. The goal of this class is to implement 
+some kind of polymorphism and avoid code repetitions, since `ask` and `bid` orders are similar but have significant 
+differences in expected logic when we place/cancel/execute them
+
+Depends on: `Assets`, `Credits`, `Users`.
+
+**OrderBookService** (public)
+
+Class-shortcut, which encapsulates orders management logic of single type (ask or bid) of single asset id. Used 
+for minimizing dependencies of caller code: auction processing functionality should not know about asset id-s
+
+Depends on: `OrdersService` of given type.
+
+### Auction processor function
+
+A separate function which clears auction and executes all fulfilled orders
+
+Depends on `OrderBookService`, provided in arguments
+
+
+```mermaid
+---
+title: Modules dependency diagram
+---
+flowchart 
+    lib["Auction\n\nmain auction class"] -->|has single instance of| a["Assets class"]
+    lib -->|has single instance of| c["Credits class"]
+    lib -->|has single instance of| u["Users class"]
+    lib -->|has single instance of| o["Orders class"]
+    o -->|defines two instances, for asks and bids| os["OrdersService class\n\nprivate class with all functionality to manage\norders of given type: asks or bids"]
+    os -->|manages order books in the asset info| a
+    os -->|manages order books in the user info| u
+    os -->|affects user credits| c
+    lib -->|imports| ap["Auction processor function"]
+    ap -->|receives 2 instances as arguments| ob["OrderBookService class\n\nA class which encapsulates AssetId and\nprovides simplified interface for managing it's orders"]
+    ob -->|delegates functionality| os
+```
+
 ## Copyright
 
 MR Research AG, 2023-2024
