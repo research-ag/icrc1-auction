@@ -1,3 +1,4 @@
+import Iter "mo:base/Iter";
 import Prim "mo:prim";
 import R "mo:base/Result";
 
@@ -19,5 +20,25 @@ module {
       case (#ok ok) ok;
       case (_) Prim.trap(message);
     };
+  };
+
+  public func sliceIter<T>(iter : Iter.Iter<T>, limit : Nat, skip : Nat) : [T] {
+    var i = 0;
+    while (i < skip) {
+      let ?_ = iter.next() else return [];
+      i += 1;
+    };
+    i := 0;
+    (
+      object {
+        public func next() : ?T {
+          if (i == limit) {
+            return null;
+          };
+          i += 1;
+          iter.next();
+        };
+      }
+    ) |> Iter.toArray(_);
   };
 };

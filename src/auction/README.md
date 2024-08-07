@@ -6,16 +6,6 @@ A module which implements auction functionality for various trading pairs agains
 
 ### Links
 
-The package is published on [MOPS](https://mops.one/auction) and [GitHub](https://github.com/research-ag/auction).
-
-The API documentation can be found [here](https://mops.one/auction/docs).
-
-For updates, help, questions, feedback and other requests related to this package join us on:
-
-* [OpenChat group](https://oc.app/2zyqk-iqaaa-aaaar-anmra-cai)
-* [Twitter](https://twitter.com/mr_research_ag)
-* [Dfinity forum](https://forum.dfinity.org/)
-
 ### Motivation
 
 ### Interface
@@ -24,32 +14,23 @@ For updates, help, questions, feedback and other requests related to this packag
 
 Stable data should be declared as
 ```motoko
-stable var auctionDataV1 : Auction.StableDataV1 = Auction.defaultStableDataV1();
+stable var auctionDataV2 : Auction.StableDataV2 = Auction.defaultStableDataV2();
 ```
 
-In `preupgrade` and `postupgrade` hooks top-level app should run `auctionDataV1 := auction.share();` and `auction.unshare(auctionDataV1);` respectively
+In `preupgrade` and `postupgrade` hooks top-level app should run `auctionDataV2 := auction.share();` and `auction.unshare(auctionDataV2);` respectively
 
-Note: `V1` stands for first version of stable data. Later auction package will provide migration functions to carry top-level app auction stable data over to the newer version of the auction.
+Note: `V2` stands for second version of stable data. If you already use older stable data type, you should declare new one like this to save your data:
+```motoko
+stable var auctionDataV2 : Auction.StableDataV2 = Auction.migrateStableDataV2(auctionDataV1);
+```
 
 ## Usage
-
-### Install with mops
-
-You need `mops` installed. In your project directory run:
-```
-mops add auction
-```
-
-In the Motoko source file import the package as:
-```
-import Auction "mo:auction";
-```
 
 ### Example
 
 ```motoko
 import Principal "mo:base/Principal";
-import Auction "mo:auction";
+import Auction "./auction";
 import Vec "mo:vector";
 
 let a = Auction.Auction(
@@ -73,31 +54,27 @@ let seller = Principal.fromText("ocqy6-3dphi-xgf54-vkr2e-lk4oz-3exc6-446gr-5e72g
 ignore a.appendCredit(seller, 1, 1_000);
 
 // buyer wants to buy 10 assets with max price 50
-ignore a.placeBid(buyer, 1, 10, 50.0);
+ignore a.placeOrder(buyer, #bid, 1, 10, 50.0);
 // seller wants to sell 10 assets with min price 10
-ignore a.placeAsk(seller, 1, 10, 10.0);
+ignore a.placeOrder(seller, #ask, 1, 10, 10.0);
 
 // process trading pair 0<->1
 a.processAsset(1);
 
 // check user credits, deal price was 30 (an average)
-assert a.queryCredit(buyer, 0) == 700; // spent 300;
-assert a.queryCredit(buyer, 1) == 10; // bought 10;
+assert a.getCredit(buyer, 0) == { total = 700; locked = 0; avaliable = 700 }; // spent 300;
+assert a.getCredit(buyer, 1) == { total = 10; locked = 0; avaliable = 10 }; // bought 10;
 
-assert a.queryCredit(seller, 0) == 300; // gained 300;
-assert a.queryCredit(seller, 1) == 990; // sold 10;
+assert a.getCredit(seller, 0) == { total = 300; locked = 0; avaliable = 300 }; // gained 300;
+assert a.getCredit(seller, 1) == { total = 990; locked = 0; avaliable = 990 }; // sold 10;
 ```
 
 [Executable version of above example](https://embed.motoko.org/motoko/g/3iXE51p6Wej8KA2Ejkw8b4DpYt8oveQ7JvWdMdDEa5AE6UKLYEZBR4Hr8SEo7Cx9tDTxN7NHrFy83Ems8Z8JKziGZ72rpPQjrt95YDUncMhcjA7rm1148wGXqcTZnpBmuTLq35beebZb5dDEkpXngsipyqFMu9UsQhdFxhaKrqrmxjEQoVYq3zAwBDFWyMfVADbmqMvWoJo4j23yXM58nKU6qB8Gh7VaEQqU58aWdS4oEyzCoZ8ZrbBE2m6JDgaYftNTkY7EbbPGP1ykExiKFmoCqYizpj9RgWRP73vm6DsHzyXbdzz6DYwxaHSA1zBEzt3MLALQjG774MbPENg1Ep6uSMiUedDoEu6QXsboS2W4wiZhSor4Ei4JqmF3M3zPe1zL7rXH4FNj6tTBHrwJYocbLD4AYawAZ8PdhN4oKUVACCFTgKoXZrbQBpN8LLnnszo1zYsBbMcszoAhQ8icgqQ7VpvNMitUnVeXSJs656enEeyQD2MXi1voos7nFwASM7vPqrkk9WBqpeF31CZD3LRcfe2DRdYV6bS7g99nEA3aCExdZpxtBdSTtKn7dmHZJkZEfhGR6HpvWgyBN2iujnweJEB6R4164VLrfogk7kk7KiSX8B9137N2grvmgUqamKUWyBr2sHHNzDAf6UNHJMe3YGyZ5CLA3seqo3z92niGPvBLTQhTeqHDKKeCxjV9xF3iyWKPHV6PSiRsAGDYTcziDSNK39YjvxSrNdjce4Z8NzY9FhS9ejZSJmfLkyYKCY7xr6LUuuG7AqKsDdrhj6cxwtuSK5qjqSDy4a9Qkdy3ZhcmJRFMheRwdxVDSeGKyG37BZfxfZSYPKhTKwx55sTivQnPSZwmP6So1zDDerpgG97PBpW2BFNuibLT6jmhzL7nAhpc1A?lines=43)
 
 ### Build & test
 
-We need up-to-date versions of `node`, `moc` and `mops` installed.
-
-Then run:
+Run:
 ```
-git clone git@github.com:research-ag/auction.git
-mops install
 mops test
 ```
 
@@ -111,6 +88,79 @@ mops bench --replica pocket-ic
 ## Design
 
 ## Implementation notes
+
+Auction core consist of modules:
+
+### Auction
+
+Main module of the auction core. Caller app needs to import only this module
+
+### Assets
+
+Consists of class `Assets` with assets management functionality: encapsulates asset registry, provides 
+interface for managing assets and asset orders. Does not have any dependencies
+
+### Credits
+
+Consists of class `Credits` with user credits registry, provides API to get, update, lock, unlock user credits. 
+Does not have any dependencies
+
+### Users
+
+Consists of class `Users` with users management functionality: encapsulates users registry, provides
+interface for managing users and user orders. Does not have any dependencies
+
+### Orders
+
+Module with functionality to manage orders. Contains 3 classes:
+
+**Orders** (public)
+
+Contains orders management functionality on higher level than `Assets` or `Users`, makes sure that any changes in 
+orders are reflected properly in both `Assets` and `Users`. Contains all the logic to place/cancel orders and execute them.
+
+Depends on: `Assets`, `Credits`, `Users`.
+
+**OrdersService** (private)
+
+Private class for internal usage: implements lower level functionality, related to orders management. `Orders` class
+defines two instances of `OrdersService`: one for asks, second for bids. The goal of this class is to implement 
+some kind of polymorphism and avoid code repetitions, since `ask` and `bid` orders are similar but have significant 
+differences in expected logic when we place/cancel/execute them
+
+Depends on: `Assets`, `Credits`, `Users`.
+
+**OrderBookService** (public)
+
+Class-shortcut, which encapsulates orders management logic of single type (ask or bid) of single asset id. Used 
+for minimizing dependencies of caller code: auction processing functionality should not know about asset id-s
+
+Depends on: `OrdersService` of given type.
+
+### Auction processor function
+
+A separate function which clears auction and executes all fulfilled orders
+
+Depends on `OrderBookService`, provided in arguments
+
+
+```mermaid
+---
+title: Modules dependency diagram
+---
+flowchart 
+    lib["Auction\n\nmain auction class"] -->|has single instance of| a["Assets class"]
+    lib -->|has single instance of| c["Credits class"]
+    lib -->|has single instance of| u["Users class"]
+    lib -->|has single instance of| o["Orders class"]
+    o -->|defines two instances, for asks and bids| os["OrdersService class\n\nprivate class with all functionality to manage\norders of given type: asks or bids"]
+    os -->|manages order books in the asset info| a
+    os -->|manages order books in the user info| u
+    os -->|affects user credits| c
+    lib -->|imports| ap["Auction processor function"]
+    ap -->|receives 2 instances as arguments| ob["OrderBookService class\n\nA class which encapsulates AssetId and\nprovides simplified interface for managing it's orders"]
+    ob -->|delegates functionality| os
+```
 
 ## Copyright
 
