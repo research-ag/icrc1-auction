@@ -343,7 +343,7 @@ module {
         func buildOrdersList(user : T.UserInfo, kind : { #ask; #bid }, delta : OrdersDelta) : Iter.Iter<(?T.OrderId, T.Order)> = users.getOrderBook(user, kind).map
         |> List.toIter(_)
         |> Iter.map<(T.OrderId, T.Order), (?T.OrderId, T.Order)>(_, func(oid, o) = (?oid, o))
-        |> iterConcat<(?T.OrderId, T.Order)>(_, List.toIter(delta.placed));
+        |> Iter.concat<(?T.OrderId, T.Order)>(_, List.toIter(delta.placed));
 
         // validate conflicting orders
         for ((orderId, order) in buildOrdersList(userInfo, ordersService.kind, ordersDelta)) {
@@ -398,26 +398,6 @@ module {
         cancel();
       };
       #ok(Array.tabulate<T.OrderId>(placementCommitActions.size(), func(i) = placementCommitActions[i]()));
-    };
-  };
-
-  // TODO use Iter.concat after upgrading motoko-base dependency
-  private func iterConcat<T>(a : Iter.Iter<T>, b : Iter.Iter<T>) : Iter.Iter<T> {
-    var aEnded : Bool = false;
-    object {
-      public func next() : ?T {
-        if (aEnded) {
-          return b.next();
-        };
-        let nextA = a.next();
-        switch (nextA) {
-          case (?val) ?val;
-          case (null) {
-            aEnded := true;
-            b.next();
-          };
-        };
-      };
     };
   };
 
