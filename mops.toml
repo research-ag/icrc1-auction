@@ -5,7 +5,7 @@ vector = "0.4.0"
 token_handler = "https://github.com/research-ag/token-handler#e637a3e7be5a1dc1ac9757c2e456f0f76c1a3795"
 token_handler_legacy = "https://github.com/research-ag/token-handler#644b37126dd5f6bcc09193bec86272e18f26b297"
 mrr = "https://github.com/research-ag/motoko-lib#main"
-auction = "0.0.1"
+auction = "1.0.0"
 icrc84 = "https://github.com/research-ag/icrc-84#750573596a0f31780bf0caaab1cd247832a0b0f5"
 
 [toolchain]

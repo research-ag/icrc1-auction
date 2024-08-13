@@ -8,8 +8,6 @@ import Prim "mo:prim";
 import Principal "mo:base/Principal";
 import Text "mo:base/Text";
 
-import Vec "mo:vector";
-
 import Auction "../src";
 
 module {
@@ -90,15 +88,15 @@ module {
         for (i in Iter.range(1, nOrders / 2)) {
           let user = users[i - 1];
           ignore a.appendCredit(user, 0, 5_000_000);
-          ignore a.placeBid(user, 1, dealVolume / Nat.max(nBids, 1), criticalPrice + Prim.intToFloat((nBids - i)) * 0.1);
+          ignore a.placeOrder(user, #bid, 1, dealVolume / Nat.max(nBids, 1), criticalPrice + Prim.intToFloat((nBids - i)) * 0.1);
         };
         for (i in Iter.range(1, nOrders / 2)) {
           let user = users[nOrders / 2 + i - 1];
           ignore a.appendCredit(user, 1, 5_000_000);
-          ignore a.placeAsk(user, 1, dealVolume / Nat.max(nAsks, 1), criticalPrice - Prim.intToFloat((nAsks - i)) * 0.1);
+          ignore a.placeOrder(user, #ask, 1, dealVolume / Nat.max(nAsks, 1), criticalPrice - Prim.intToFloat((nAsks - i)) * 0.1);
         };
-        assert Vec.get(a.stats.assets, 1).bidsAmount == nOrders / 2;
-        assert Vec.get(a.stats.assets, 1).asksAmount == nOrders / 2;
+        assert a.assets.getAsset(1).bids.size == nOrders / 2;
+        assert a.assets.getAsset(1).asks.size == nOrders / 2;
         a;
       },
     );
@@ -113,8 +111,8 @@ module {
         // make sure everything worked as expected
         // let ?nOrders = Nat.fromText(col) else Prim.trap("Cannot parse nOrders");
         // let (nAsks, nBids) = get_nAsks_nBids(nOrders, ri);
-        // assert Vec.get(auction.stats.assets, 1).bidsAmount + nBids == nOrders / 2;
-        // assert Vec.get(auction.stats.assets, 1).asksAmount + nAsks == nOrders / 2;
+        // assert auction.assets.getAsset(1).bids.size + nBids == nOrders / 2;
+        // assert auction.assets.getAsset(1).asks.size + nAsks == nOrders / 2;
       }
     );
 
