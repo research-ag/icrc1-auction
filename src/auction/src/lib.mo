@@ -100,8 +100,8 @@ module {
   public type IndicativeStats = {
     clearingPrice : Float;
     clearingVolume : Nat;
-    totalBidVolue : Nat;
-    totalAskVolue : Nat;
+    totalBidVolume : Nat;
+    totalAskVolume : Nat;
   };
 
   public type CancelOrderError = Orders.InternalCancelOrderError or {
@@ -165,8 +165,8 @@ module {
       {
         clearingPrice;
         clearingVolume;
-        totalBidVolue = assetInfo.bids.totalVolume;
-        totalAskVolue = assetInfo.asks.totalVolume;
+        totalBidVolume = assetInfo.bids.totalVolume;
+        totalAskVolume = assetInfo.asks.totalVolume;
       };
     };
     // ============= assets interface =============

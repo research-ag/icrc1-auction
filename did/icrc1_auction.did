@@ -154,8 +154,8 @@ type CancelOrderResponse = variant {
 type IndicativeStats = record {
   clearingPrice : float64;
   clearingVolume : nat;
-  totalAskVolue : nat;
-  totalBidVolue : nat;
+  totalAskVolume : nat;
+  totalBidVolume : nat;
 };
 
 service : (opt principal, opt principal) -> {
