@@ -169,7 +169,13 @@ module {
       let ?user = users.get(p) else return #err(#NoCredit);
       let ?creditAcc = credits.getAccount(user, assetId) else return #err(#NoCredit);
       switch (credits.deductCredit(creditAcc, amount)) {
-        case (true, balance) #ok(balance, func() = ignore credits.appendCredit(creditAcc, amount));
+        case (true, balance) {
+          if (balance == 0 and credits.deleteIfEmpty(user, assetId)) {
+            #ok(0, func() = ignore credits.getOrCreate(user, assetId) |> credits.appendCredit(_, amount));
+          } else {
+            #ok(balance, func() = ignore credits.appendCredit(creditAcc, amount));
+          };
+        };
         case (false, _) #err(#NoCredit);
       };
     };

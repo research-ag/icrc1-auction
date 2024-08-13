@@ -418,6 +418,34 @@ describe('ICRC1 Auction', () => {
       expect(await auction.icrc84_credit(ledger1Principal)).toEqual(0n);
     });
 
+    test('should affect metrics', async () => {
+      await prepareDeposit(user, ledger1Principal, 1_200);
+      const user2 = createIdentity('user2');
+      await prepareDeposit(user2, ledger1Principal, 1_200);
+      const shortP = auctionPrincipal.toText().substring(0, auctionPrincipal.toString().indexOf('-'));
+      let metrics = await auction
+        .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
+        .then(r => new TextDecoder().decode(r.body as Uint8Array));
+      expect(metrics).toContain(`accounts_amount{canister="${shortP}"} 2 `);
+      expect(metrics).toContain(`users_amount{canister="${shortP}"} 2 `);
+      expect(metrics).toContain(`users_with_credits_amount{canister="${shortP}"} 2 `);
+
+      const res = await auction.icrc84_withdraw({
+        to_subaccount: [],
+        amount: 1_200n,
+        token: ledger1Principal,
+        expected_fee: [],
+      });
+      expect(res).toHaveProperty('Ok');
+
+      metrics = await auction
+        .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
+        .then(r => new TextDecoder().decode(r.body as Uint8Array));
+      expect(metrics).toContain(`accounts_amount{canister="${shortP}"} 1 `);
+      expect(metrics).toContain(`users_amount{canister="${shortP}"} 2 `);
+      expect(metrics).toContain(`users_with_credits_amount{canister="${shortP}"} 1 `);
+    });
+
     // TODO uncomment 3 tests below after fixing issue
     test.skip('should return #BadFee if provided fee is wrong', async () => {
       await ledger1.updateFee(BigInt(3));

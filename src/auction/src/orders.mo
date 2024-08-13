@@ -152,6 +152,7 @@ module {
       let (s1, _) = credits.unlockCredit(sourceAcc, srcVolume(volume, order.price));
       let (s2, _) = credits.deductCredit(sourceAcc, srcVolume(volume, price));
       assert s1 and s2;
+      ignore credits.deleteIfEmpty(order.userInfoRef, srcAssetId(order.assetId));
 
       // credit user (target asset)
       let acc = credits.getOrCreate(order.userInfoRef, destAssetId(order.assetId));

@@ -308,6 +308,7 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     ignore metrics.addPullValue("sessions_counter", "", func() = a.sessionsCounter);
     ignore metrics.addPullValue("assets_amount", "", func() = a.assets.nAssets());
     ignore metrics.addPullValue("users_amount", "", func() = a.users.nUsers());
+    ignore metrics.addPullValue("users_with_credits_amount", "", func() = a.users.nUsersWithCredits());
     ignore metrics.addPullValue("accounts_amount", "", func() = a.credits.nAccounts());
 
     ignore metrics.addPullValue("num_calls__icrc84_notify", "", func() = CallStats.getCallAmount(callStats, "icrc84_notify"));

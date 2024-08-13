@@ -241,6 +241,7 @@ actor class Icrc1AuctionAPI(adminPrincipal_ : ?Principal) = self {
     ignore metrics.addPullValue("sessions_counter", "", func() = a.sessionsCounter);
     ignore metrics.addPullValue("assets_amount", "", func() = a.assets.nAssets());
     ignore metrics.addPullValue("users_amount", "", func() = a.users.nUsers());
+    ignore metrics.addPullValue("users_with_credits_amount", "", func() = a.users.nUsersWithCredits());
     ignore metrics.addPullValue("accounts_amount", "", func() = a.credits.nAccounts());
 
     if (Vec.size(assets) == 0) {
