@@ -1,8 +1,10 @@
 import Array "mo:base/Array";
+import Blob "mo:base/Blob";
 import Error "mo:base/Error";
 import Int "mo:base/Int";
 import Iter "mo:base/Iter";
 import Nat "mo:base/Nat";
+import Nat8 "mo:base/Nat8";
 import Nat64 "mo:base/Nat64";
 import Option "mo:base/Option";
 import Prim "mo:prim";
@@ -13,20 +15,32 @@ import Text "mo:base/Text";
 import Timer "mo:base/Timer";
 
 import Auction "./auction/src";
-import ICRC1 "mo:token_handler/ICRC1";
 import PT "mo:promtracker";
 import TokenHandler "mo:token_handler";
 import Vec "mo:vector";
 
-import CallStats "./call_stats";
 import HTTP "./http";
 import U "./utils";
 
-// arguments have to be provided on first canister install,
-// on upgrade trusted ledger will be ignored
-actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Principal) = self {
+actor class Icrc1AuctionAPI(adminPrincipal_ : ?Principal) = self {
 
-  stable let trustedLedgerPrincipal : Principal = U.requireMsg(trustedLedger_, "Trusted ledger principal not provided");
+  func principalFromNat(n : Nat) : Principal {
+    let blobLength = 16;
+    Principal.fromBlob(
+      Blob.fromArray(
+        Array.tabulate<Nat8>(
+          blobLength,
+          func(i : Nat) : Nat8 {
+            assert (i < blobLength);
+            let shift : Nat = 8 * (blobLength - 1 - i);
+            Nat8.fromIntWrap(n / 2 ** shift);
+          },
+        )
+      )
+    );
+  };
+
+  stable let trustedLedgerPrincipal : Principal = principalFromNat(0);
 
   stable var stableAdminsMap = RBTree.RBTree<Principal, ()>(Principal.compare).share();
   switch (RBTree.size(stableAdminsMap)) {
@@ -44,19 +58,13 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
   stable var auctionDataV1 : Auction.StableDataV1 = Auction.defaultStableDataV1();
   stable var auctionDataV2 : Auction.StableDataV2 = Auction.migrateStableDataV2(auctionDataV1);
 
-  stable var callStats : CallStats.CallStats = CallStats.nil();
-
-  var tokenHandlersJournal : Vec.Vector<(ledger : Principal, p : Principal, logEvent : TokenHandler.LogEvent)> = Vec.new();
-
   type AssetInfo = {
     ledgerPrincipal : Principal;
     minAskVolume : Nat;
-    handler : TokenHandler.TokenHandler;
   };
   type StableAssetInfo = {
     ledgerPrincipal : Principal;
     minAskVolume : Nat;
-    handler : TokenHandler.StableData;
   };
 
   type RegisterAssetError = {
@@ -135,9 +143,9 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     for ((assetInfo, i) in Vec.items(assets)) {
       if (Principal.equal(assetInfo.ledgerPrincipal, token)) {
         return {
-          deposit_fee = assetInfo.handler.fee(#deposit);
-          withdrawal_fee = assetInfo.handler.fee(#withdrawal);
-          allowance_fee = assetInfo.handler.fee(#allowance);
+          deposit_fee = 0;
+          withdrawal_fee = 0;
+          allowance_fee = 0;
         };
       };
     };
@@ -156,7 +164,7 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     );
   };
 
-  public shared query ({ caller }) func icrc84_trackedDeposit(token : Principal) : async {
+  public shared query func icrc84_trackedDeposit(token : Principal) : async {
     #Ok : Nat;
     #Err : { #NotAvailable : { message : Text } };
   } {
@@ -167,106 +175,42 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
       }
     )
     |> Vec.get(assets, _)
-    |> _.handler.trackedDeposit(caller)
-    |> (
-      switch (_) {
-        case (?d) #Ok(d);
-        case (null) #Err(#NotAvailable({ message = "Unknown caller" }));
-      }
-    );
+    |> #Ok(0);
   };
 
   public shared ({ caller }) func icrc84_notify(args : { token : Principal }) : async NotifyResult {
-    CallStats.logCall(callStats, "icrc84_notify");
     let a = U.unwrapUninit(auction);
     let assetId = switch (getAssetId(args.token)) {
       case (?aid) aid;
       case (_) return #Err(#NotAvailable({ message = "Unknown token" }));
     };
     let assetInfo = Vec.get(assets, assetId);
-    let result = try {
-      await* assetInfo.handler.notify(caller);
-    } catch (err) {
-      return #Err(#CallLedgerError({ message = Error.message(err) }));
-    };
-    switch (result) {
-      case (?(depositInc, creditInc)) {
-        let userCredit = assetInfo.handler.userCredit(caller);
-        if (userCredit > 0) {
-          let inc = Int.abs(userCredit);
-          assert assetInfo.handler.debitUser(caller, inc);
-          ignore a.appendCredit(caller, assetId, inc);
-          #Ok({
-            deposit_inc = depositInc;
-            credit_inc = creditInc;
-            credit = a.getCredit(caller, assetId).available;
-          });
-        } else {
-          #Err(#NotAvailable({ message = "Deposit was not detected" }));
-        };
-      };
-      case (null) #Err(#NotAvailable({ message = "Deposit was not detected" }));
-    };
+    ignore a.appendCredit(caller, assetId, 1_000_000);
+    #Ok({
+      deposit_inc = 1_000_000;
+      credit_inc = 1_000_000;
+      credit = a.getCredit(caller, assetId).available;
+    });
   };
 
   public shared ({ caller }) func icrc84_deposit(args : { token : Principal; amount : Nat; from : { owner : Principal; subaccount : ?Blob }; expected_fee : ?Nat }) : async DepositResult {
-    CallStats.logCall(callStats, "icrc84_deposit");
     let a = U.unwrapUninit(auction);
     let assetId = switch (getAssetId(args.token)) {
       case (?aid) aid;
       case (_) throw Error.reject("Unknown token");
     };
     let assetInfo = Vec.get(assets, assetId);
-    let res = await* assetInfo.handler.depositFromAllowance(caller, args.from, args.amount, args.expected_fee);
-    switch (res) {
-      case (#ok(credited, txid)) {
-        assert assetInfo.handler.debitUser(caller, credited);
-        ignore a.appendCredit(caller, assetId, credited);
-        #Ok({
-          credit_inc = credited;
-          txid = txid;
-          credit = a.getCredit(caller, assetId).available;
-        });
-      };
-      case (#err x) #Err(
-        switch (x) {
-          case (#BadFee x) #BadFee(x);
-          case (#CallIcrc1LedgerError) #CallLedgerError({
-            message = "Call failed";
-          });
-          case (#InsufficientAllowance _) #TransferError({
-            message = "Insufficient allowance";
-          });
-          case (#InsufficientFunds _) #TransferError({
-            message = "Insufficient funds";
-          });
-          case (_) #TransferError({ message = "Unexpected error" });
-        }
-      );
-    };
+    ignore a.appendCredit(caller, assetId, args.amount);
+    #Ok({
+      credit_inc = args.amount;
+      txid = 0;
+      credit = a.getCredit(caller, assetId).available;
+    });
   };
 
-  public shared ({ caller }) func icrc84_withdraw(args : { to_subaccount : ?Blob; amount : Nat; token : Principal; expected_fee : ?Nat }) : async WithdrawResult {
-    CallStats.logCall(callStats, "icrc84_withdraw");
-    let ?assetId = getAssetId(args.token) else throw Error.reject("Unknown token");
-    let handler = Vec.get(assets, assetId).handler;
-    let rollbackCredit = switch (U.unwrapUninit(auction).deductCredit(caller, assetId, args.amount)) {
-      case (#err _) return #Err(#InsufficientCredit({}));
-      case (#ok(_, r)) r;
-    };
-    let res = await* handler.withdrawFromPool({ owner = caller; subaccount = args.to_subaccount }, args.amount, args.expected_fee);
-    switch (res) {
-      case (#ok(txid, amount)) #Ok({ txid; amount });
-      case (#err err) {
-        rollbackCredit();
-        switch (err) {
-          case (#BadFee x) #Err(#BadFee(x));
-          case (#TooLowQuantity) #Err(#AmountBelowMinimum({}));
-          case (#CallIcrc1LedgerError) #Err(#CallLedgerError({ message = "Call error" }));
-          case (_) #Err(#CallLedgerError({ message = "Try later" }));
-        };
-      };
-    };
+  public shared func icrc84_withdraw(args : { to_subaccount : ?Blob; amount : Nat; token : Principal; expected_fee : ?Nat }) : async WithdrawResult {
+    let ?_ = getAssetId(args.token) else throw Error.reject("Unknown token");
+    #Err(#CallLedgerError({ message = "Try later" }));
   };
 
   let MINIMUM_ORDER = 5_000;
@@ -277,26 +221,10 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     assets := Vec.map<StableAssetInfo, AssetInfo>(
       assetsData,
       func(x) {
-        let r = (actor (Principal.toText(x.ledgerPrincipal)) : ICRC1.ICRC1Ledger)
-        |> {
-          balance_of = _.icrc1_balance_of;
-          fee = _.icrc1_fee;
-          transfer = _.icrc1_transfer;
-          transfer_from = _.icrc2_transfer_from;
-        }
-        |> {
+        {
           ledgerPrincipal = x.ledgerPrincipal;
           minAskVolume = x.minAskVolume;
-          handler = TokenHandler.TokenHandler({
-            ledgerApi = _;
-            ownPrincipal = Principal.fromActor(self);
-            initialFee = 0;
-            triggerOnNotifications = true;
-            log = func(p : Principal, logEvent : TokenHandler.LogEvent) = Vec.add(tokenHandlersJournal, (x.ledgerPrincipal, p, logEvent));
-          });
         };
-        r.handler.unshare(x.handler);
-        r;
       },
     );
     let a = Auction.Auction(
@@ -314,14 +242,6 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     ignore metrics.addPullValue("assets_amount", "", func() = a.assets.nAssets());
     ignore metrics.addPullValue("users_amount", "", func() = a.users.nUsers());
     ignore metrics.addPullValue("accounts_amount", "", func() = a.credits.nAccounts());
-
-    ignore metrics.addPullValue("num_calls__icrc84_notify", "", func() = CallStats.getCallAmount(callStats, "icrc84_notify"));
-    ignore metrics.addPullValue("num_calls__icrc84_deposit", "", func() = CallStats.getCallAmount(callStats, "icrc84_deposit"));
-    ignore metrics.addPullValue("num_calls__icrc84_withdraw", "", func() = CallStats.getCallAmount(callStats, "icrc84_withdraw"));
-    ignore metrics.addPullValue("num_calls__manageOrders", "", func() = CallStats.getCallAmount(callStats, "manageOrders"));
-    ignore metrics.addPullValue("num_calls__order_placement", "", func() = CallStats.getCallAmount(callStats, "order_placement"));
-    ignore metrics.addPullValue("num_calls__order_replacement", "", func() = CallStats.getCallAmount(callStats, "order_replacement"));
-    ignore metrics.addPullValue("num_calls__order_cancellation", "", func() = CallStats.getCallAmount(callStats, "order_cancellation"));
 
     if (Vec.size(assets) == 0) {
       ignore U.requireOk(registerAsset_(trustedLedgerPrincipal, 0));
@@ -416,7 +336,6 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
       #bid : (token : Principal, volume : Nat, price : Float);
     }],
   ) : async UpperResult<[Auction.OrderId], ManageOrdersError> {
-    CallStats.logCall(callStats, "manageOrders");
     let cancellationArg : ?Auction.CancellationAction = switch (cancellations) {
       case (null) null;
       case (? #orders x) ? #orders(x);
@@ -446,7 +365,6 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
   };
 
   public shared ({ caller }) func placeBids(arg : [(ledger : Principal, volume : Nat, price : Float)]) : async [UpperResult<Auction.OrderId, Auction.PlaceOrderError>] {
-    CallStats.logCall(callStats, "order_placement");
     Array.tabulate<UpperResult<Auction.OrderId, Auction.PlaceOrderError>>(
       arg.size(),
       func(i) = switch (getAssetId(arg[i].0)) {
@@ -457,12 +375,10 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
   };
 
   public shared ({ caller }) func replaceBid(orderId : Auction.OrderId, volume : Nat, price : Float) : async UpperResult<Auction.OrderId, Auction.ReplaceOrderError> {
-    CallStats.logCall(callStats, "order_replacement");
     U.unwrapUninit(auction).replaceOrder(caller, #bid, orderId, volume : Nat, price : Float) |> R.toUpper(_);
   };
 
   public shared ({ caller }) func cancelBids(orderIds : [Auction.OrderId]) : async [UpperResult<(), Auction.CancelOrderError>] {
-    CallStats.logCall(callStats, "order_cancellation");
     let a = U.unwrapUninit(auction);
     Array.tabulate<UpperResult<(), Auction.CancelOrderError>>(
       orderIds.size(),
@@ -471,7 +387,6 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
   };
 
   public shared ({ caller }) func placeAsks(arg : [(ledger : Principal, volume : Nat, price : Float)]) : async [UpperResult<Auction.OrderId, Auction.PlaceOrderError>] {
-    CallStats.logCall(callStats, "order_placement");
     Array.tabulate<UpperResult<Auction.OrderId, Auction.PlaceOrderError>>(
       arg.size(),
       func(i) = switch (getAssetId(arg[i].0)) {
@@ -482,22 +397,15 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
   };
 
   public shared ({ caller }) func replaceAsk(orderId : Auction.OrderId, volume : Nat, price : Float) : async UpperResult<Auction.OrderId, Auction.ReplaceOrderError> {
-    CallStats.logCall(callStats, "order_replacement");
     U.unwrapUninit(auction).replaceOrder(caller, #ask, orderId, volume : Nat, price : Float) |> R.toUpper(_);
   };
 
   public shared ({ caller }) func cancelAsks(orderIds : [Auction.OrderId]) : async [UpperResult<(), Auction.CancelOrderError>] {
-    CallStats.logCall(callStats, "order_cancellation");
     let a = U.unwrapUninit(auction);
     Array.tabulate<UpperResult<(), Auction.CancelOrderError>>(
       orderIds.size(),
       func(i) = a.cancelOrder(caller, #ask, orderIds[i]) |> R.toUpper(_),
     );
-  };
-
-  public query func isTokenHandlerFrozen(ledger : Principal) : async Bool = async switch (getAssetId(ledger)) {
-    case (?aid) Vec.get(assets, aid) |> _.handler.isFrozen();
-    case (_) throw Error.reject("Unknown asset");
   };
 
   public query func queryTokenHandlerState(ledger : Principal) : async {
@@ -520,16 +428,9 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     };
   } {
     switch (getAssetId(ledger)) {
-      case (?aid) Vec.get(assets, aid) |> _.handler.state();
+      case (?_) Prim.trap("Not implemented");
       case (_) throw Error.reject("Unknown asset");
     };
-  };
-
-  public query func queryTokenHandlerJournal(ledger : Principal) : async [(Principal, TokenHandler.LogEvent)] {
-    Vec.vals(tokenHandlersJournal)
-    |> Iter.filter<(Principal, Principal, TokenHandler.LogEvent)>(_, func(l, _, _) = Principal.equal(l, ledger))
-    |> Iter.map<(Principal, Principal, TokenHandler.LogEvent), (Principal, TokenHandler.LogEvent)>(_, func(_, p, e) = (p, e))
-    |> Iter.toArray(_);
   };
 
   public query func listAdmins() : async [Principal] = async adminsMap.entries()
@@ -564,29 +465,13 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     ignore metrics.addPullValue("processing_instructions", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = stats.lastProcessingInstructions);
   };
 
-  private func registerAsset_(ledger : Principal, minAskVolume : Nat) : R.Result<Nat, RegisterAssetError> {
-    for ((assetInfo, i) in Vec.items(assets)) {
-      if (Principal.equal(ledger, assetInfo.ledgerPrincipal)) return #err(#AlreadyRegistered(i));
-    };
+  private func registerAsset_(_ : Principal, minAskVolume : Nat) : R.Result<Nat, RegisterAssetError> {
     let id = Vec.size(assets);
     assert id == U.unwrapUninit(auction).assets.nAssets();
-    (actor (Principal.toText(ledger)) : ICRC1.ICRC1Ledger)
-    |> {
-      balance_of = _.icrc1_balance_of;
-      fee = _.icrc1_fee;
-      transfer = _.icrc1_transfer;
-      transfer_from = _.icrc2_transfer_from;
-    }
-    |> {
-      ledgerPrincipal = ledger;
+    let p = principalFromNat(id);
+    {
+      ledgerPrincipal = p;
       minAskVolume = minAskVolume;
-      handler = TokenHandler.TokenHandler({
-        ledgerApi = _;
-        ownPrincipal = Principal.fromActor(self);
-        initialFee = 0;
-        triggerOnNotifications = true;
-        log = func(p : Principal, logEvent : TokenHandler.LogEvent) = Vec.add(tokenHandlersJournal, (ledger, p, logEvent));
-      });
     }
     |> Vec.add<AssetInfo>(assets, _);
     U.unwrapUninit(auction).registerAssets(1);
@@ -596,13 +481,6 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
 
   public shared ({ caller }) func registerAsset(ledger : Principal, minAskVolume : Nat) : async UpperResult<Nat, RegisterAssetError> {
     await* assertAdminAccess(caller);
-    // validate ledger
-    let canister = actor (Principal.toText(ledger)) : (actor { icrc1_metadata : () -> async [Any] });
-    try {
-      ignore await canister.icrc1_metadata();
-    } catch (err) {
-      throw err;
-    };
     registerAsset_(ledger, minAskVolume) |> R.toUpper(_);
   };
 
@@ -686,7 +564,6 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
           func(x) = {
             ledgerPrincipal = x.ledgerPrincipal;
             minAskVolume = x.minAskVolume;
-            handler = x.handler.share();
           },
         );
         auctionDataV2 := a.share();
@@ -695,16 +572,6 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     };
     stableAdminsMap := adminsMap.share();
   };
-
-  // A timer for consolidating backlog subaccounts
-  ignore Timer.recurringTimer<system>(
-    #seconds 60,
-    func() : async () {
-      for (asset in Vec.vals(assets)) {
-        await* asset.handler.trigger(10);
-      };
-    },
-  );
 
   let AUCTION_INTERVAL_SECONDS : Nat64 = 86_400; // a day
   private func remainingTime() : Nat = Nat64.toNat(AUCTION_INTERVAL_SECONDS - (Prim.time() / 1_000_000_000 + 43_200) % AUCTION_INTERVAL_SECONDS);
