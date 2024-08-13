@@ -258,6 +258,11 @@ actor class Icrc1AuctionAPI(adminPrincipal_ : ?Principal) = self {
   public shared query func sessionsCounter() : async Nat = async U.unwrapUninit(auction).sessionsCounter;
   public shared query func minimumOrder() : async Nat = async MINIMUM_ORDER;
 
+  public shared query func indicativeStats(icrc1Ledger : Principal) : async Auction.IndicativeStats {
+    let ?assetId = getAssetId(icrc1Ledger) else throw Error.reject("Unknown asset");
+    U.unwrapUninit(auction).indicativeAssetStats(assetId);
+  };
+
   public shared query ({ caller }) func queryCredits() : async [(Principal, Auction.CreditInfo)] {
     U.unwrapUninit(auction).getCredits(caller) |> Array.tabulate<(Principal, Auction.CreditInfo)>(_.size(), func(i) = (getIcrc1Ledger(_ [i].0), _ [i].1));
   };
