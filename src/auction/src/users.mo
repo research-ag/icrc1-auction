@@ -1,4 +1,5 @@
 import AssocList "mo:base/AssocList";
+import List "mo:base/List";
 import Nat "mo:base/Nat";
 import Prim "mo:prim";
 import Principal "mo:base/Principal";
@@ -14,6 +15,16 @@ module {
     public let users : RBTree.RBTree<Principal, T.UserInfo> = RBTree.RBTree<Principal, T.UserInfo>(Principal.compare);
 
     public func nUsers() : Nat = usersAmount;
+
+    public func nUsersWithCredits() : Nat {
+      var res : Nat = 0;
+      for ((_, user) in users.entries()) {
+        if (not List.isNil(user.credits)) {
+          res += 1;
+        };
+      };
+      res;
+    };
 
     public func get(p : Principal) : ?T.UserInfo = users.get(p);
 

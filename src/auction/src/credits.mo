@@ -33,6 +33,16 @@ module {
       };
     };
 
+    public func deleteIfEmpty(userInfo : T.UserInfo, assetId : T.AssetId) : Bool {
+      let (upd, ?acc) = AssocList.replace<T.AssetId, T.Account>(userInfo.credits, assetId, Nat.equal, null) else return false;
+      if (isAccountEmpty(acc)) {
+        accountsAmount -= 1;
+        userInfo.credits := upd;
+        return true;
+      };
+      false;
+    };
+
     public func balance(userInfo : T.UserInfo, assetId : T.AssetId) : Nat = switch (getAccount(userInfo, assetId)) {
       case (?acc) accountBalance(acc);
       case (null) 0;
@@ -66,6 +76,8 @@ module {
       locked = account.lockedCredit;
       available = account.credit - account.lockedCredit;
     };
+
+    public func isAccountEmpty(account : T.Account) : Bool = account.credit == 0 and account.lockedCredit == 0;
 
     public func appendCredit(account : T.Account, amount : Nat) : Nat {
       account.credit += amount;
