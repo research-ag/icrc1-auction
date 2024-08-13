@@ -100,6 +100,8 @@ module {
   public type IndicativeStats = {
     clearingPrice : Float;
     clearingVolume : Nat;
+    totalBidVolue : Nat;
+    totalAskVolue : Nat;
   };
 
   public type CancelOrderError = Orders.InternalCancelOrderError or {

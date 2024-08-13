@@ -151,6 +151,13 @@ type CancelOrderResponse = variant {
   };
 };
 
+type IndicativeStats = record {
+  clearingPrice : float64;
+  clearingVolume : nat;
+  totalAskVolue : nat;
+  totalBidVolue : nat;
+};
+
 service : (opt principal, opt principal) -> {
   // ICRC-84 API
   // helper function
@@ -177,6 +184,7 @@ service : (opt principal, opt principal) -> {
   sessionsCounter : () -> (nat) query;
   sessionRemainingTime : () -> (nat) query;
   minimumOrder : () -> (nat) query;
+  indicativeStats : (principal) -> (IndicativeStats) query;
 
   // user queries
   queryTokenBids : (Token) -> (vec record { OrderId; Order }) query;
