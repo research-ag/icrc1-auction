@@ -1,6 +1,6 @@
 import { Box, Button, Table } from '@mui/joy';
 
-import { useCancelOrder, useListOrders, useTokenInfoMap, useTrustedLedger } from '@fe/integration';
+import { useCancelOrder, useListOrders, useTokenInfoMap, useQuoteLedger } from '@fe/integration';
 import InfoItem from '../../root/info-item';
 import { Principal } from '@dfinity/principal';
 import { displayWithDecimals } from '@fe/utils';
@@ -12,7 +12,7 @@ const OrdersTable = ({ kind }: OrdersTableProps) => {
   const { mutate: cancelOrder } = useCancelOrder(kind);
 
   const { data: symbols } = useTokenInfoMap();
-  const { data: trustedLedger } = useTrustedLedger();
+  const { data: quoteLedger } = useQuoteLedger();
   const getInfo = (ledger: Principal): { symbol: string, decimals: number } => {
     const mapItem = (symbols || []).find(([p, s]) => p.toText() == ledger.toText());
     return mapItem ? mapItem[1] : { symbol: '-', decimals: 0 };
@@ -42,7 +42,7 @@ const OrdersTable = ({ kind }: OrdersTableProps) => {
               <td>
                 <InfoItem content={getInfo(order.icrc1Ledger).symbol} withCopy={true} />
               </td>
-              <td>{displayWithDecimals(order.price, getInfo(trustedLedger!).decimals - getInfo(order.icrc1Ledger).decimals, 6)}</td>
+              <td>{displayWithDecimals(order.price, getInfo(quoteLedger!).decimals - getInfo(order.icrc1Ledger).decimals, 6)}</td>
               <td>{displayWithDecimals(order.volume, getInfo(order.icrc1Ledger).decimals)}</td>
               <td>
                 <Button onClick={() => cancelOrder(orderId)} color="danger" size="sm">

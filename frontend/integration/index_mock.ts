@@ -27,9 +27,9 @@ export const useAuction = () => {
   return { auction };
 };
 
-export const useTrustedLedger = () => {
+export const useQuoteLedger = () => {
   const { auction } = useAuction();
-  return useQuery('trustedLedger', () => auction.getTrustedLedger());
+  return useQuery('quoteLedger', () => auction.getQuoteLedger());
 };
 
 export const useSessionsCounter = () => {

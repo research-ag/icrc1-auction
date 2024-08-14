@@ -2,7 +2,7 @@
 
 ## Overview
 
-A module which implements auction functionality for various trading pairs against "trusted" fungible token.
+A module which implements auction functionality for various trading pairs against quote fungible token.
 
 ### Links
 
@@ -34,7 +34,7 @@ import Auction "./auction";
 import Vec "mo:vector";
 
 let a = Auction.Auction(
-  // trusted asset id
+  // quote asset id
   0,
   {
      minAskVolume = func (_) = 0;
@@ -42,10 +42,10 @@ let a = Auction.Auction(
      performanceCounter = func (_) = 0;
    }
  );
-// register two assets: 0th is the trusted asset
+// register two assets: 0th is the quote asset
 a.registerAssets(2);
 
-// register buyer. This user will spend trusted asset to buy asset 1
+// register buyer. This user will spend quote asset to buy asset 1
 let buyer = Principal.fromText("khppa-evswo-bmx2f-4o7bj-4t6ai-burgf-ued7b-vpduu-6fgxt-ajby6-iae");
 ignore a.appendCredit(buyer, 0, 1_000);
 

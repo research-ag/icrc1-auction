@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z as zod } from 'zod';
 import { Box, Button, FormControl, FormLabel, Input, Modal, ModalClose, ModalDialog, Typography } from '@mui/joy';
 
-import { usePlaceOrder, useTokenInfoMap, useTrustedLedger } from '@fe/integration';
+import { usePlaceOrder, useTokenInfoMap, useQuoteLedger } from '@fe/integration';
 import ErrorAlert from '../../../components/error-alert';
 import { Principal } from '@dfinity/principal';
 import { useSnackbar } from 'notistack';
@@ -60,7 +60,7 @@ const PlaceOrderModal = ({ kind, isOpen, onClose }: PlaceOrderModalProps) => {
   const { mutate: placeOrder, error, isLoading, reset: resetApi } = usePlaceOrder(kind);
 
   const { data: symbols } = useTokenInfoMap();
-  const { data: trustedLedger } = useTrustedLedger();
+  const { data: quoteLedger } = useQuoteLedger();
   const getLedgerPrincipal = (symbol: string): Principal | null => {
     const mapItem = (symbols || []).find(([p, s]) => s.symbol === symbol);
     return mapItem ? mapItem[0] : null;
@@ -72,8 +72,8 @@ const PlaceOrderModal = ({ kind, isOpen, onClose }: PlaceOrderModalProps) => {
     }
     return mapItem[1].decimals;
   };
-  const getTrustedDecimals = (): number => {
-    const mapItem = (symbols || []).find(([p]) => p.toText() === trustedLedger?.toText());
+  const getQuoteDecimals = (): number => {
+    const mapItem = (symbols || []).find(([p]) => p.toText() === quoteLedger?.toText());
     return mapItem ? mapItem[1].decimals : 0;
   };
   const { enqueueSnackbar } = useSnackbar();
@@ -87,7 +87,7 @@ const PlaceOrderModal = ({ kind, isOpen, onClose }: PlaceOrderModalProps) => {
     let decimals = getTokenDecimals(data.symbol);
     placeOrder({
       ledger: p.toText(),
-      price: data.price * Math.pow(10, getTrustedDecimals() - decimals),
+      price: data.price * Math.pow(10, getQuoteDecimals() - decimals),
       volume: Math.round(data.volume * Math.pow(10, decimals)),
     }, {
       onSuccess: () => {

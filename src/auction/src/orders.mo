@@ -63,7 +63,7 @@ module {
     assets : Assets.Assets,
     credits : Credits.Credits,
     users : Users.Users,
-    trustedAssetId : T.AssetId,
+    quoteAssetId : T.AssetId,
     minimumOrder : Nat,
     minAskVolume : (T.AssetId, T.AssetInfo) -> Int,
     kind_ : { #ask; #bid },
@@ -78,7 +78,7 @@ module {
     // returns asset id, which will be debited from user upon placing order
     public func srcAssetId(orderAssetId : T.AssetId) : T.AssetId = switch (kind) {
       case (#ask) orderAssetId;
-      case (#bid) trustedAssetId;
+      case (#bid) quoteAssetId;
     };
 
     // returns amount to debit from "srcAssetId" account
@@ -89,7 +89,7 @@ module {
 
     // returns asset id, which will be credited to user when fulfilling order
     public func destAssetId(orderAssetId : T.AssetId) : T.AssetId = switch (kind) {
-      case (#ask) trustedAssetId;
+      case (#ask) quoteAssetId;
       case (#bid) orderAssetId;
     };
 
@@ -167,7 +167,7 @@ module {
     assets : Assets.Assets,
     credits : Credits.Credits,
     users : Users.Users,
-    trustedAssetId : T.AssetId,
+    quoteAssetId : T.AssetId,
     minimumOrder : Nat,
     minAskVolume : (T.AssetId, T.AssetInfo) -> Int,
   ) {
@@ -179,7 +179,7 @@ module {
       assets,
       credits,
       users,
-      trustedAssetId,
+      quoteAssetId,
       minimumOrder,
       minAskVolume,
       #ask,
@@ -188,7 +188,7 @@ module {
       assets,
       credits,
       users,
-      trustedAssetId,
+      quoteAssetId,
       minimumOrder,
       minAskVolume,
       #bid,
@@ -320,7 +320,7 @@ module {
         };
 
         // validate asset id
-        if (assetId == trustedAssetId or assetId >= assets.nAssets()) return #err(#placement({ index = i; error = #UnknownAsset }));
+        if (assetId == quoteAssetId or assetId >= assets.nAssets()) return #err(#placement({ index = i; error = #UnknownAsset }));
 
         // validate order volume
         let assetInfo = assets.getAsset(assetId);

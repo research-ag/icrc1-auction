@@ -1,4 +1,4 @@
-/// A module which implements auction functionality for various trading pairs against "trusted" fungible token
+/// A module which implements auction functionality for various trading pairs against quote fungible token
 ///
 /// Copyright: 2023-2024 MR Research AG
 /// Main author: Andy Gura
@@ -113,7 +113,7 @@ module {
   public type ReplaceOrderError = CancelOrderError or PlaceOrderError;
 
   public class Auction(
-    trustedAssetId : AssetId,
+    quoteAssetId : AssetId,
     settings : {
       minimumOrder : Nat;
       minAskVolume : (AssetId, T.AssetInfo) -> Int;
@@ -131,7 +131,7 @@ module {
       assets,
       credits,
       users,
-      trustedAssetId,
+      quoteAssetId,
       settings.minimumOrder,
       settings.minAskVolume,
     );
@@ -140,7 +140,7 @@ module {
     public func registerAssets(n : Nat) = assets.register(n);
 
     public func processAsset(assetId : AssetId) : () {
-      if (assetId == trustedAssetId) return;
+      if (assetId == quoteAssetId) return;
       let startInstructions = settings.performanceCounter(0);
       let assetInfo = assets.getAsset(assetId);
       let (price, volume) = processAuction(
