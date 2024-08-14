@@ -1,21 +1,19 @@
 import Principal "mo:base/Principal";
 
-import Vec "mo:vector";
-
 import Auction "../src/lib";
 
 module {
 
-  public func init(trustedAssetId : Nat) : (Auction.Auction, Principal) {
+  public func init(quoteAssetId : Nat) : (Auction.Auction, Principal) {
     let auction = Auction.Auction(
-      trustedAssetId,
+      quoteAssetId,
       {
         minAskVolume = func(_, _) = 20;
         minimumOrder = 5_000;
         performanceCounter = func(_) = 0;
       },
     );
-    auction.registerAssets(trustedAssetId + 1);
+    auction.registerAssets(quoteAssetId + 1);
     let user = Principal.fromText("rl3fy-hyflm-6r3qg-7nid5-lr6cp-ysfwh-xiqme-stgsq-bcga5-vnztf-mqe");
     (auction, user);
   };

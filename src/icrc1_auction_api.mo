@@ -23,10 +23,11 @@ import HTTP "./http";
 import U "./utils";
 
 // arguments have to be provided on first canister install,
-// on upgrade trusted ledger will be ignored
-actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Principal) = self {
+// on upgrade quote ledger will be ignored
+actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Principal) = self {
 
-  stable let trustedLedgerPrincipal : Principal = U.requireMsg(trustedLedger_, "Trusted ledger principal not provided");
+  stable let trustedLedgerPrincipal : Principal = U.requireMsg(quoteLedger_, "Quote ledger principal not provided");
+  stable let quoteLedgerPrincipal : Principal = trustedLedgerPrincipal;
 
   stable var stableAdminsMap = RBTree.RBTree<Principal, ()>(Principal.compare).share();
   switch (RBTree.size(stableAdminsMap)) {
@@ -325,7 +326,7 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     ignore metrics.addPullValue("num_calls__order_cancellation", "", func() = CallStats.getCallAmount(callStats, "order_cancellation"));
 
     if (Vec.size(assets) == 0) {
-      ignore U.requireOk(registerAsset_(trustedLedgerPrincipal, 0));
+      ignore U.requireOk(registerAsset_(quoteLedgerPrincipal, 0));
     } else {
       for (assetId in Iter.range(0, a.assets.nAssets() - 1)) {
         registerAssetMetrics_(assetId);
@@ -333,7 +334,7 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
     };
   };
 
-  public shared query func getTrustedLedger() : async Principal = async trustedLedgerPrincipal;
+  public shared query func getQuoteLedger() : async Principal = async quoteLedgerPrincipal;
   public shared query func sessionRemainingTime() : async Nat = async remainingTime();
   public shared query func sessionsCounter() : async Nat = async U.unwrapUninit(auction).sessionsCounter;
   public shared query func minimumOrder() : async Nat = async MINIMUM_ORDER;
@@ -616,7 +617,7 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
   // Auction processing functionality
 
   var nextAssetIdToProcess : Nat = 0;
-  let trustedAssetId : Auction.AssetId = 0;
+  let quoteAssetId : Auction.AssetId = 0;
   // total instructions sent on last auction processing routine. Accumulated in case processing was splitted to few heartbeat calls
   var lastBidProcessingInstructions : Nat64 = 0;
   // amount of chunks, used for processing all assets
@@ -633,7 +634,7 @@ actor class Icrc1AuctionAPI(trustedLedger_ : ?Principal, adminPrincipal_ : ?Prin
   } {
     let startInstructions = Prim.performanceCounter(0);
     let newSwapRates : Vec.Vector<(Auction.AssetId, Float)> = Vec.new();
-    Vec.add(newSwapRates, (trustedAssetId, 1.0));
+    Vec.add(newSwapRates, (quoteAssetId, 1.0));
     var nextAssetId = 0;
     label l for (assetId in Iter.range(startIndex, Vec.size(assets) - 1)) {
       nextAssetId := assetId + 1;

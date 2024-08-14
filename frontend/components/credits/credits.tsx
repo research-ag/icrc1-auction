@@ -3,7 +3,6 @@ import PageTemplate from '../../components/page-template';
 import CreditsTable from './credits-table';
 import DepositModal from './deposit-modal';
 import { useState } from 'react';
-import { useTrustedLedger } from '../../integration';
 
 const Credits = () => {
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);

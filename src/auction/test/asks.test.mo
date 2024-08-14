@@ -16,7 +16,7 @@ do {
 };
 
 do {
-  Prim.debugPrint("should not be able to place ask on trusted token...");
+  Prim.debugPrint("should not be able to place ask on quote token...");
   let (auction, user) = init(0);
   ignore auction.appendCredit(user, 0, 500_000_000);
 

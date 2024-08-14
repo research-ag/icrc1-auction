@@ -12,7 +12,7 @@ import {
   useMinimumOrder,
   useSessionsCounter,
   useTokenInfoMap,
-  useTrustedLedger,
+  useQuoteLedger,
 } from '@fe/integration';
 import { useState } from 'react';
 import Credits from '../credits';
@@ -36,7 +36,7 @@ const Root = () => {
 
   const isAdmin = useIsAdmin();
 
-  const { data: trustedLedger } = useTrustedLedger();
+  const { data: quoteLedger } = useQuoteLedger();
   const { data: symbols } = useTokenInfoMap();
   const { data: minimumOrder } = useMinimumOrder();
   const getInfo = (ledger: Principal): { symbol: string, decimals: number } => {
@@ -94,10 +94,10 @@ const Root = () => {
               <Typography sx={{ fontWeight: 700 }} level="body-xs">Principal seed:</Typography>
               <input type="text" onChange={e => onSeedInput(e.target.value)}></input>
             </Box>
-            <InfoItem label="Quote currency ledger" content={trustedLedger?.toText() || ''} withCopy />
+            <InfoItem label="Quote currency ledger" content={quoteLedger?.toText() || ''} withCopy />
             <InfoItem label="Auction principal" content={canisterId} withCopy />
             <InfoItem label="Minimum order size"
-                      content={displayWithDecimals(minimumOrder || 0, getInfo(trustedLedger!).decimals, 6)} />
+                      content={displayWithDecimals(minimumOrder || 0, getInfo(quoteLedger!).decimals, 6)} />
           </Box>
         </Box>
         <Box

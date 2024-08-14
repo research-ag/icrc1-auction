@@ -173,7 +173,7 @@ service : (opt principal, opt principal) -> {
   // auction API
 
   // system queries
-  getTrustedLedger : () -> (principal) query;
+  getQuoteLedger : () -> (principal) query;
   sessionsCounter : () -> (nat) query;
   sessionRemainingTime : () -> (nat) query;
   minimumOrder : () -> (nat) query;

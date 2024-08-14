@@ -27,7 +27,7 @@ dfx start --clean --background
 npm run create
 ```
 
-4) If you want to use mocked ICRC1 ledger as trusted ledger for debug purposes, put just created `icrc1_ledger_mock`
+4) If you want to use mocked ICRC1 ledger as quote ledger for debug purposes, put just created `icrc1_ledger_mock`
    canister id into `dfx.json::icrc1_auction->init_arg->first principal`
 
 5) Setup and deploy canisters locally

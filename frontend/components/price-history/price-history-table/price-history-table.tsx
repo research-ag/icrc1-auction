@@ -1,6 +1,6 @@
 import { Box, Table } from '@mui/joy';
 
-import { usePriceHistory, useTokenInfoMap, useTrustedLedger } from '@fe/integration';
+import { usePriceHistory, useTokenInfoMap, useQuoteLedger } from '@fe/integration';
 import InfoItem from '../../root/info-item';
 import { Principal } from '@dfinity/principal';
 import { displayWithDecimals } from '@fe/utils';
@@ -8,7 +8,7 @@ import { displayWithDecimals } from '@fe/utils';
 const PriceHistoryTable = () => {
   const { data: data } = usePriceHistory();
 
-  const { data: trustedLedger } = useTrustedLedger();
+  const { data: quoteLedger } = useQuoteLedger();
   const { data: symbols } = useTokenInfoMap();
   const getInfo = (ledger: Principal): { symbol: string, decimals: number } => {
     const mapItem = (symbols || []).find(([p, s]) => p.toText() == ledger.toText());
@@ -44,7 +44,7 @@ const PriceHistoryTable = () => {
                 <InfoItem content={getInfo(ledger).symbol} withCopy={true} />
               </td>
               <td>{displayWithDecimals(volume, getInfo(ledger).decimals)}</td>
-              <td>{displayWithDecimals(price, getInfo(trustedLedger!).decimals - getInfo(ledger).decimals, 6)}</td>
+              <td>{displayWithDecimals(price, getInfo(quoteLedger!).decimals - getInfo(ledger).decimals, 6)}</td>
             </tr>
           );
         })}
