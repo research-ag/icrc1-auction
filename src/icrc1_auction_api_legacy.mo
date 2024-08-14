@@ -335,7 +335,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   public shared query func minimumOrder() : async Nat = async MINIMUM_ORDER;
 
   public shared query func indicativeStats(icrc1Ledger : Principal) : async Auction.IndicativeStats {
-    if (icrc1Ledger == trustedLedgerPrincipal) throw Error.reject("Unknown asset");
+    if (icrc1Ledger == quoteLedgerPrincipal) throw Error.reject("Unknown asset");
     let ?assetId = getAssetId(icrc1Ledger) else throw Error.reject("Unknown asset");
     U.unwrapUninit(auction).indicativeAssetStats(assetId);
   };
