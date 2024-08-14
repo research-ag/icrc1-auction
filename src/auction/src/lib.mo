@@ -10,6 +10,7 @@ import Iter "mo:base/Iter";
 import List "mo:base/List";
 import Nat "mo:base/Nat";
 import Nat64 "mo:base/Nat64";
+import Option "mo:base/Option";
 import Prim "mo:prim";
 import Principal "mo:base/Principal";
 import R "mo:base/Result";
@@ -21,7 +22,7 @@ import Assets "./assets";
 import Credits "./credits";
 import Orders "./orders";
 import Users "./users";
-import { processAuction } "./auction_processor";
+import { processAuction; clearAuction } "./auction_processor";
 import T "./types";
 
 module {
@@ -96,6 +97,13 @@ module {
   public type CancellationAction = Orders.CancellationAction;
   public type PlaceOrderAction = Orders.PlaceOrderAction;
 
+  public type IndicativeStats = {
+    clearingPrice : Float;
+    clearingVolume : Nat;
+    totalBidVolume : Nat;
+    totalAskVolume : Nat;
+  };
+
   public type CancelOrderError = Orders.InternalCancelOrderError or {
     #UnknownPrincipal;
   };
@@ -144,6 +152,21 @@ module {
       if (volume > 0) {
         assetInfo.lastProcessingInstructions := Nat64.toNat(settings.performanceCounter(0) - startInstructions);
         assetInfo.lastRate := price;
+      };
+    };
+
+    public func indicativeAssetStats(assetId : AssetId) : IndicativeStats {
+      let assetInfo = assets.getAsset(assetId);
+      let (clearingPrice, clearingVolume) = clearAuction(
+        orders.asks.createOrderBookService(assetInfo),
+        orders.bids.createOrderBookService(assetInfo),
+      )
+      |> Option.get(_, (0.0, 0));
+      {
+        clearingPrice;
+        clearingVolume;
+        totalBidVolume = assetInfo.bids.totalVolume;
+        totalAskVolume = assetInfo.asks.totalVolume;
       };
     };
     // ============= assets interface =============
