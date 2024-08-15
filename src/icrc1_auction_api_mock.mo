@@ -257,13 +257,13 @@ actor class Icrc1AuctionAPI(adminPrincipal_ : ?Principal) = self {
   public shared query func sessionRemainingTime() : async Nat = async remainingTime();
   public shared query func sessionsCounter() : async Nat = async U.unwrapUninit(auction).sessionsCounter;
 
-  public shared query func volumeRequirements() : async {
-    min : Nat;
-    step : Nat;
+  public shared query func settings() : async {
+    orderQuoteVolumeMinimum : Nat;
+    orderQuoteVolumeStep : Nat;
   } {
     {
-      min = U.unwrapUninit(auction).orders.minQuoteVolume;
-      step = U.unwrapUninit(auction).orders.quoteVolumeStep;
+      orderQuoteVolumeMinimum = U.unwrapUninit(auction).orders.minQuoteVolume;
+      orderQuoteVolumeStep = U.unwrapUninit(auction).orders.quoteVolumeStep;
     };
   };
 

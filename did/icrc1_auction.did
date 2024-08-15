@@ -186,7 +186,7 @@ service : (opt principal, opt principal) -> {
   getQuoteLedger : () -> (principal) query;
   sessionsCounter : () -> (nat) query;
   sessionRemainingTime : () -> (nat) query;
-  volumeRequirements : () -> (record { min : nat; step : nat }) query;
+  settings : () -> (record { orderQuoteVolumeMinimum : nat; orderQuoteVolumeStep : nat }) query;
   indicativeStats : (principal) -> (IndicativeStats) query;
 
   // user queries
