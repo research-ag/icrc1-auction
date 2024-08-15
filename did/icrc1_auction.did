@@ -117,7 +117,7 @@ type ManageOrdersResponse = variant {
         NoCredit;
         TooLowOrder;
         UnknownAsset;
-        VolumeStepViolated;
+        VolumeStepViolated : record { baseVolumeStep : nat };
       };
     };
   };
@@ -131,7 +131,7 @@ type PlaceOrderResponse = variant {
     TooLowOrder;
     UnknownAsset;
     UnknownPrincipal;
-    VolumeStepViolated;
+    VolumeStepViolated : record { baseVolumeStep : nat };
   };
 };
 type ReplaceOrderResponse = variant {
@@ -143,7 +143,7 @@ type ReplaceOrderResponse = variant {
     UnknownAsset;
     UnknownOrder;
     UnknownPrincipal;
-    VolumeStepViolated;
+    VolumeStepViolated : record { baseVolumeStep : nat };
   };
 };
 type CancelOrderResponse = variant {

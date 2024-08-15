@@ -338,7 +338,7 @@ actor class Icrc1AuctionAPI(adminPrincipal_ : ?Principal) = self {
         #NoCredit;
         #TooLowOrder;
         #UnknownAsset;
-        #VolumeStepViolated;
+        #VolumeStepViolated : { baseVolumeStep : Nat };
       };
     };
   };

@@ -418,7 +418,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
         #NoCredit;
         #TooLowOrder;
         #UnknownAsset;
-        #VolumeStepViolated;
+        #VolumeStepViolated : { baseVolumeStep : Nat };
       };
     };
   };

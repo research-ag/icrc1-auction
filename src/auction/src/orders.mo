@@ -36,7 +36,7 @@ module {
     #NoCredit;
     #TooLowOrder;
     #UnknownAsset;
-    #VolumeStepViolated;
+    #VolumeStepViolated : { baseVolumeStep : Nat };
   };
 
   public type OrderManagementError = {
@@ -349,7 +349,8 @@ module {
         // validate order volume
         let assetInfo = assets.getAsset(assetId);
         if (ordersService.isOrderLow(assetId, assetInfo, volume, price)) return #err(#placement({ index = i; error = #TooLowOrder }));
-        if (volume % getBaseVolumeStep(price) != 0) return #err(#placement({ index = i; error = #VolumeStepViolated }));
+        let baseVolumeStep = getBaseVolumeStep(price);
+        if (volume % baseVolumeStep != 0) return #err(#placement({ index = i; error = #VolumeStepViolated({ baseVolumeStep }) }));
 
         // validate user credit
         let srcAssetId = ordersService.srcAssetId(assetId);

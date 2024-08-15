@@ -244,7 +244,7 @@ module {
           case (#NoCredit) #err(#NoCredit);
           case (#TooLowOrder) #err(#TooLowOrder);
           case (#UnknownAsset) #err(#UnknownAsset);
-          case (#VolumeStepViolated) #err(#VolumeStepViolated);
+          case (#VolumeStepViolated x) #err(#VolumeStepViolated(x));
         };
         case (#err(#cancellation _)) Prim.trap("Can never happen");
       };
@@ -268,7 +268,7 @@ module {
           case (#NoCredit) #err(#NoCredit);
           case (#TooLowOrder) #err(#TooLowOrder);
           case (#UnknownAsset) #err(#UnknownAsset);
-          case (#VolumeStepViolated) #err(#VolumeStepViolated);
+          case (#VolumeStepViolated x) #err(#VolumeStepViolated(x));
         };
       };
     };
