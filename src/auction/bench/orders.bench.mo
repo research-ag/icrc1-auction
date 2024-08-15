@@ -63,7 +63,8 @@ module {
         let a = Auction.Auction(
           0,
           {
-            minimumOrder = 0;
+            volumeStepLog10 = 0;
+            minVolumeSteps = 0;
             minAskVolume = func(_) = 0;
             performanceCounter = Prim.performanceCounter;
           },

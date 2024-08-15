@@ -52,7 +52,7 @@ do {
 
   ignore auction.appendCredit(user, 0, 500_000_000);
   // should be fulfilled partially
-  switch (auction.placeOrder(user, #bid, ft, 6_009_999, 1)) {
+  switch (auction.placeOrder(user, #bid, ft, 6_010_000, 1)) {
     case (#ok _) ();
     case (_) assert false;
   };

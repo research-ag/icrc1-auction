@@ -33,7 +33,7 @@ do {
   let ft = createFt(auction);
   ignore auction.appendCredit(user, ft, 500_000_000);
 
-  switch (auction.placeOrder(user, #ask, ft, 500_000_001, 0.1)) {
+  switch (auction.placeOrder(user, #ask, ft, 500_010_000, 0.1)) {
     case (#err(#NoCredit)) ();
     case (_) assert false;
   };

@@ -270,8 +270,6 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     };
   };
 
-  let MINIMUM_ORDER = 5_000;
-
   // Auction API
   public shared func init() : async () {
     assert Option.isNull(auction);
@@ -303,7 +301,8 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     let a = Auction.Auction(
       0,
       {
-        minimumOrder = MINIMUM_ORDER;
+        volumeStepLog10 = 3; // minimum quote volume step 1_000
+        minVolumeSteps = 5; // minimum quote volume is 5_000
         minAskVolume = func(assetId, _) = Vec.get(assets, assetId).minAskVolume;
         performanceCounter = Prim.performanceCounter;
       },
@@ -337,7 +336,16 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   public shared query func getQuoteLedger() : async Principal = async quoteLedgerPrincipal;
   public shared query func sessionRemainingTime() : async Nat = async remainingTime();
   public shared query func sessionsCounter() : async Nat = async U.unwrapUninit(auction).sessionsCounter;
-  public shared query func minimumOrder() : async Nat = async MINIMUM_ORDER;
+
+  public shared query func settings() : async {
+    orderQuoteVolumeMinimum : Nat;
+    orderQuoteVolumeStep : Nat;
+  } {
+    {
+      orderQuoteVolumeMinimum = U.unwrapUninit(auction).orders.minQuoteVolume;
+      orderQuoteVolumeStep = U.unwrapUninit(auction).orders.quoteVolumeStep;
+    };
+  };
 
   public shared query func indicativeStats(icrc1Ledger : Principal) : async Auction.IndicativeStats {
     if (icrc1Ledger == quoteLedgerPrincipal) throw Error.reject("Unknown asset");
@@ -410,6 +418,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
         #NoCredit;
         #TooLowOrder;
         #UnknownAsset;
+        #VolumeStepViolated : { baseVolumeStep : Nat };
       };
     };
   };

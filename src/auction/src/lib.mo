@@ -115,7 +115,8 @@ module {
   public class Auction(
     quoteAssetId : AssetId,
     settings : {
-      minimumOrder : Nat;
+      volumeStepLog10 : Nat; // 3 will make volume step 1000 (denominated in quote token)
+      minVolumeSteps : Nat; // == minVolume / volumeStep
       minAskVolume : (AssetId, T.AssetInfo) -> Int;
       performanceCounter : Nat32 -> Nat64;
     },
@@ -132,8 +133,7 @@ module {
       credits,
       users,
       quoteAssetId,
-      settings.minimumOrder,
-      settings.minAskVolume,
+      settings,
     );
 
     // ============= assets interface =============
@@ -244,6 +244,7 @@ module {
           case (#NoCredit) #err(#NoCredit);
           case (#TooLowOrder) #err(#TooLowOrder);
           case (#UnknownAsset) #err(#UnknownAsset);
+          case (#VolumeStepViolated x) #err(#VolumeStepViolated(x));
         };
         case (#err(#cancellation _)) Prim.trap("Can never happen");
       };
@@ -267,6 +268,7 @@ module {
           case (#NoCredit) #err(#NoCredit);
           case (#TooLowOrder) #err(#TooLowOrder);
           case (#UnknownAsset) #err(#UnknownAsset);
+          case (#VolumeStepViolated x) #err(#VolumeStepViolated(x));
         };
       };
     };
