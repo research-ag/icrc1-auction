@@ -40,7 +40,7 @@ export const useSessionsCounter = () => {
 
 export const useMinimumOrder = () => {
   const { auction } = useAuction();
-  return useQuery('minimumOrder', () => auction.minimumOrder());
+  return useQuery('minimumOrder', () => auction.volumeRequirements().then(({ min }) => min));
 };
 
 export const usePrincipalToSubaccount = (p: Principal) => {

@@ -8,8 +8,9 @@ module {
     let auction = Auction.Auction(
       quoteAssetId,
       {
+        volumeStepLog10 = 3; // minimum quote volume step 1_000
+        minVolumeSteps = 5; // minimum quote volume is 5_000
         minAskVolume = func(_, _) = 20;
-        minimumOrder = 5_000;
         performanceCounter = func(_) = 0;
       },
     );

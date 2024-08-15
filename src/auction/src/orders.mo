@@ -36,6 +36,7 @@ module {
     #NoCredit;
     #TooLowOrder;
     #UnknownAsset;
+    #VolumeStepViolated;
   };
 
   public type OrderManagementError = {
@@ -64,7 +65,7 @@ module {
     credits : Credits.Credits,
     users : Users.Users,
     quoteAssetId : T.AssetId,
-    minimumOrder : Nat,
+    minQuoteVolume : Nat,
     minAskVolume : (T.AssetId, T.AssetInfo) -> Int,
     kind_ : { #ask; #bid },
   ) = self {
@@ -73,7 +74,7 @@ module {
 
     public let kind : { #ask; #bid } = kind_;
 
-    func getTotalPrice(volume : Nat, unitPrice : Float) : Nat = Int.abs(Float.toInt(Float.ceil(unitPrice * Float.fromInt(volume))));
+    func denominateVolumeInQuoteAsset(volume : Nat, unitPrice : Float) : Nat = Int.abs(Float.toInt(Float.ceil(unitPrice * Float.fromInt(volume))));
 
     // returns asset id, which will be debited from user upon placing order
     public func srcAssetId(orderAssetId : T.AssetId) : T.AssetId = switch (kind) {
@@ -84,7 +85,7 @@ module {
     // returns amount to debit from "srcAssetId" account
     public func srcVolume(volume : Nat, price : Float) : Nat = switch (kind) {
       case (#ask) volume;
-      case (#bid) getTotalPrice(volume, price);
+      case (#bid) denominateVolumeInQuoteAsset(volume, price);
     };
 
     // returns asset id, which will be credited to user when fulfilling order
@@ -95,14 +96,14 @@ module {
 
     // returns amount to credit to "destAssetId" account
     public func destVolume(volume : Nat, price : Float) : Nat = switch (kind) {
-      case (#ask) getTotalPrice(volume, price);
+      case (#ask) denominateVolumeInQuoteAsset(volume, price);
       case (#bid) volume;
     };
 
     // validation
     public func isOrderLow(orderAssetId : T.AssetId, orderAssetInfo : T.AssetInfo, volume : Nat, price : Float) : Bool = switch (kind) {
       case (#ask) price <= 0.0 or volume < minAskVolume(orderAssetId, orderAssetInfo);
-      case (#bid) getTotalPrice(volume, price) < minimumOrder;
+      case (#bid) denominateVolumeInQuoteAsset(volume, price) < minQuoteVolume;
     };
 
     public func isOppositeOrderConflicts(orderPrice : Float, oppositeOrderPrice : Float) : Bool = switch (kind) {
@@ -168,9 +169,32 @@ module {
     credits : Credits.Credits,
     users : Users.Users,
     quoteAssetId : T.AssetId,
-    minimumOrder : Nat,
-    minAskVolume : (T.AssetId, T.AssetInfo) -> Int,
+    settings : {
+      volumeStepLog10 : Nat; // 3 will make volume step 1000 (denominated in quote token)
+      minVolumeSteps : Nat; // == minVolume / volumeStep
+      minAskVolume : (T.AssetId, T.AssetInfo) -> Int;
+    },
   ) {
+
+    public let quoteVolumeStep : Nat = 10 ** settings.volumeStepLog10;
+    public let minQuoteVolume : Nat = settings.minVolumeSteps * quoteVolumeStep;
+
+    func floatToInt(f : Float) : Int {
+      if (f >= 0) {
+        Float.toInt(f);
+      } else {
+        -Float.toInt(-f);
+      };
+    };
+
+    public func getBaseVolumeStep(price : Float) : Nat {
+      let zf = Float.log(price) / 2.302_585_092_994_045;
+      let z = floatToInt(zf) + 1;
+      if (z > settings.volumeStepLog10) {
+        return 1;
+      };
+      Int.abs(10 ** (settings.volumeStepLog10 - z));
+    };
 
     // a counter of ever added order
     public var ordersCounter = 0;
@@ -180,8 +204,8 @@ module {
       credits,
       users,
       quoteAssetId,
-      minimumOrder,
-      minAskVolume,
+      minQuoteVolume,
+      settings.minAskVolume,
       #ask,
     );
     public let bids : OrdersService = OrdersService(
@@ -189,8 +213,8 @@ module {
       credits,
       users,
       quoteAssetId,
-      minimumOrder,
-      minAskVolume,
+      minQuoteVolume,
+      settings.minAskVolume,
       #bid,
     );
 
@@ -325,6 +349,7 @@ module {
         // validate order volume
         let assetInfo = assets.getAsset(assetId);
         if (ordersService.isOrderLow(assetId, assetInfo, volume, price)) return #err(#placement({ index = i; error = #TooLowOrder }));
+        if (volume % getBaseVolumeStep(price) != 0) return #err(#placement({ index = i; error = #VolumeStepViolated }));
 
         // validate user credit
         let srcAssetId = ordersService.srcAssetId(assetId);
