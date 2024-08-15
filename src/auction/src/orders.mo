@@ -179,21 +179,11 @@ module {
     public let quoteVolumeStep : Nat = 10 ** settings.volumeStepLog10;
     public let minQuoteVolume : Nat = settings.minVolumeSteps * quoteVolumeStep;
 
-    func floatToInt(f : Float) : Int {
-      if (f >= 0) {
-        Float.toInt(f);
-      } else {
-        -Float.toInt(-f);
-      };
-    };
-
     public func getBaseVolumeStep(price : Float) : Nat {
-      let zf = Float.log(price) / 2.302_585_092_994_045;
-      let z = floatToInt(zf) + 1;
-      if (z > settings.volumeStepLog10) {
-        return 1;
-      };
-      Int.abs(10 ** (settings.volumeStepLog10 - z));
+      let p = price / Float.fromInt(10 ** settings.volumeStepLog10);
+      if (p >= 1) return 1;
+      let zf = - Float.log(p) / 2.302_585_092_994_045;
+      Int.abs(10 ** Float.toInt(zf));
     };
 
     // a counter of ever added order
