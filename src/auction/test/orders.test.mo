@@ -4,7 +4,7 @@ import { init; createFt } "./test.util";
 
 do {
   Prim.debugPrint("should be able to place both bid and ask on the same asset...");
-  let (auction, user) = init(0);
+  let (auction, user) = init(0, 3, 5);
   let ft = createFt(auction);
   auction.processAsset(ft);
   ignore auction.appendCredit(user, 0, 500_000_000);
@@ -23,7 +23,7 @@ do {
 
 do {
   Prim.debugPrint("should return error when placing ask with lower price than own bid price for the same asset...");
-  let (auction, user) = init(0);
+  let (auction, user) = init(0, 3, 5);
   let ft = createFt(auction);
   auction.processAsset(ft);
   ignore auction.appendCredit(user, 0, 500_000_000);
@@ -42,7 +42,7 @@ do {
 
 do {
   Prim.debugPrint("should return error when placing bid with higher price than own ask price for the same asset...");
-  let (auction, user) = init(0);
+  let (auction, user) = init(0, 3, 5);
   let ft = createFt(auction);
   auction.processAsset(ft);
   ignore auction.appendCredit(user, 0, 500_000_000);
@@ -61,7 +61,7 @@ do {
 
 do {
   Prim.debugPrint("should return conflict error when placing both conflicting orders in one call");
-  let (auction, user) = init(0);
+  let (auction, user) = init(0, 3, 5);
   let ft = createFt(auction);
   auction.processAsset(ft);
   ignore auction.appendCredit(user, 0, 500_000_000);
@@ -85,7 +85,7 @@ do {
 
 do {
   Prim.debugPrint("should place conflicting order if cancel old one in the same call");
-  let (auction, user) = init(0);
+  let (auction, user) = init(0, 3, 5);
   let ft = createFt(auction);
   auction.processAsset(ft);
   ignore auction.appendCredit(user, 0, 500_000_000);
@@ -110,7 +110,7 @@ do {
 
 do {
   Prim.debugPrint("should be able to place various orders at once...");
-  let (auction, user) = init(0);
+  let (auction, user) = init(0, 3, 5);
   let ft1 = createFt(auction);
   let ft2 = createFt(auction);
   ignore auction.appendCredit(user, 0, 500_000_000);
@@ -146,7 +146,7 @@ do {
 
 do {
   Prim.debugPrint("should be able to cancel all orders at once...");
-  let (auction, user) = init(0);
+  let (auction, user) = init(0, 3, 5);
   let ft1 = createFt(auction);
   let ft2 = createFt(auction);
   ignore auction.appendCredit(user, 0, 500_000_000);
@@ -186,7 +186,7 @@ do {
 
 do {
   Prim.debugPrint("should be able to cancel all orders for for single asset at once...");
-  let (auction, user) = init(0);
+  let (auction, user) = init(0, 3, 5);
   let ft1 = createFt(auction);
   let ft2 = createFt(auction);
   ignore auction.appendCredit(user, 0, 500_000_000);
@@ -226,7 +226,7 @@ do {
 
 do {
   Prim.debugPrint("should be able to cancel orders by enumerating id-s...");
-  let (auction, user) = init(0);
+  let (auction, user) = init(0, 3, 5);
   let ft1 = createFt(auction);
   let ft2 = createFt(auction);
   ignore auction.appendCredit(user, 0, 500_000_000);

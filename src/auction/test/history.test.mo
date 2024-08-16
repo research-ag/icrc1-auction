@@ -6,7 +6,7 @@ import { init; createFt } "./test.util";
 
 do {
   Prim.debugPrint("should return price history with descending order...");
-  let (auction, user) = init(0);
+  let (auction, user) = init(0, 3, 5);
   let seller = Principal.fromText("ocqy6-3dphi-xgf54-vkr2e-lk4oz-3exc6-446gr-5e72g-bsdfo-4nzrm-hqe");
 
   let ft1 = createFt(auction);
@@ -42,7 +42,7 @@ do {
 
 do {
   Prim.debugPrint("should return transaction history with descending order...");
-  let (auction, user) = init(0);
+  let (auction, user) = init(0, 3, 5);
   let seller = Principal.fromText("ocqy6-3dphi-xgf54-vkr2e-lk4oz-3exc6-446gr-5e72g-bsdfo-4nzrm-hqe");
 
   let ft1 = createFt(auction);
