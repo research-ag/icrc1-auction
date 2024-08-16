@@ -723,8 +723,13 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     },
   );
 
-  let AUCTION_INTERVAL_SECONDS : Nat64 = 86_400; // a day
-  private func remainingTime() : Nat = Nat64.toNat(AUCTION_INTERVAL_SECONDS - (Prim.time() / 1_000_000_000 + 43_200) % AUCTION_INTERVAL_SECONDS);
+  // daily at 12:00 p.m. UTC (midday)
+  // let AUCTION_INTERVAL_SECONDS : Nat64 = 86_400;
+  // private func remainingTime() : Nat = Nat64.toNat(AUCTION_INTERVAL_SECONDS - (Prim.time() / 1_000_000_000 + 43_200) % AUCTION_INTERVAL_SECONDS);
+
+  // each 2 minutes
+  let AUCTION_INTERVAL_SECONDS : Nat64 = 120;
+  private func remainingTime() : Nat = Nat64.toNat(AUCTION_INTERVAL_SECONDS - (Prim.time() / 1_000_000_000) % AUCTION_INTERVAL_SECONDS);
 
   // run daily at 12:00 p.m. UTC
   ignore (
