@@ -6,7 +6,7 @@ import { init; createFt } "./test.util";
 
 do {
   Prim.debugPrint("should use correct price when orders are completely fulfilled and there are other unfulfilled orders...");
-  let (auction, user) = init(0);
+  let (auction, user) = init(0, 3, 5);
   let ft = createFt(auction);
   auction.processAsset(ft);
 
@@ -46,7 +46,7 @@ do {
 
 do {
   Prim.debugPrint("should use correct price when ask completely fulfilled and there are other unfulfilled orders...");
-  let (auction, user) = init(0);
+  let (auction, user) = init(0, 3, 5);
   let ft = createFt(auction);
   auction.processAsset(ft);
 
@@ -84,7 +84,7 @@ do {
 
 do {
   Prim.debugPrint("should use correct price when bid completely fulfilled and there are other unfulfilled orders...");
-  let (auction, user) = init(0);
+  let (auction, user) = init(0, 3, 5);
   let ft = createFt(auction);
   auction.processAsset(ft);
 
@@ -122,7 +122,7 @@ do {
 
 do {
   Prim.debugPrint("should have correct credits flow...");
-  let (auction, user) = init(0);
+  let (auction, user) = init(0, 3, 5);
   let ft = createFt(auction);
   auction.processAsset(ft);
 
