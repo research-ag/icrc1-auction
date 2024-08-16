@@ -4,12 +4,12 @@ import Auction "../src/lib";
 
 module {
 
-  public func init(quoteAssetId : Nat) : (Auction.Auction, Principal) {
+  public func init(quoteAssetId : Nat, volumeStepLog10 : Nat, minVolumeSteps : Nat) : (Auction.Auction, Principal) {
     let auction = Auction.Auction(
       quoteAssetId,
       {
-        volumeStepLog10 = 3; // minimum quote volume step 1_000
-        minVolumeSteps = 5; // minimum quote volume is 5_000
+        volumeStepLog10;
+        minVolumeSteps;
         minAskVolume = func(_, _) = 20;
         performanceCounter = func(_) = 0;
       },

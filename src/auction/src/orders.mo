@@ -74,7 +74,9 @@ module {
 
     public let kind : { #ask; #bid } = kind_;
 
-    func denominateVolumeInQuoteAsset(volume : Nat, unitPrice : Float) : Nat = Int.abs(Float.toInt(Float.ceil(unitPrice * Float.fromInt(volume))));
+    func denominateVolumeInQuoteAsset(volume : Nat, unitPrice : Float) : Nat = unitPrice * Float.fromInt(volume)
+    |> (switch (kind) { case (#ask) Float.floor(_); case (#bid) Float.ceil(_) })
+    |> Int.abs(Float.toInt(_));
 
     // returns asset id, which will be debited from user upon placing order
     public func srcAssetId(orderAssetId : T.AssetId) : T.AssetId = switch (kind) {
