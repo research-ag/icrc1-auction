@@ -1,8 +1,10 @@
 import Array "mo:base/Array";
 import Error "mo:base/Error";
+import Float "mo:base/Float";
 import Int "mo:base/Int";
 import Iter "mo:base/Iter";
 import Nat "mo:base/Nat";
+import Nat8 "mo:base/Nat8";
 import Nat64 "mo:base/Nat64";
 import Option "mo:base/Option";
 import Prim "mo:prim";
@@ -594,7 +596,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       "asset_id=\"" # Nat.toText(assetId) # "\"",
       func() = Prim.intToFloat(Vec.get(assets, assetId).decimals)
       |> U.unwrapUninit(auction).indicativeAssetStats(assetId).clearingPrice * (10 ** _)
-      |> Int.abs(Prim.floatToInt(_)),
+      |> Int.abs(Float.toInt(_)),
     );
     ignore metrics.addPullValue("clearing_volume", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = U.unwrapUninit(auction).indicativeAssetStats(assetId).clearingVolume);
   };
@@ -639,13 +641,13 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     } catch (err) {
       throw err;
     };
-    registerAsset_(ledger, minAskVolume, Prim.nat8ToNat(decimals)) |> R.toUpper(_);
+    registerAsset_(ledger, minAskVolume, Nat8.toNat(decimals)) |> R.toUpper(_);
   };
 
   public shared func updateDecimals() : async () {
     for ((assetData, i) in Vec.items(assets)) {
       let canister = actor (Principal.toText(assetData.ledgerPrincipal)) : (actor { icrc1_decimals : () -> async Nat8 });
-      let decimals = (await canister.icrc1_decimals()) |> Prim.nat8ToNat(_);
+      let decimals = (await canister.icrc1_decimals()) |> Nat8.toNat(_);
       if (assetData.decimals != decimals) {
         Vec.put(assets, i, { assetData with decimals });
       };
