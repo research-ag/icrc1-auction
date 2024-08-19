@@ -261,12 +261,12 @@ actor class Icrc1AuctionAPI(adminPrincipal_ : ?Principal) = self {
   public shared query func settings() : async {
     orderQuoteVolumeMinimum : Nat;
     orderQuoteVolumeStep : Nat;
-    orderPriceMaximumDigits : Nat;
+    orderPriceDigitsLimit : Nat;
   } {
     {
       orderQuoteVolumeMinimum = U.unwrapUninit(auction).orders.minQuoteVolume;
       orderQuoteVolumeStep = U.unwrapUninit(auction).orders.quoteVolumeStep;
-      orderPriceMaximumDigits = U.unwrapUninit(auction).orders.priceMaxDigits;
+      orderPriceDigitsLimit = U.unwrapUninit(auction).orders.priceMaxDigits;
     };
   };
 
