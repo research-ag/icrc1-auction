@@ -298,6 +298,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       {
         volumeStepLog10 = 3; // minimum quote volume step 1_000
         minVolumeSteps = 5; // minimum quote volume is 5_000
+        priceMaxDigits = 5;
         minAskVolume = func(assetId, _) = Vec.get(assets, assetId).minAskVolume;
         performanceCounter = Prim.performanceCounter;
       },
@@ -335,10 +336,12 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   public shared query func settings() : async {
     orderQuoteVolumeMinimum : Nat;
     orderQuoteVolumeStep : Nat;
+    orderPriceMaximumDigits : Nat;
   } {
     {
       orderQuoteVolumeMinimum = U.unwrapUninit(auction).orders.minQuoteVolume;
       orderQuoteVolumeStep = U.unwrapUninit(auction).orders.quoteVolumeStep;
+      orderPriceMaximumDigits = U.unwrapUninit(auction).orders.priceMaxDigits;
     };
   };
 
