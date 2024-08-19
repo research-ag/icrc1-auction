@@ -644,16 +644,6 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     registerAsset_(ledger, minAskVolume, Nat8.toNat(decimals)) |> R.toUpper(_);
   };
 
-  public shared func updateDecimals() : async () {
-    for ((assetData, i) in Vec.items(assets)) {
-      let canister = actor (Principal.toText(assetData.ledgerPrincipal)) : (actor { icrc1_decimals : () -> async Nat8 });
-      let decimals = (await canister.icrc1_decimals()) |> Nat8.toNat(_);
-      if (assetData.decimals != decimals) {
-        Vec.put(assets, i, { assetData with decimals });
-      };
-    };
-  };
-
   public shared func runAuctionImmediately() : async () {
     await runAuction();
   };
