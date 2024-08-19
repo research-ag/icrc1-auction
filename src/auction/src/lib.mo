@@ -117,6 +117,7 @@ module {
     settings : {
       volumeStepLog10 : Nat; // 3 will make volume step 1000 (denominated in quote token)
       minVolumeSteps : Nat; // == minVolume / volumeStep
+      priceMaxDigits : Nat;
       minAskVolume : (AssetId, T.AssetInfo) -> Int;
       performanceCounter : Nat32 -> Nat64;
     },
@@ -244,6 +245,7 @@ module {
           case (#NoCredit) #err(#NoCredit);
           case (#TooLowOrder) #err(#TooLowOrder);
           case (#UnknownAsset) #err(#UnknownAsset);
+          case (#PriceDigitsOverflow x) #err(#PriceDigitsOverflow(x));
           case (#VolumeStepViolated x) #err(#VolumeStepViolated(x));
         };
         case (#err(#cancellation _)) Prim.trap("Can never happen");
@@ -268,6 +270,7 @@ module {
           case (#NoCredit) #err(#NoCredit);
           case (#TooLowOrder) #err(#TooLowOrder);
           case (#UnknownAsset) #err(#UnknownAsset);
+          case (#PriceDigitsOverflow x) #err(#PriceDigitsOverflow(x));
           case (#VolumeStepViolated x) #err(#VolumeStepViolated(x));
         };
       };

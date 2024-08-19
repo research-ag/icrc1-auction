@@ -36,6 +36,7 @@ module {
     #NoCredit;
     #TooLowOrder;
     #UnknownAsset;
+    #PriceDigitsOverflow : { maxDigits : Nat };
     #VolumeStepViolated : { baseVolumeStep : Nat };
   };
 
@@ -174,18 +175,36 @@ module {
     settings : {
       volumeStepLog10 : Nat; // 3 will make volume step 1000 (denominated in quote token)
       minVolumeSteps : Nat; // == minVolume / volumeStep
+      priceMaxDigits : Nat;
       minAskVolume : (T.AssetId, T.AssetInfo) -> Int;
     },
   ) {
 
     public let quoteVolumeStep : Nat = 10 ** settings.volumeStepLog10;
     public let minQuoteVolume : Nat = settings.minVolumeSteps * quoteVolumeStep;
+    public let priceMaxDigits : Nat = settings.priceMaxDigits;
 
     public func getBaseVolumeStep(price : Float) : Nat {
       let p = price / Float.fromInt(10 ** settings.volumeStepLog10);
       if (p >= 1) return 1;
       let zf = - Float.log(p) / 2.302_585_092_994_045;
       Int.abs(10 ** Float.toInt(zf));
+    };
+
+    public func validatePriceDigits(price : Float) : Bool {
+      if (price >= 1) {
+        let e1 = Float.log(price) / 2.302_585_092_994_045;
+        let e = Float.trunc(e1);
+        let n = price / 10 ** (e + 1 - Prim.intToFloat(priceMaxDigits)); // normalized
+        let r = Float.nearest(n); // rounded
+        Float.equalWithin(n, r, 1e-10);
+      } else {
+        let e1 = Float.log(price) / 2.302_585_092_994_047;
+        let e = Float.trunc(e1);
+        let n = price * 10 ** (Prim.intToFloat(priceMaxDigits) - e); // normalized
+        let r = Float.nearest(n); // rounded
+        Float.equalWithin(n, r, 1e-10);
+      };
     };
 
     // a counter of ever added order
@@ -338,9 +357,12 @@ module {
         // validate asset id
         if (assetId == quoteAssetId or assetId >= assets.nAssets()) return #err(#placement({ index = i; error = #UnknownAsset }));
 
-        // validate order volume
+        // validate order volume and price
         let assetInfo = assets.getAsset(assetId);
         if (ordersService.isOrderLow(assetId, assetInfo, volume, price)) return #err(#placement({ index = i; error = #TooLowOrder }));
+        if (not validatePriceDigits(price)) {
+          return #err(#placement({ index = i; error = #PriceDigitsOverflow({ maxDigits = priceMaxDigits }) }));
+        };
         let baseVolumeStep = getBaseVolumeStep(price);
         if (volume % baseVolumeStep != 0) return #err(#placement({ index = i; error = #VolumeStepViolated({ baseVolumeStep }) }));
 

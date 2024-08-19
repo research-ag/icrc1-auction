@@ -10,6 +10,7 @@ module {
       {
         volumeStepLog10;
         minVolumeSteps;
+        priceMaxDigits = 5;
         minAskVolume = func(_, _) = 20;
         performanceCounter = func(_) = 0;
       },
