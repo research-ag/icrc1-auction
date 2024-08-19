@@ -308,6 +308,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       {
         volumeStepLog10 = 3; // minimum quote volume step 1_000
         minVolumeSteps = 5; // minimum quote volume is 5_000
+        priceMaxDigits = 5;
         minAskVolume = func(assetId, _) = Vec.get(assets, assetId).minAskVolume;
         performanceCounter = Prim.performanceCounter;
       },
@@ -345,10 +346,12 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   public shared query func settings() : async {
     orderQuoteVolumeMinimum : Nat;
     orderQuoteVolumeStep : Nat;
+    orderPriceDigitsLimit : Nat;
   } {
     {
       orderQuoteVolumeMinimum = U.unwrapUninit(auction).orders.minQuoteVolume;
       orderQuoteVolumeStep = U.unwrapUninit(auction).orders.quoteVolumeStep;
+      orderPriceDigitsLimit = U.unwrapUninit(auction).orders.priceMaxDigits;
     };
   };
 
@@ -423,6 +426,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
         #NoCredit;
         #TooLowOrder;
         #UnknownAsset;
+        #PriceDigitsOverflow : { maxDigits : Nat };
         #VolumeStepViolated : { baseVolumeStep : Nat };
       };
     };
@@ -747,10 +751,14 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     },
   );
 
-  let AUCTION_INTERVAL_SECONDS : Nat64 = 86_400; // a day
-  private func remainingTime() : Nat = Nat64.toNat(AUCTION_INTERVAL_SECONDS - (Prim.time() / 1_000_000_000 + 43_200) % AUCTION_INTERVAL_SECONDS);
+  // daily at 12:00 p.m. UTC (midday)
+  // let AUCTION_INTERVAL_SECONDS : Nat64 = 86_400;
+  // private func remainingTime() : Nat = Nat64.toNat(AUCTION_INTERVAL_SECONDS - (Prim.time() / 1_000_000_000 + 43_200) % AUCTION_INTERVAL_SECONDS);
 
-  // run daily at 12:00 p.m. UTC
+  // each 2 minutes
+  let AUCTION_INTERVAL_SECONDS : Nat64 = 120;
+  private func remainingTime() : Nat = Nat64.toNat(AUCTION_INTERVAL_SECONDS - (Prim.time() / 1_000_000_000) % AUCTION_INTERVAL_SECONDS);
+
   ignore (
     func() : async () {
       ignore Timer.recurringTimer<system>(

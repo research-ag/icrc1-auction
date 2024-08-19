@@ -117,6 +117,7 @@ type ManageOrdersResponse = variant {
         NoCredit;
         TooLowOrder;
         UnknownAsset;
+        PriceDigitsOverflow : record { maxDigits : nat };
         VolumeStepViolated : record { baseVolumeStep : nat };
       };
     };
@@ -131,6 +132,7 @@ type PlaceOrderResponse = variant {
     TooLowOrder;
     UnknownAsset;
     UnknownPrincipal;
+    PriceDigitsOverflow : record { maxDigits : nat };
     VolumeStepViolated : record { baseVolumeStep : nat };
   };
 };
@@ -143,6 +145,7 @@ type ReplaceOrderResponse = variant {
     UnknownAsset;
     UnknownOrder;
     UnknownPrincipal;
+    PriceDigitsOverflow : record { maxDigits : nat };
     VolumeStepViolated : record { baseVolumeStep : nat };
   };
 };
@@ -186,7 +189,7 @@ service : (opt principal, opt principal) -> {
   getQuoteLedger : () -> (principal) query;
   sessionsCounter : () -> (nat) query;
   sessionRemainingTime : () -> (nat) query;
-  settings : () -> (record { orderQuoteVolumeMinimum : nat; orderQuoteVolumeStep : nat }) query;
+  settings : () -> (record { orderQuoteVolumeMinimum : nat; orderQuoteVolumeStep : nat; orderPriceDigitsLimit : nat }) query;
   indicativeStats : (principal) -> (IndicativeStats) query;
 
   // user queries

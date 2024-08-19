@@ -1,8 +1,6 @@
 import Prim "mo:prim";
 import Principal "mo:base/Principal";
 
-import Vec "mo:vector";
-
 import { init; createFt } "./test.util";
 
 do {
