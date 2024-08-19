@@ -1,4 +1,3 @@
-import Array "mo:base/Array";
 import Prim "mo:prim";
 import Principal "mo:base/Principal";
 
