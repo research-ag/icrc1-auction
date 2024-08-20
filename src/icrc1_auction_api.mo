@@ -324,6 +324,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     ignore metrics.addPullValue("users_amount", "", func() = a.users.nUsers());
     ignore metrics.addPullValue("users_with_credits_amount", "", func() = a.users.nUsersWithCredits());
     ignore metrics.addPullValue("accounts_amount", "", func() = a.credits.nAccounts());
+    ignore metrics.addPullValue("quote_surplus", "", func() = a.credits.quoteSurplus);
 
     ignore metrics.addPullValue("num_calls__icrc84_notify", "", func() = CallStats.getCallAmount(callStats, "icrc84_notify"));
     ignore metrics.addPullValue("num_calls__icrc84_deposit", "", func() = CallStats.getCallAmount(callStats, "icrc84_deposit"));
@@ -591,7 +592,6 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     ignore metrics.addPullValue("bids_amount", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = asset.bids.size);
     ignore metrics.addPullValue("bids_volume", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = asset.bids.totalVolume);
     ignore metrics.addPullValue("processing_instructions", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = asset.lastProcessingInstructions);
-    ignore metrics.addPullValue("rounding_surplus", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = asset.surplus);
 
     ignore metrics.addPullValue(
       "clearing_price",

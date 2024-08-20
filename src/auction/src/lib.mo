@@ -32,15 +32,11 @@ module {
     assets = Vec.new();
     history = null;
     users = #leaf;
+    quoteSurplus = 0;
   };
   public type StableDataV3 = T.StableDataV3;
   public func migrateStableDataV3(data : StableDataV2) : StableDataV3 = {
-    data with assets = Vec.map<T.StableAssetInfoV2, T.StableAssetInfoV3>(
-      data.assets,
-      func(x) = {
-        x with surplus = 0;
-      },
-    );
+    data with quoteSurplus = 0;
   };
 
   public func defaultStableDataV2() : T.StableDataV2 = {
@@ -160,7 +156,7 @@ module {
       if (assetId == quoteAssetId) return;
       let startInstructions = settings.performanceCounter(0);
       let assetInfo = assets.getAsset(assetId);
-      let (price, volume, quoteSurplus, baseSurplus) = processAuction(
+      let (price, volume, surplus) = processAuction(
         sessionsCounter,
         orders.asks.createOrderBookService(assetInfo),
         orders.bids.createOrderBookService(assetInfo),
@@ -169,9 +165,8 @@ module {
       if (volume > 0) {
         assetInfo.lastProcessingInstructions := Nat64.toNat(settings.performanceCounter(0) - startInstructions);
         assetInfo.lastRate := price;
-        assetInfo.surplus += baseSurplus;
-        if (quoteSurplus > 0) {
-          assets.getAsset(quoteAssetId).surplus += quoteSurplus;
+        if (surplus > 0) {
+          credits.quoteSurplus += surplus;
         };
       };
     };
@@ -334,12 +329,11 @@ module {
     // ============= system interface =============
     public func share() : T.StableDataV3 = {
       counters = (sessionsCounter, orders.ordersCounter, users.usersAmount, credits.accountsAmount);
-      assets = Vec.map<T.AssetInfo, T.StableAssetInfoV3>(
+      assets = Vec.map<T.AssetInfo, T.StableAssetInfoV2>(
         assets.assets,
         func(x) = {
           lastRate = x.lastRate;
           lastProcessingInstructions = x.lastProcessingInstructions;
-          surplus = x.surplus;
         },
       );
       history = assets.history;
@@ -364,6 +358,7 @@ module {
           stableUsers.share();
         }
       )();
+      quoteSurplus = credits.quoteSurplus;
     };
 
     public func unshare(data : T.StableDataV3) {
@@ -371,15 +366,15 @@ module {
       orders.ordersCounter := data.counters.1;
       users.usersAmount := data.counters.2;
       credits.accountsAmount := data.counters.3;
+      credits.quoteSurplus := data.quoteSurplus;
 
-      assets.assets := Vec.map<T.StableAssetInfoV3, T.AssetInfo>(
+      assets.assets := Vec.map<T.StableAssetInfoV2, T.AssetInfo>(
         data.assets,
         func(x) = {
           asks = { var queue = null; var size = 0; var totalVolume = 0 };
           bids = { var queue = null; var size = 0; var totalVolume = 0 };
           var lastRate = x.lastRate;
           var lastProcessingInstructions = x.lastProcessingInstructions;
-          var surplus = x.surplus;
         },
       );
       assets.history := data.history;

@@ -38,7 +38,6 @@ module {
             };
             var lastRate = 0;
             var lastProcessingInstructions = 0;
-            var surplus = 0;
           } : T.AssetInfo
         )
         |> Vec.add(assets, _);

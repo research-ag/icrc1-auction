@@ -17,12 +17,11 @@ module {
     clear(mapOrders(asks.queue()), mapOrders(bids.queue()), Float.less);
   };
 
-  public func processAuction(sessionNumber : Nat, asks : Orders.OrderBookService, bids : Orders.OrderBookService) : (price : Float, volume : Nat, quoteSurplus : Nat, baseSurplus : Nat) {
+  public func processAuction(sessionNumber : Nat, asks : Orders.OrderBookService, bids : Orders.OrderBookService) : (price : Float, volume : Nat, surplus : Nat) {
 
-    let ?(price, dealVolume) = clearAuction(asks, bids) else return (0.0, 0, 0, 0);
+    let ?(price, dealVolume) = clearAuction(asks, bids) else return (0.0, 0, 0);
 
     var quoteSurplus : Int = 0;
-    var baseSurplus : Int = 0;
 
     var dealVolumeLeft = dealVolume;
     while (dealVolumeLeft > 0) {
@@ -30,7 +29,6 @@ module {
       let (volume, srcVol, destVol) = asks.fulfilOrder(sessionNumber, orderId, order, dealVolumeLeft, price);
       dealVolumeLeft -= volume;
       quoteSurplus -= destVol;
-      baseSurplus += srcVol;
     };
 
     dealVolumeLeft := dealVolume;
@@ -39,13 +37,10 @@ module {
       let (volume, srcVol, destVol) = bids.fulfilOrder(sessionNumber, orderId, order, dealVolumeLeft, price);
       dealVolumeLeft -= volume;
       quoteSurplus += srcVol;
-      baseSurplus -= destVol;
     };
 
     assert quoteSurplus >= 0;
-    assert baseSurplus >= 0;
-
-    (price, dealVolume, Int.abs(quoteSurplus), Int.abs(baseSurplus));
+    (price, dealVolume, Int.abs(quoteSurplus));
   };
 
 };
