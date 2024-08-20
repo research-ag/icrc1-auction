@@ -55,7 +55,7 @@ module {
       case (_) null;
     };
 
-    public func fulfilOrder(sessionNumber : Nat, orderId : T.OrderId, order : T.Order, maxVolume : Nat, price : Float) : (volume : Nat, srcVol : Nat, destVol : Nat) {
+    public func fulfilOrder(sessionNumber : Nat, orderId : T.OrderId, order : T.Order, maxVolume : Nat, price : Float) : (volume : Nat, quoteVol : Nat) {
       service.fulfil(assetInfo, sessionNumber, orderId, order, maxVolume, price);
     };
   };
@@ -140,7 +140,7 @@ module {
       ?existingOrder;
     };
 
-    public func fulfil(assetInfo : T.AssetInfo, sessionNumber : Nat, orderId : T.OrderId, order : T.Order, maxVolume : Nat, price : Float) : (volume : Nat, srcVol : Nat, destVol : Nat) {
+    public func fulfil(assetInfo : T.AssetInfo, sessionNumber : Nat, orderId : T.OrderId, order : T.Order, maxVolume : Nat, price : Float) : (volume : Nat, quoteVol : Nat) {
       // determine volume, remove from order lists
       let volume = if (maxVolume < order.volume) {
         assets.deductOrderVolume(assetInfo, kind, order, maxVolume);
@@ -165,7 +165,13 @@ module {
       ignore credits.appendCredit(acc, destVol);
 
       order.userInfoRef.history := List.push((Prim.time(), sessionNumber, kind, order.assetId, volume, price), order.userInfoRef.history);
-      (volume, srcVol, destVol);
+      (
+        volume,
+        switch (kind) {
+          case (#ask) destVol;
+          case (#bid) srcVol;
+        },
+      );
     };
   };
 

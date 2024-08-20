@@ -26,17 +26,17 @@ module {
     var dealVolumeLeft = dealVolume;
     while (dealVolumeLeft > 0) {
       let ?(orderId, order) = asks.nextOrder() else Prim.trap("Can never happen: list shorter than before");
-      let (volume, _, destVol) = asks.fulfilOrder(sessionNumber, orderId, order, dealVolumeLeft, price);
+      let (volume, quoteVol) = asks.fulfilOrder(sessionNumber, orderId, order, dealVolumeLeft, price);
       dealVolumeLeft -= volume;
-      quoteSurplus -= destVol;
+      quoteSurplus -= quoteVol;
     };
 
     dealVolumeLeft := dealVolume;
     while (dealVolumeLeft > 0) {
       let ?(orderId, order) = bids.nextOrder() else Prim.trap("Can never happen: list shorter than before");
-      let (volume, srcVol, _) = bids.fulfilOrder(sessionNumber, orderId, order, dealVolumeLeft, price);
+      let (volume, quoteVol) = bids.fulfilOrder(sessionNumber, orderId, order, dealVolumeLeft, price);
       dealVolumeLeft -= volume;
-      quoteSurplus += srcVol;
+      quoteSurplus += quoteVol;
     };
 
     assert quoteSurplus >= 0;
