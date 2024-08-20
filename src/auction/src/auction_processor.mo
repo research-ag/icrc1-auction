@@ -26,7 +26,7 @@ module {
     var dealVolumeLeft = dealVolume;
     while (dealVolumeLeft > 0) {
       let ?(orderId, order) = asks.nextOrder() else Prim.trap("Can never happen: list shorter than before");
-      let (volume, srcVol, destVol) = asks.fulfilOrder(sessionNumber, orderId, order, dealVolumeLeft, price);
+      let (volume, _, destVol) = asks.fulfilOrder(sessionNumber, orderId, order, dealVolumeLeft, price);
       dealVolumeLeft -= volume;
       quoteSurplus -= destVol;
     };
@@ -34,7 +34,7 @@ module {
     dealVolumeLeft := dealVolume;
     while (dealVolumeLeft > 0) {
       let ?(orderId, order) = bids.nextOrder() else Prim.trap("Can never happen: list shorter than before");
-      let (volume, srcVol, destVol) = bids.fulfilOrder(sessionNumber, orderId, order, dealVolumeLeft, price);
+      let (volume, srcVol, _) = bids.fulfilOrder(sessionNumber, orderId, order, dealVolumeLeft, price);
       dealVolumeLeft -= volume;
       quoteSurplus += srcVol;
     };
