@@ -55,7 +55,7 @@ module {
       case (_) null;
     };
 
-    public func fulfilOrder(sessionNumber : Nat, orderId : T.OrderId, order : T.Order, maxVolume : Nat, price : Float) : Nat {
+    public func fulfilOrder(sessionNumber : Nat, orderId : T.OrderId, order : T.Order, maxVolume : Nat, price : Float) : (volume : Nat, srcVol : Nat, destVol : Nat) {
       service.fulfil(assetInfo, sessionNumber, orderId, order, maxVolume, price);
     };
   };
@@ -140,7 +140,7 @@ module {
       ?existingOrder;
     };
 
-    public func fulfil(assetInfo : T.AssetInfo, sessionNumber : Nat, orderId : T.OrderId, order : T.Order, maxVolume : Nat, price : Float) : Nat {
+    public func fulfil(assetInfo : T.AssetInfo, sessionNumber : Nat, orderId : T.OrderId, order : T.Order, maxVolume : Nat, price : Float) : (volume : Nat, srcVol : Nat, destVol : Nat) {
       // determine volume, remove from order lists
       let volume = if (maxVolume < order.volume) {
         assets.deductOrderVolume(assetInfo, kind, order, maxVolume);
@@ -154,16 +154,18 @@ module {
       // debit user (source asset)
       let ?sourceAcc = credits.getAccount(order.userInfoRef, srcAssetId(order.assetId)) else Prim.trap("Can never happen");
       let (s1, _) = credits.unlockCredit(sourceAcc, srcVolume(volume, order.price));
-      let (s2, _) = credits.deductCredit(sourceAcc, srcVolume(volume, price));
+      let srcVol = srcVolume(volume, price);
+      let (s2, _) = credits.deductCredit(sourceAcc, srcVol);
       assert s1 and s2;
       ignore credits.deleteIfEmpty(order.userInfoRef, srcAssetId(order.assetId));
 
       // credit user (target asset)
       let acc = credits.getOrCreate(order.userInfoRef, destAssetId(order.assetId));
-      ignore credits.appendCredit(acc, destVolume(volume, price));
+      let destVol = destVolume(volume, price);
+      ignore credits.appendCredit(acc, destVol);
 
       order.userInfoRef.history := List.push((Prim.time(), sessionNumber, kind, order.assetId, volume, price), order.userInfoRef.history);
-      volume;
+      (volume, srcVol, destVol);
     };
   };
 

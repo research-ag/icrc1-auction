@@ -1,4 +1,5 @@
 import Float "mo:base/Float";
+import Int "mo:base/Int";
 import Iter "mo:base/Iter";
 import List "mo:base/List";
 import Prim "mo:prim";
@@ -16,23 +17,35 @@ module {
     clear(mapOrders(asks.queue()), mapOrders(bids.queue()), Float.less);
   };
 
-  public func processAuction(sessionNumber : Nat, asks : Orders.OrderBookService, bids : Orders.OrderBookService) : (price : Float, volume : Nat) {
+  public func processAuction(sessionNumber : Nat, asks : Orders.OrderBookService, bids : Orders.OrderBookService) : (price : Float, volume : Nat, quoteSurplus : Nat, baseSurplus : Nat) {
 
-    let ?(price, dealVolume) = clearAuction(asks, bids) else return (0.0, 0);
+    let ?(price, dealVolume) = clearAuction(asks, bids) else return (0.0, 0, 0, 0);
+
+    var quoteSurplus : Int = 0;
+    var baseSurplus : Int = 0;
 
     var dealVolumeLeft = dealVolume;
-    label b while (dealVolumeLeft > 0) {
+    while (dealVolumeLeft > 0) {
       let ?(orderId, order) = asks.nextOrder() else Prim.trap("Can never happen: list shorter than before");
-      dealVolumeLeft -= asks.fulfilOrder(sessionNumber, orderId, order, dealVolumeLeft, price);
+      let (volume, srcVol, destVol) = asks.fulfilOrder(sessionNumber, orderId, order, dealVolumeLeft, price);
+      dealVolumeLeft -= volume;
+      quoteSurplus -= destVol;
+      baseSurplus += srcVol;
     };
 
     dealVolumeLeft := dealVolume;
-    label b while (dealVolumeLeft > 0) {
+    while (dealVolumeLeft > 0) {
       let ?(orderId, order) = bids.nextOrder() else Prim.trap("Can never happen: list shorter than before");
-      dealVolumeLeft -= bids.fulfilOrder(sessionNumber, orderId, order, dealVolumeLeft, price);
+      let (volume, srcVol, destVol) = bids.fulfilOrder(sessionNumber, orderId, order, dealVolumeLeft, price);
+      dealVolumeLeft -= volume;
+      quoteSurplus += srcVol;
+      baseSurplus -= destVol;
     };
 
-    (price, dealVolume);
+    assert quoteSurplus >= 0;
+    assert baseSurplus >= 0;
+
+    (price, dealVolume, Int.abs(quoteSurplus), Int.abs(baseSurplus));
   };
 
 };
