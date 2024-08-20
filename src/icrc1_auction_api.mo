@@ -594,7 +594,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     ignore metrics.addPullValue(
       "clearing_price",
       "asset_id=\"" # Nat.toText(assetId) # "\"",
-      func() = Prim.intToFloat(Vec.get(assets, assetId).decimals)
+      func() = Float.fromInt(Vec.get(assets, assetId).decimals)
       |> U.unwrapUninit(auction).indicativeAssetStats(assetId).clearingPrice * (10 ** _)
       |> Int.abs(Float.toInt(_)),
     );
