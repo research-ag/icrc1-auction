@@ -343,6 +343,13 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   public shared query func getQuoteLedger() : async Principal = async quoteLedgerPrincipal;
   public shared query func sessionRemainingTime() : async Nat = async remainingTime();
+  public shared query func nextSession() : async {
+    timestamp : Nat;
+    counter : Nat;
+  } = async ({
+    timestamp = Nat64.toNat(AUCTION_INTERVAL_SECONDS * (1 + (Prim.time() / 1_000_000_000) / AUCTION_INTERVAL_SECONDS));
+    counter = U.unwrapUninit(auction).sessionsCounter;
+  });
   public shared query func sessionsCounter() : async Nat = async U.unwrapUninit(auction).sessionsCounter;
 
   public shared query func settings() : async {
