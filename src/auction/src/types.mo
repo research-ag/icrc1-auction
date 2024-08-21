@@ -56,6 +56,14 @@ module {
   public type TransactionHistoryItem = (timestamp : Nat64, sessionNumber : Nat, kind : { #ask; #bid }, assetId : AssetId, volume : Nat, price : Float);
 
   // stable data types
+  public type StableDataV3 = {
+    counters : (sessions : Nat, orders : Nat, users : Nat, accounts : Nat);
+    assets : Vec.Vector<StableAssetInfoV2>;
+    history : List.List<PriceHistoryItem>;
+    users : RBTree.Tree<Principal, StableUserInfoV2>;
+    quoteSurplus : Nat;
+  };
+
   public type StableOrderDataV2 = {
     user : Principal;
     assetId : AssetId;

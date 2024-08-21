@@ -48,6 +48,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   stable var auctionDataV1 : Auction.StableDataV1 = Auction.defaultStableDataV1();
   stable var auctionDataV2 : Auction.StableDataV2 = Auction.migrateStableDataV2(auctionDataV1);
+  stable var auctionDataV3 : Auction.StableDataV3 = Auction.migrateStableDataV3(auctionDataV2);
 
   stable var callStats : CallStats.CallStats = CallStats.nil();
 
@@ -315,7 +316,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
         performanceCounter = Prim.performanceCounter;
       },
     );
-    a.unshare(auctionDataV2);
+    a.unshare(auctionDataV3);
     auction := ?a;
 
     ignore metrics.addPullValue("sessions_counter", "", func() = a.sessionsCounter);
@@ -323,6 +324,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     ignore metrics.addPullValue("users_amount", "", func() = a.users.nUsers());
     ignore metrics.addPullValue("users_with_credits_amount", "", func() = a.users.nUsersWithCredits());
     ignore metrics.addPullValue("accounts_amount", "", func() = a.credits.nAccounts());
+    ignore metrics.addPullValue("quote_surplus", "", func() = a.credits.quoteSurplus);
 
     ignore metrics.addPullValue("num_calls__icrc84_notify", "", func() = CallStats.getCallAmount(callStats, "icrc84_notify"));
     ignore metrics.addPullValue("num_calls__icrc84_deposit", "", func() = CallStats.getCallAmount(callStats, "icrc84_deposit"));
@@ -733,7 +735,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
             decimals = x.decimals;
           },
         );
-        auctionDataV2 := a.share();
+        auctionDataV3 := a.share();
       };
       case (null) {};
     };
