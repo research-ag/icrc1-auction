@@ -63,4 +63,6 @@ do {
   assert auction.getCredit(seller4, 0).available == 12;
   assert auction.getCredit(seller4, ft).available == 0;
 
+  assert auction.credits.quoteSurplus == 2;
+
 };
