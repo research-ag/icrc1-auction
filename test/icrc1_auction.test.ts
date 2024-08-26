@@ -32,6 +32,19 @@ describe('ICRC1 Auction', () => {
   const admin = createIdentity('admin');
   const user = createIdentity('user');
 
+  const startNewAuctionSession = async () => {
+    const expectedCounter = await auction.sessionsCounter() + 1n;
+    await pic.advanceTime(2 * 60_000);
+    await pic.tick();
+    let retries = 20;
+    while (await auction.sessionsCounter() < expectedCounter) {
+      await pic.tick();
+      retries--;
+      if (retries == 0) {
+        throw new Error('Could not start new auction session');
+      }
+    }
+  };
   const ledgerByPrincipal = (p: Principal): Actor<LService> => {
     switch (p.toText()) {
       case (quoteLedgerPrincipal.toText()):
@@ -101,7 +114,7 @@ describe('ICRC1 Auction', () => {
 
     auction.setIdentity(user);
 
-    await auction.runAuctionImmediately();
+    await startNewAuctionSession();
   });
 
   afterEach(async () => {
@@ -166,7 +179,7 @@ describe('ICRC1 Auction', () => {
 
     test('should preserve info during upgrade', async () => {
       const shortP = auctionPrincipal.toText().substring(0, auctionPrincipal.toString().indexOf('-'));
-      await auction.runAuctionImmediately();
+      await startNewAuctionSession();
 
       await prepareDeposit(user);
       await auction.placeBids([[ledger1Principal, 1_500n, 100_000]]);
@@ -175,7 +188,7 @@ describe('ICRC1 Auction', () => {
       await prepareDeposit(seller, ledger1Principal);
       await auction.placeAsks([[ledger1Principal, 1_500_000n, 100_000]]);
 
-      await auction.runAuctionImmediately();
+      await startNewAuctionSession();
 
       // check info before upgrade
       auction.setIdentity(user);
@@ -211,28 +224,7 @@ describe('ICRC1 Auction', () => {
   });
 
   describe('timer', () => {
-    test('should return remaining session time', async () => {
-      // expect(await auction.sessionRemainingTime()).toBe(79_343n); // 22h (79200) + 2 minutes (120) + 23 seconds
-      expect(await auction.sessionRemainingTime()).toBe(23n); // 23 seconds for interval 2 minutes
-      await pic.advanceTime(4_343_000);
-      await pic.tick();
-      // expect(await auction.sessionRemainingTime()).toBe(75_000n);
-      expect(await auction.sessionRemainingTime()).toBe(120n);
-    });
-    test('should conduct new session after 24h', async () => {
-      const startNewAuctionSession = async () => {
-        const expectedCounter = await auction.sessionsCounter() + 1n;
-        await pic.advanceTime(24 * 60 * 60_000);
-        await pic.tick();
-        let retries = 20;
-        while (await auction.sessionsCounter() < expectedCounter) {
-          await pic.tick();
-          retries--;
-          if (retries == 0) {
-            throw new Error('Could not start new auction session');
-          }
-        }
-      };
+    test('should conduct new session after 2 minutes', async () => {
       expect(await auction.sessionsCounter()).toBe(1n);
       await startNewAuctionSession();
       expect(await auction.sessionsCounter()).toBe(2n);
@@ -325,7 +317,7 @@ describe('ICRC1 Auction', () => {
     });
 
     test('bids should affect metrics', async () => {
-      await auction.runAuctionImmediately();
+      await startNewAuctionSession();
       await prepareDeposit(user);
       await auction.placeBids([[ledger1Principal, 2_000n, 15_000]]);
       const shortP = auctionPrincipal.toText().substring(0, auctionPrincipal.toString().indexOf('-'));
@@ -339,7 +331,7 @@ describe('ICRC1 Auction', () => {
       await prepareDeposit(seller, ledger1Principal);
       await auction.placeAsks([[ledger1Principal, 200_000_000n, 15_000]]);
       auction.setIdentity(user);
-      await auction.runAuctionImmediately();
+      await startNewAuctionSession();
 
       expect(await auction.queryTokenBids(ledger1Principal)).toHaveLength(0);
       metrics = await auction
@@ -350,7 +342,7 @@ describe('ICRC1 Auction', () => {
     });
 
     test('asks should affect metrics', async () => {
-      await auction.runAuctionImmediately();
+      await startNewAuctionSession();
       await prepareDeposit(user, ledger1Principal);
 
       const buyer = createIdentity('buyer');
@@ -367,7 +359,7 @@ describe('ICRC1 Auction', () => {
       expect(metrics).toContain(`asks_amount{canister="${shortP}",asset_id="1"} 1 `);
       expect(metrics).toContain(`asks_volume{canister="${shortP}",asset_id="1"} 2000000 `);
 
-      await auction.runAuctionImmediately();
+      await startNewAuctionSession();
 
       expect(await auction.queryTokenAsks(ledger1Principal)).toHaveLength(0);
       metrics = await auction
