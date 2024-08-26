@@ -120,6 +120,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   let metrics = PT.PromTracker("", 65);
   metrics.addSystemValues();
+  let sessionStartTimeGauge = metrics.addGauge("session_start_time_offset_ms", "", #none, [0, 500, 1000, 5000, 10000, 25000], false);
 
   // ICRC84 API
   public shared query func principalToSubaccount(p : Principal) : async ?Blob = async ?TokenHandler.toSubaccount(p);
@@ -306,12 +307,15 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     );
     a.unshare(auctionDataV3);
     auction := ?a;
+    initialSessionsCounter := a.sessionsCounter;
 
     ignore metrics.addPullValue("sessions_counter", "", func() = a.sessionsCounter);
     ignore metrics.addPullValue("assets_amount", "", func() = a.assets.nAssets());
     ignore metrics.addPullValue("users_amount", "", func() = a.users.nUsers());
     ignore metrics.addPullValue("users_with_credits_amount", "", func() = a.users.nUsersWithCredits());
     ignore metrics.addPullValue("accounts_amount", "", func() = a.credits.nAccounts());
+    ignore metrics.addPullValue("quote_surplus", "", func() = a.credits.quoteSurplus);
+    ignore metrics.addPullValue("next_session_timestamp", "", nextSessionTimestamp);
 
     ignore metrics.addPullValue("num_calls__icrc84_notify", "", func() = CallStats.getCallAmount(callStats, "icrc84_notify"));
     ignore metrics.addPullValue("num_calls__icrc84_deposit", "", func() = CallStats.getCallAmount(callStats, "icrc84_deposit"));
@@ -331,7 +335,13 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   };
 
   public shared query func getQuoteLedger() : async Principal = async quoteLedgerPrincipal;
-  public shared query func sessionRemainingTime() : async Nat = async remainingTime();
+  public shared query func nextSession() : async {
+    timestamp : Nat;
+    counter : Nat;
+  } = async ({
+    timestamp = nextSessionTimestamp();
+    counter = U.unwrapUninit(auction).sessionsCounter;
+  });
   public shared query func sessionsCounter() : async Nat = async U.unwrapUninit(auction).sessionsCounter;
 
   public shared query func settings() : async {
@@ -570,10 +580,6 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   public shared query func debugLastBidProcessingInstructions() : async Nat64 = async lastBidProcessingInstructions;
 
-  public shared func runAuctionImmediately() : async () {
-    await runAuction();
-  };
-
   // Auction processing functionality
 
   var nextAssetIdToProcess : Nat = 0;
@@ -617,6 +623,10 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   private func runAuction() : async () {
     let a = U.requireMsg(auction, "Not initialized");
+    if (nextAssetIdToProcess == 0) {
+      let startTimeDiff : Int = Nat64.toNat(Prim.time() / 1_000_000) - nextSessionTimestamp() * 1_000;
+      sessionStartTimeGauge.update(Int.max(startTimeDiff, 0) |> Int.abs(_));
+    };
     switch (processAssetsChunk(a, nextAssetIdToProcess)) {
       case (#done) {
         a.sessionsCounter += 1;
@@ -669,9 +679,12 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   );
 
   let AUCTION_INTERVAL_SECONDS : Nat64 = 86_400; // a day
-  private func remainingTime() : Nat = Nat64.toNat(AUCTION_INTERVAL_SECONDS - (Prim.time() / 1_000_000_000 + 43_200) % AUCTION_INTERVAL_SECONDS);
-
   // run daily at 12:00 p.m. UTC
+  let initialSessionTimestamp = Nat64.toNat((AUCTION_INTERVAL_SECONDS / 2) * (1 + 2 * Prim.time() / (AUCTION_INTERVAL_SECONDS * 1_000_000_000)));
+  var initialSessionsCounter = 0;
+
+  private func nextSessionTimestamp() : Nat = initialSessionTimestamp + Nat64.toNat(AUCTION_INTERVAL_SECONDS) * (U.unwrapUninit(auction).sessionsCounter - initialSessionsCounter);
+
   ignore (
     func() : async () {
       ignore Timer.recurringTimer<system>(
@@ -686,6 +699,6 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
         case (null) {};
       };
     }
-  ) |> Timer.setTimer<system>(#seconds(remainingTime()), _);
+  ) |> Timer.setTimer<system>(#seconds(Nat64.toNat(AUCTION_INTERVAL_SECONDS - (Prim.time() / 1_000_000_000 + 43_200) % AUCTION_INTERVAL_SECONDS)), _);
 
 };
