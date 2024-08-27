@@ -18,7 +18,6 @@ import PT "mo:promtracker";
 import TokenHandler "mo:token_handler_legacy";
 import Vec "mo:vector";
 
-import CallStats "./call_stats";
 import HTTP "./http";
 import U "./utils";
 
@@ -46,7 +45,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   stable var auctionDataV2 : Auction.StableDataV2 = Auction.migrateStableDataV2(auctionDataV1);
   stable var auctionDataV3 : Auction.StableDataV3 = Auction.migrateStableDataV3(auctionDataV2);
 
-  stable var callStats : CallStats.CallStats = CallStats.nil();
+  stable var ptData : PT.StableData = null;
 
   var tokenHandlersJournal : Vec.Vector<(ledger : Principal, p : Principal, logEvent : TokenHandler.LogEvent)> = Vec.new();
 
@@ -122,6 +121,15 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   metrics.addSystemValues();
   let sessionStartTimeGauge = metrics.addGauge("session_start_time_offset_ms", "", #none, [0, 500, 1000, 5000, 10000, 25000], false);
 
+  // call stats
+  let notifyCounter = metrics.addCounter("num_calls__icrc84_notify", "", true);
+  let depositCounter = metrics.addCounter("num_calls__icrc84_deposit", "", true);
+  let withdrawCounter = metrics.addCounter("num_calls__icrc84_withdraw", "", true);
+  let manageOrdersCounter = metrics.addCounter("num_calls__manageOrders", "", true);
+  let orderPlacementCounter = metrics.addCounter("num_calls__order_placement", "", true);
+  let orderReplacementCounter = metrics.addCounter("num_calls__order_replacement", "", true);
+  let orderCancellationCounter = metrics.addCounter("num_calls__order_cancellation", "", true);
+
   // ICRC84 API
   public shared query func principalToSubaccount(p : Principal) : async ?Blob = async ?TokenHandler.toSubaccount(p);
 
@@ -176,7 +184,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   };
 
   public shared ({ caller }) func icrc84_notify(args : { token : Principal }) : async NotifyResult {
-    CallStats.logCall(callStats, "icrc84_notify");
+    notifyCounter.add(1);
     let a = U.unwrapUninit(auction);
     let assetId = switch (getAssetId(args.token)) {
       case (?aid) aid;
@@ -209,7 +217,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   };
 
   public shared ({ caller }) func icrc84_deposit(args : { token : Principal; amount : Nat; from : { owner : Principal; subaccount : ?Blob } }) : async UpperResult<{ txid : Nat; credit_inc : Nat; credit : Int }, { #AmountBelowMinimum : {}; #CallLedgerError : { message : Text }; #TransferError : { message : Text } }> {
-    CallStats.logCall(callStats, "icrc84_deposit");
+    depositCounter.add(1);
     let a = U.unwrapUninit(auction);
     let assetId = switch (getAssetId(args.token)) {
       case (?aid) aid;
@@ -246,7 +254,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   };
 
   public shared ({ caller }) func icrc84_withdraw(args : { to_subaccount : ?Blob; amount : Nat; token : Principal }) : async WithdrawResult {
-    CallStats.logCall(callStats, "icrc84_withdraw");
+    withdrawCounter.add(1);
     let ?assetId = getAssetId(args.token) else throw Error.reject("Unknown token");
     let handler = Vec.get(assets, assetId).handler;
     let rollbackCredit = switch (U.unwrapUninit(auction).deductCredit(caller, assetId, args.amount)) {
@@ -316,14 +324,6 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     ignore metrics.addPullValue("accounts_amount", "", func() = a.credits.nAccounts());
     ignore metrics.addPullValue("quote_surplus", "", func() = a.credits.quoteSurplus);
     ignore metrics.addPullValue("next_session_timestamp", "", nextSessionTimestamp);
-
-    ignore metrics.addPullValue("num_calls__icrc84_notify", "", func() = CallStats.getCallAmount(callStats, "icrc84_notify"));
-    ignore metrics.addPullValue("num_calls__icrc84_deposit", "", func() = CallStats.getCallAmount(callStats, "icrc84_deposit"));
-    ignore metrics.addPullValue("num_calls__icrc84_withdraw", "", func() = CallStats.getCallAmount(callStats, "icrc84_withdraw"));
-    ignore metrics.addPullValue("num_calls__manageOrders", "", func() = CallStats.getCallAmount(callStats, "manageOrders"));
-    ignore metrics.addPullValue("num_calls__order_placement", "", func() = CallStats.getCallAmount(callStats, "order_placement"));
-    ignore metrics.addPullValue("num_calls__order_replacement", "", func() = CallStats.getCallAmount(callStats, "order_replacement"));
-    ignore metrics.addPullValue("num_calls__order_cancellation", "", func() = CallStats.getCallAmount(callStats, "order_cancellation"));
 
     if (Vec.size(assets) == 0) {
       ignore U.requireOk(registerAsset_(quoteLedgerPrincipal, 0));
@@ -417,7 +417,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   };
 
   public shared ({ caller }) func placeBids(arg : [(ledger : Principal, volume : Nat, price : Float)]) : async [UpperResult<Auction.OrderId, Auction.PlaceOrderError>] {
-    CallStats.logCall(callStats, "order_placement");
+    orderPlacementCounter.add(1);
     Array.tabulate<UpperResult<Auction.OrderId, Auction.PlaceOrderError>>(
       arg.size(),
       func(i) = switch (getAssetId(arg[i].0)) {
@@ -428,12 +428,12 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   };
 
   public shared ({ caller }) func replaceBid(orderId : Auction.OrderId, volume : Nat, price : Float) : async UpperResult<Auction.OrderId, Auction.ReplaceOrderError> {
-    CallStats.logCall(callStats, "order_replacement");
+    orderReplacementCounter.add(1);
     U.unwrapUninit(auction).replaceOrder(caller, #bid, orderId, volume : Nat, price : Float) |> R.toUpper(_);
   };
 
   public shared ({ caller }) func cancelBids(orderIds : [Auction.OrderId]) : async [UpperResult<(), Auction.CancelOrderError>] {
-    CallStats.logCall(callStats, "order_cancellation");
+    orderCancellationCounter.add(1);
     let a = U.unwrapUninit(auction);
     Array.tabulate<UpperResult<(), Auction.CancelOrderError>>(
       orderIds.size(),
@@ -442,7 +442,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   };
 
   public shared ({ caller }) func placeAsks(arg : [(ledger : Principal, volume : Nat, price : Float)]) : async [UpperResult<Auction.OrderId, Auction.PlaceOrderError>] {
-    CallStats.logCall(callStats, "order_placement");
+    orderPlacementCounter.add(1);
     Array.tabulate<UpperResult<Auction.OrderId, Auction.PlaceOrderError>>(
       arg.size(),
       func(i) = switch (getAssetId(arg[i].0)) {
@@ -453,12 +453,12 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   };
 
   public shared ({ caller }) func replaceAsk(orderId : Auction.OrderId, volume : Nat, price : Float) : async UpperResult<Auction.OrderId, Auction.ReplaceOrderError> {
-    CallStats.logCall(callStats, "order_replacement");
+    orderReplacementCounter.add(1);
     U.unwrapUninit(auction).replaceOrder(caller, #ask, orderId, volume : Nat, price : Float) |> R.toUpper(_);
   };
 
   public shared ({ caller }) func cancelAsks(orderIds : [Auction.OrderId]) : async [UpperResult<(), Auction.CancelOrderError>] {
-    CallStats.logCall(callStats, "order_cancellation");
+    orderCancellationCounter.add(1);
     let a = U.unwrapUninit(auction);
     Array.tabulate<UpperResult<(), Auction.CancelOrderError>>(
       orderIds.size(),
@@ -665,6 +665,11 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       case (null) {};
     };
     stableAdminsMap := adminsMap.share();
+    ptData := metrics.share();
+  };
+
+  system func postupgrade() {
+    metrics.unshare(ptData);
   };
 
   // A timer for consolidating backlog subaccounts
