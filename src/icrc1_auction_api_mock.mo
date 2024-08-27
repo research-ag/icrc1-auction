@@ -267,7 +267,6 @@ actor class Icrc1AuctionAPI(adminPrincipal_ : ?Principal) = self {
     timestamp = nextSessionTimestamp();
     counter = U.unwrapUninit(auction).sessionsCounter;
   });
-  public shared query func sessionsCounter() : async Nat = async U.unwrapUninit(auction).sessionsCounter;
 
   public shared query func settings() : async {
     orderQuoteVolumeMinimum : Nat;

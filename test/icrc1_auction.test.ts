@@ -33,11 +33,11 @@ describe('ICRC1 Auction', () => {
   const user = createIdentity('user');
 
   const startNewAuctionSession = async () => {
-    const expectedCounter = await auction.sessionsCounter() + 1n;
+    const expectedCounter = await auction.nextSession().then(({ counter }) => counter) + 1n;
     await pic.advanceTime(2 * 60_000);
     await pic.tick();
     let retries = 20;
-    while (await auction.sessionsCounter() < expectedCounter) {
+    while (await auction.nextSession().then(({ counter }) => counter) < expectedCounter) {
       await pic.tick();
       retries--;
       if (retries == 0) {
@@ -192,7 +192,7 @@ describe('ICRC1 Auction', () => {
 
       // check info before upgrade
       auction.setIdentity(user);
-      expect(await auction.sessionsCounter()).toEqual(3n);
+      expect(await auction.nextSession().then(({ counter }) => counter)).toEqual(3n);
       expect(await auction.icrc84_credit(quoteLedgerPrincipal)).toEqual(340_000_000n); // 500m - 150m paid - 10m locked
       expect(await auction.icrc84_credit(ledger1Principal)).toEqual(1_500n);
       expect(await auction.queryTokenBids(ledger2Principal)).toHaveLength(1);
@@ -211,7 +211,7 @@ describe('ICRC1 Auction', () => {
       await auction.init();
 
       // check info after upgrade
-      expect(await auction.sessionsCounter()).toEqual(3n);
+      expect(await auction.nextSession().then(({ counter }) => counter)).toEqual(3n);
       expect(await auction.icrc84_credit(quoteLedgerPrincipal)).toEqual(340_000_000n);
       expect(await auction.icrc84_credit(ledger1Principal)).toEqual(1_500n);
       expect(await auction.queryTokenBids(ledger2Principal)).toHaveLength(1);
@@ -225,12 +225,12 @@ describe('ICRC1 Auction', () => {
 
   describe('timer', () => {
     test('should conduct new session after 2 minutes', async () => {
-      expect(await auction.sessionsCounter()).toBe(1n);
+      expect(await auction.nextSession().then(({ counter }) => counter)).toBe(1n);
       await startNewAuctionSession();
-      expect(await auction.sessionsCounter()).toBe(2n);
+      expect(await auction.nextSession().then(({ counter }) => counter)).toBe(2n);
       await startNewAuctionSession();
       await startNewAuctionSession();
-      expect(await auction.sessionsCounter()).toBe(4n);
+      expect(await auction.nextSession().then(({ counter }) => counter)).toBe(4n);
     });
   });
 

@@ -35,7 +35,7 @@ export const useQuoteLedger = () => {
 
 export const useSessionsCounter = () => {
   const { auction } = useAuction();
-  return useQuery('sessionsCounter', () => auction.sessionsCounter());
+  return useQuery('sessionsCounter', () => auction.nextSession().then(({ counter }) => counter));
 };
 
 

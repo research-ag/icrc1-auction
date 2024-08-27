@@ -187,7 +187,6 @@ service : (opt principal, opt principal) -> {
 
   // system queries
   getQuoteLedger : () -> (principal) query;
-  sessionsCounter : () -> (nat) query;
   nextSession : () -> (
     record {
       timestamp : nat;
