@@ -20,7 +20,6 @@ import TransactionsHistory from '@fe/components/transactions-history';
 import Assets from '../assets';
 import Owners from '../owners';
 import PriceHistory from '@fe/components/price-history';
-import RunAuctionButton from '@fe/components/run-auction-button';
 import { Ed25519KeyIdentity } from '@dfinity/identity';
 import { AnonymousIdentity, Identity } from '@dfinity/agent';
 import { useQueryClient } from 'react-query';
@@ -87,7 +86,6 @@ const Root = () => {
               gap: 0.5,
               marginBottom: 1,
             }}>
-            {isAdmin && (<RunAuctionButton></RunAuctionButton>)}
             <InfoItem label="Sessions counter" content={String(useSessionsCounter().data)} />
             <InfoItem label="Your principal" content={userPrincipal} withCopy />
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
