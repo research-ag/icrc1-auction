@@ -35,7 +35,7 @@ npm run create
 npm run setup
 ```
 
-6) First installation only: call function `init` on auction canister:
+6) Call function `init` on auction canister:
 ```
 dfx canister call icrc1_auction init
 ```
