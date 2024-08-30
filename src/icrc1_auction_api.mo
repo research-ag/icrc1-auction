@@ -615,6 +615,10 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   private func registerAssetMetrics_(assetId : Auction.AssetId) {
     let asset = U.unwrapUninit(auction).assets.getAsset(assetId);
+
+    let priceMultiplier = 10 ** Float.fromInt(Vec.get(assets, assetId).decimals);
+    let renderPrice = func(price : Float) : Nat = Int.abs(Float.toInt(price * priceMultiplier));
+
     ignore metrics.addPullValue("asks_amount", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = asset.asks.size);
     ignore metrics.addPullValue("asks_volume", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = asset.asks.totalVolume);
     ignore metrics.addPullValue("bids_amount", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = asset.bids.size);
@@ -624,11 +628,33 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     ignore metrics.addPullValue(
       "clearing_price",
       "asset_id=\"" # Nat.toText(assetId) # "\"",
-      func() = Float.fromInt(Vec.get(assets, assetId).decimals)
-      |> U.unwrapUninit(auction).indicativeAssetStats(assetId).clearingPrice * (10 ** _)
-      |> Int.abs(Float.toInt(_)),
+      func() = U.unwrapUninit(auction).indicativeAssetStats(assetId).clearingPrice
+      |> renderPrice(_),
     );
     ignore metrics.addPullValue("clearing_volume", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = U.unwrapUninit(auction).indicativeAssetStats(assetId).clearingVolume);
+
+    ignore metrics.addPullValue(
+      "last_price",
+      "asset_id=\"" # Nat.toText(assetId) # "\"",
+      func() = U.unwrapUninit(auction).getPriceHistory(?assetId).next()
+      |> (
+        switch (_) {
+          case (?item) renderPrice(item.4);
+          case (null) 0;
+        }
+      ),
+    );
+    ignore metrics.addPullValue(
+      "last_volume",
+      "asset_id=\"" # Nat.toText(assetId) # "\"",
+      func() = U.unwrapUninit(auction).getPriceHistory(?assetId).next()
+      |> (
+        switch (_) {
+          case (?item) item.3;
+          case (null) 0;
+        }
+      ),
+    );
   };
 
   private func registerAsset_(ledgerPrincipal : Principal, minAskVolume : Nat, decimals : Nat) : R.Result<Nat, RegisterAssetError> {
