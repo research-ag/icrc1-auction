@@ -45,9 +45,8 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   stable var assetsData : Vec.Vector<{ ledgerPrincipal : Principal; minAskVolume : Nat; handler : TokenHandler.StableData }> = Vec.new();
   stable var assetsDataV2 : Vec.Vector<StableAssetInfo> = Vec.map<{ ledgerPrincipal : Principal; minAskVolume : Nat; handler : TokenHandler.StableData }, StableAssetInfo>(assetsData, func(ad) = { ad with decimals = 0 });
 
-  stable var auctionDataV1 : Auction.StableDataV1 = Auction.defaultStableDataV1();
-  stable var auctionDataV2 : Auction.StableDataV2 = Auction.migrateStableDataV2(auctionDataV1);
-  stable var auctionDataV3 : Auction.StableDataV3 = Auction.migrateStableDataV3(auctionDataV2);
+  stable var auctionDataV3 : Auction.StableDataV3 = Auction.defaultStableDataV3();
+  stable var auctionDataV4 : Auction.StableDataV4 = Auction.migrateStableDataV4(auctionDataV3);
 
   stable var ptData : PT.StableData = null;
 
@@ -128,15 +127,6 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   let metrics = PT.PromTracker("", 65);
   metrics.addSystemValues();
   let sessionStartTimeGauge = metrics.addGauge("session_start_time_offset_ms", "", #none, [0, 500, 1000, 5000, 10000, 25000], false);
-
-  // call stats
-  let notifyCounter = metrics.addCounter("num_calls__icrc84_notify", "", true);
-  let depositCounter = metrics.addCounter("num_calls__icrc84_deposit", "", true);
-  let withdrawCounter = metrics.addCounter("num_calls__icrc84_withdraw", "", true);
-  let manageOrdersCounter = metrics.addCounter("num_calls__manageOrders", "", true);
-  let orderPlacementCounter = metrics.addCounter("num_calls__order_placement", "", true);
-  let orderReplacementCounter = metrics.addCounter("num_calls__order_replacement", "", true);
-  let orderCancellationCounter = metrics.addCounter("num_calls__order_cancellation", "", true);
 
   // call stats
   let notifyCounter = metrics.addCounter("num_calls__icrc84_notify", "", true);
@@ -334,7 +324,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
         performanceCounter = Prim.performanceCounter;
       },
     );
-    a.unshare(auctionDataV3);
+    a.unshare(auctionDataV4);
     auction := ?a;
     initialSessionsCounter := a.sessionsCounter;
 
@@ -345,6 +335,27 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     ignore metrics.addPullValue("accounts_amount", "", func() = a.credits.nAccounts());
     ignore metrics.addPullValue("quote_surplus", "", func() = a.credits.quoteSurplus);
     ignore metrics.addPullValue("next_session_timestamp", "", nextSessionTimestamp);
+    ignore metrics.addPullValue("total_executed_volume", "", func() = a.orders.totalQuoteVolumeProcessed);
+    ignore metrics.addPullValue("total_unique_participants_amount", "", func() = a.users.participantsArchiveSize);
+    ignore metrics.addPullValue("active_unique_participants_amount", "", func() = a.users.nUsersWithActiveOrders());
+    ignore metrics.addPullValue(
+      "monthly_active_participants_amount",
+      "",
+      func() {
+        let ts : Nat64 = Prim.time() - 30 * 24 * 60 * 60_000_000_000;
+        var amount : Nat = 0;
+        for ((_, { lastOrderPlacement }) in a.users.participantsArchive.entries()) {
+          if (lastOrderPlacement > ts) {
+            amount += 1;
+          };
+        };
+        amount;
+      },
+    );
+    ignore metrics.addPullValue("total_orders_amount", "", func() = a.orders.ordersCounter);
+    ignore metrics.addPullValue("fulfilled_orders_amount", "", func() = a.orders.fulfilledCounter);
+    ignore metrics.addPullValue("auctions_run_amount", "", func() = a.assets.historyLength());
+    ignore metrics.addPullValue("trading_pairs_amount", "", func() = a.assets.nAssets() - 1);
 
     if (Vec.size(assets) == 0) {
       ignore U.requireOk(registerAsset_(quoteLedgerPrincipal, 0, 0));
@@ -745,7 +756,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
             decimals = x.decimals;
           },
         );
-        auctionDataV3 := a.share();
+        auctionDataV4 := a.share();
       };
       case (null) {};
     };

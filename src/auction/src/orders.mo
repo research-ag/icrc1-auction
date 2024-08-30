@@ -69,6 +69,7 @@ module {
     minQuoteVolume : Nat,
     minAskVolume : (T.AssetId, T.AssetInfo) -> Int,
     kind_ : { #ask; #bid },
+    fulfilOrderCallback : (quoteVolume : Nat, isPartial : Bool) -> (),
   ) = self {
 
     public func createOrderBookService(assetInfo : T.AssetInfo) : OrderBookService = OrderBookService(self, assetInfo);
@@ -142,13 +143,13 @@ module {
 
     public func fulfil(assetInfo : T.AssetInfo, sessionNumber : Nat, orderId : T.OrderId, order : T.Order, maxVolume : Nat, price : Float) : (volume : Nat, quoteVol : Nat) {
       // determine volume, remove from order lists
-      let volume = if (maxVolume < order.volume) {
+      let (volume, isPartial) = if (maxVolume < order.volume) {
         assets.deductOrderVolume(assetInfo, kind, order, maxVolume);
-        maxVolume;
+        (maxVolume, true);
       } else {
         ignore users.deleteOrder(order.userInfoRef, kind, orderId);
         assets.deleteOrder(assetInfo, kind, orderId);
-        order.volume;
+        (order.volume, false);
       };
 
       // debit user (source asset)
@@ -165,13 +166,16 @@ module {
       ignore credits.appendCredit(acc, destVol);
 
       order.userInfoRef.history := List.push((Prim.time(), sessionNumber, kind, order.assetId, volume, price), order.userInfoRef.history);
-      (
-        volume,
-        switch (kind) {
-          case (#ask) destVol;
-          case (#bid) srcVol;
-        },
-      );
+
+      let quoteVolume = switch (kind) {
+        case (#ask) destVol;
+        case (#bid) srcVol;
+      };
+
+      fulfilOrderCallback(quoteVolume, isPartial);
+
+      (volume, quoteVolume);
+
     };
   };
 
@@ -217,7 +221,16 @@ module {
 
     // a counter of ever added order
     public var ordersCounter = 0;
+    public var fulfilledCounter = 0;
 
+    public var totalQuoteVolumeProcessed = 0;
+
+    let fulfilCB = func(quoteVolume : Nat, isPartial : Bool) {
+      totalQuoteVolumeProcessed += quoteVolume;
+      if (not isPartial) {
+        fulfilledCounter += 1;
+      };
+    };
     public let asks : OrdersService = OrdersService(
       assets,
       credits,
@@ -226,6 +239,7 @@ module {
       minQuoteVolume,
       settings.minAskVolume,
       #ask,
+      fulfilCB,
     );
     public let bids : OrdersService = OrdersService(
       assets,
@@ -235,6 +249,7 @@ module {
       minQuoteVolume,
       settings.minAskVolume,
       #bid,
+      fulfilCB,
     );
 
     public func manageOrders(
@@ -446,7 +461,17 @@ module {
       for (cancel in List.toIter(cancellationCommitActions)) {
         cancel();
       };
-      #ok(Array.tabulate<T.OrderId>(placementCommitActions.size(), func(i) = placementCommitActions[i]()));
+      let ret = Array.tabulate<T.OrderId>(placementCommitActions.size(), func(i) = placementCommitActions[i]());
+
+      if (placements.size() > 0) {
+        let oldRecord = users.participantsArchive.replace(p, { lastOrderPlacement = Prim.time() });
+        switch (oldRecord) {
+          case (null) users.participantsArchiveSize += 1;
+          case (_) {};
+        };
+      };
+
+      #ok(ret);
     };
   };
 

@@ -41,9 +41,8 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   adminsMap.unshare(stableAdminsMap);
 
   stable var assetsData : Vec.Vector<StableAssetInfo> = Vec.new();
-  stable var auctionDataV1 : Auction.StableDataV1 = Auction.defaultStableDataV1();
-  stable var auctionDataV2 : Auction.StableDataV2 = Auction.migrateStableDataV2(auctionDataV1);
-  stable var auctionDataV3 : Auction.StableDataV3 = Auction.migrateStableDataV3(auctionDataV2);
+  stable var auctionDataV3 : Auction.StableDataV3 = Auction.defaultStableDataV3();
+  stable var auctionDataV4 : Auction.StableDataV4 = Auction.migrateStableDataV4(auctionDataV3);
 
   stable var ptData : PT.StableData = null;
 
@@ -125,16 +124,6 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   let notifyCounter = metrics.addCounter("num_calls__icrc84_notify", "", true);
   let depositCounter = metrics.addCounter("num_calls__icrc84_deposit", "", true);
   let withdrawCounter = metrics.addCounter("num_calls__icrc84_withdraw", "", true);
-  let manageOrdersCounter = metrics.addCounter("num_calls__manageOrders", "", true);
-  let orderPlacementCounter = metrics.addCounter("num_calls__order_placement", "", true);
-  let orderReplacementCounter = metrics.addCounter("num_calls__order_replacement", "", true);
-  let orderCancellationCounter = metrics.addCounter("num_calls__order_cancellation", "", true);
-
-  // call stats
-  let notifyCounter = metrics.addCounter("num_calls__icrc84_notify", "", true);
-  let depositCounter = metrics.addCounter("num_calls__icrc84_deposit", "", true);
-  let withdrawCounter = metrics.addCounter("num_calls__icrc84_withdraw", "", true);
-  let manageOrdersCounter = metrics.addCounter("num_calls__manageOrders", "", true);
   let orderPlacementCounter = metrics.addCounter("num_calls__order_placement", "", true);
   let orderReplacementCounter = metrics.addCounter("num_calls__order_replacement", "", true);
   let orderCancellationCounter = metrics.addCounter("num_calls__order_cancellation", "", true);
@@ -322,7 +311,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
         performanceCounter = Prim.performanceCounter;
       },
     );
-    a.unshare(auctionDataV3);
+    a.unshare(auctionDataV4);
     auction := ?a;
     initialSessionsCounter := a.sessionsCounter;
 
@@ -669,7 +658,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
             handler = x.handler.share();
           },
         );
-        auctionDataV3 := a.share();
+        auctionDataV4 := a.share();
       };
       case (null) {};
     };

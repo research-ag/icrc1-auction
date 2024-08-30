@@ -56,6 +56,34 @@ module {
   public type TransactionHistoryItem = (timestamp : Nat64, sessionNumber : Nat, kind : { #ask; #bid }, assetId : AssetId, volume : Nat, price : Float);
 
   // stable data types
+  public type StableDataV4 = {
+    assets : Vec.Vector<StableAssetInfoV2>;
+    orders : {
+      globalCounter : Nat;
+      fulfilledCounter : Nat;
+    };
+    quoteToken : {
+      totalProcessedVolume : Nat;
+      surplus : Nat;
+    };
+    sessions : {
+      counter : Nat;
+      history : List.List<PriceHistoryItem>;
+    };
+    users : {
+      registry : {
+        tree : RBTree.Tree<Principal, StableUserInfoV2>;
+        size : Nat;
+      };
+      participantsArchive : {
+        tree : RBTree.Tree<Principal, { lastOrderPlacement : Nat64 }>;
+        size : Nat;
+      };
+      accountsAmount : Nat;
+    };
+  };
+
+  // old stable data types
   public type StableDataV3 = {
     counters : (sessions : Nat, orders : Nat, users : Nat, accounts : Nat);
     assets : Vec.Vector<StableAssetInfoV2>;
@@ -79,43 +107,6 @@ module {
     bids : UserOrderBook_<StableOrderDataV2>;
     credits : AssocList.AssocList<AssetId, Account>;
     history : List.List<TransactionHistoryItem>;
-  };
-  public type StableDataV2 = {
-    counters : (sessions : Nat, orders : Nat, users : Nat, accounts : Nat);
-    assets : Vec.Vector<StableAssetInfoV2>;
-    history : List.List<PriceHistoryItem>;
-    users : RBTree.Tree<Principal, StableUserInfoV2>;
-  };
-
-  // old stable data types
-  public type StableOrderV1 = {
-    user : Principal;
-    userInfoRef : StableUserInfoV1;
-    assetId : AssetId;
-    price : Float;
-    var volume : Nat;
-  };
-  public type StableUserInfoV1 = {
-    var currentAsks : AssocList.AssocList<OrderId, StableOrderV1>;
-    var currentBids : AssocList.AssocList<OrderId, StableOrderV1>;
-    var credits : AssocList.AssocList<AssetId, Account>;
-    var history : List.List<TransactionHistoryItem>;
-  };
-  public type StableAssetInfoV1 = {
-    asks : PriorityQueue.PriorityQueue<(OrderId, StableOrderV1)>;
-    bids : PriorityQueue.PriorityQueue<(OrderId, StableOrderV1)>;
-    lastRate : Float;
-  };
-  public type StableDataV1 = {
-    counters : (sessions : Nat, orders : Nat);
-    assets : Vec.Vector<StableAssetInfoV1>;
-    users : RBTree.Tree<Principal, StableUserInfoV1>;
-    history : List.List<PriceHistoryItem>;
-    stats : {
-      usersAmount : Nat;
-      accountsAmount : Nat;
-      assets : Vec.Vector<{ bidsAmount : Nat; totalBidVolume : Nat; asksAmount : Nat; totalAskVolume : Nat; lastProcessingInstructions : Nat }>;
-    };
   };
 
 };

@@ -22,6 +22,8 @@ module {
 
     public func getAsset(assetId : T.AssetId) : T.AssetInfo = Vec.get(assets, assetId);
 
+    public func historyLength() : Nat = List.size(history);
+
     public func register(n : Nat) {
       for (i in Iter.range(1, n)) {
         (
