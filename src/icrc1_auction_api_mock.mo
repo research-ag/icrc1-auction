@@ -240,6 +240,7 @@ actor class Icrc1AuctionAPI(adminPrincipal_ : ?Principal) = self {
     a.unshare(auctionDataV4);
     auction := ?a;
     initialSessionsCounter := a.sessionsCounter;
+    initialSessionTimestamp := Nat64.toNat((AUCTION_INTERVAL_SECONDS / 2) * (1 + 2 * Prim.time() / (AUCTION_INTERVAL_SECONDS * 1_000_000_000)));
 
     ignore metrics.addPullValue("sessions_counter", "", func() = a.sessionsCounter);
     ignore metrics.addPullValue("assets_amount", "", func() = a.assets.nAssets());
@@ -605,7 +606,7 @@ actor class Icrc1AuctionAPI(adminPrincipal_ : ?Principal) = self {
 
   let AUCTION_INTERVAL_SECONDS : Nat64 = 86_400; // a day
   // run daily at 12:00 p.m. UTC
-  let initialSessionTimestamp = Nat64.toNat((AUCTION_INTERVAL_SECONDS / 2) * (1 + 2 * Prim.time() / (AUCTION_INTERVAL_SECONDS * 1_000_000_000)));
+  var initialSessionTimestamp = 0;
   var initialSessionsCounter = 0;
 
   private func nextSessionTimestamp() : Nat = initialSessionTimestamp + Nat64.toNat(AUCTION_INTERVAL_SECONDS) * (U.unwrapUninit(auction).sessionsCounter - initialSessionsCounter);
