@@ -1,8 +1,11 @@
 import Array "mo:base/Array";
 import Error "mo:base/Error";
+import Float "mo:base/Float";
 import Int "mo:base/Int";
 import Iter "mo:base/Iter";
+import List "mo:base/List";
 import Nat "mo:base/Nat";
+import Nat8 "mo:base/Nat8";
 import Nat64 "mo:base/Nat64";
 import Option "mo:base/Option";
 import Prim "mo:prim";
@@ -15,7 +18,7 @@ import Timer "mo:base/Timer";
 import Auction "./auction/src";
 import ICRC1 "mo:token_handler/ICRC1";
 import PT "mo:promtracker";
-import TokenHandler "mo:token_handler_legacy";
+import TokenHandler "mo:token_handler";
 import Vec "mo:vector";
 
 import HTTP "./http";
@@ -40,7 +43,9 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   let adminsMap = RBTree.RBTree<Principal, ()>(Principal.compare);
   adminsMap.unshare(stableAdminsMap);
 
-  stable var assetsData : Vec.Vector<StableAssetInfo> = Vec.new();
+  stable var assetsData : Vec.Vector<{ ledgerPrincipal : Principal; minAskVolume : Nat; handler : TokenHandler.StableData }> = Vec.new();
+  stable var assetsDataV2 : Vec.Vector<StableAssetInfo> = Vec.map<{ ledgerPrincipal : Principal; minAskVolume : Nat; handler : TokenHandler.StableData }, StableAssetInfo>(assetsData, func(ad) = { ad with decimals = 0 });
+
   stable var auctionDataV3 : Auction.StableDataV3 = Auction.defaultStableDataV3();
   stable var auctionDataV4 : Auction.StableDataV4 = Auction.migrateStableDataV4(auctionDataV3);
 
@@ -52,11 +57,13 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     ledgerPrincipal : Principal;
     minAskVolume : Nat;
     handler : TokenHandler.TokenHandler;
+    decimals : Nat;
   };
   type StableAssetInfo = {
     ledgerPrincipal : Principal;
     minAskVolume : Nat;
     handler : TokenHandler.StableData;
+    decimals : Nat;
   };
 
   type RegisterAssetError = {
@@ -83,8 +90,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   type TransactionHistoryItem = (timestamp : Nat64, sessionNumber : Nat, kind : { #ask; #bid }, ledgerPrincipal : Principal, volume : Nat, price : Float);
 
   type TokenInfo = {
-    min_deposit : Nat;
-    min_withdrawal : Nat;
+    allowance_fee : Nat;
     deposit_fee : Nat;
     withdrawal_fee : Nat;
   };
@@ -101,12 +107,15 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     };
   };
 
+  type DepositResult = UpperResult<{ txid : Nat; credit_inc : Nat; credit : Int }, { #AmountBelowMinimum : {}; #CallLedgerError : { message : Text }; #TransferError : { message : Text }; #BadFee : { expected_fee : Nat } }>;
+
   type WithdrawResult = {
     #Ok : {
       txid : Nat;
       amount : Nat;
     };
     #Err : {
+      #BadFee : { expected_fee : Nat };
       #CallLedgerError : { message : Text };
       #InsufficientCredit : {};
       #AmountBelowMinimum : {};
@@ -124,6 +133,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   let notifyCounter = metrics.addCounter("num_calls__icrc84_notify", "", true);
   let depositCounter = metrics.addCounter("num_calls__icrc84_deposit", "", true);
   let withdrawCounter = metrics.addCounter("num_calls__icrc84_withdraw", "", true);
+  let manageOrdersCounter = metrics.addCounter("num_calls__manageOrders", "", true);
   let orderPlacementCounter = metrics.addCounter("num_calls__order_placement", "", true);
   let orderReplacementCounter = metrics.addCounter("num_calls__order_replacement", "", true);
   let orderCancellationCounter = metrics.addCounter("num_calls__order_cancellation", "", true);
@@ -141,11 +151,10 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   public shared query func icrc84_token_info(token : Principal) : async TokenInfo {
     for ((assetInfo, i) in Vec.items(assets)) {
       if (Principal.equal(assetInfo.ledgerPrincipal, token)) {
-        return (assetInfo.handler.fee(#deposit), assetInfo.handler.fee(#withdrawal)) |> {
-          min_deposit = _.0 + 1;
-          min_withdrawal = _.1 + 1;
-          deposit_fee = _.0;
-          withdrawal_fee = _.1;
+        return {
+          deposit_fee = assetInfo.handler.fee(#deposit);
+          withdrawal_fee = assetInfo.handler.fee(#withdrawal);
+          allowance_fee = assetInfo.handler.fee(#allowance);
         };
       };
     };
@@ -158,7 +167,10 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   };
 
   public shared query ({ caller }) func icrc84_all_credits() : async [(Principal, Int)] {
-    U.unwrapUninit(auction).getCredits(caller) |> Array.tabulate<(Principal, Nat)>(_.size(), func(i) = (getIcrc1Ledger(_ [i].0), _ [i].1.available));
+    U.unwrapUninit(auction).getCredits(caller) |> Array.tabulate<(Principal, Int)>(
+      _.size(),
+      func(i) = (getIcrc1Ledger(_ [i].0), _ [i].1.available),
+    );
   };
 
   public shared query ({ caller }) func icrc84_trackedDeposit(token : Principal) : async {
@@ -214,7 +226,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     };
   };
 
-  public shared ({ caller }) func icrc84_deposit(args : { token : Principal; amount : Nat; from : { owner : Principal; subaccount : ?Blob } }) : async UpperResult<{ txid : Nat; credit_inc : Nat; credit : Int }, { #AmountBelowMinimum : {}; #CallLedgerError : { message : Text }; #TransferError : { message : Text } }> {
+  public shared ({ caller }) func icrc84_deposit(args : { token : Principal; amount : Nat; from : { owner : Principal; subaccount : ?Blob }; expected_fee : ?Nat }) : async DepositResult {
     depositCounter.add(1);
     let a = U.unwrapUninit(auction);
     let assetId = switch (getAssetId(args.token)) {
@@ -222,7 +234,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       case (_) throw Error.reject("Unknown token");
     };
     let assetInfo = Vec.get(assets, assetId);
-    let res = await* assetInfo.handler.depositFromAllowance(caller, args.from, args.amount);
+    let res = await* assetInfo.handler.depositFromAllowance(caller, args.from, args.amount, args.expected_fee);
     switch (res) {
       case (#ok(credited, txid)) {
         assert assetInfo.handler.debitUser(caller, credited);
@@ -235,7 +247,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       };
       case (#err x) #Err(
         switch (x) {
-          case (#TooLowQuantity) #AmountBelowMinimum({});
+          case (#BadFee x) #BadFee(x);
           case (#CallIcrc1LedgerError) #CallLedgerError({
             message = "Call failed";
           });
@@ -251,7 +263,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     };
   };
 
-  public shared ({ caller }) func icrc84_withdraw(args : { to_subaccount : ?Blob; amount : Nat; token : Principal }) : async WithdrawResult {
+  public shared ({ caller }) func icrc84_withdraw(args : { to_subaccount : ?Blob; amount : Nat; token : Principal; expected_fee : ?Nat }) : async WithdrawResult {
     withdrawCounter.add(1);
     let ?assetId = getAssetId(args.token) else throw Error.reject("Unknown token");
     let handler = Vec.get(assets, assetId).handler;
@@ -259,12 +271,13 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       case (#err _) return #Err(#InsufficientCredit({}));
       case (#ok(_, r)) r;
     };
-    let res = await* handler.withdrawFromPool({ owner = caller; subaccount = args.to_subaccount }, args.amount);
+    let res = await* handler.withdrawFromPool({ owner = caller; subaccount = args.to_subaccount }, args.amount, args.expected_fee);
     switch (res) {
       case (#ok(txid, amount)) #Ok({ txid; amount });
       case (#err err) {
         rollbackCredit();
         switch (err) {
+          case (#BadFee x) #Err(#BadFee(x));
           case (#TooLowQuantity) #Err(#AmountBelowMinimum({}));
           case (#CallIcrc1LedgerError) #Err(#CallLedgerError({ message = "Call error" }));
           case (_) #Err(#CallLedgerError({ message = "Try later" }));
@@ -277,7 +290,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   public shared func init() : async () {
     assert Option.isNull(auction);
     assets := Vec.map<StableAssetInfo, AssetInfo>(
-      assetsData,
+      assetsDataV2,
       func(x) {
         let r = (actor (Principal.toText(x.ledgerPrincipal)) : ICRC1.ICRC1Ledger)
         |> {
@@ -296,6 +309,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
             triggerOnNotifications = true;
             log = func(p : Principal, logEvent : TokenHandler.LogEvent) = Vec.add(tokenHandlersJournal, (x.ledgerPrincipal, p, logEvent));
           });
+          decimals = x.decimals;
         };
         r.handler.unshare(x.handler);
         r;
@@ -314,7 +328,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     a.unshare(auctionDataV4);
     auction := ?a;
     initialSessionsCounter := a.sessionsCounter;
-    initialSessionTimestamp := Nat64.toNat((AUCTION_INTERVAL_SECONDS / 2) * (1 + 2 * Prim.time() / (AUCTION_INTERVAL_SECONDS * 1_000_000_000)));
+    initialSessionTimestamp := Nat64.toNat(AUCTION_INTERVAL_SECONDS * (1 + Prim.time() / (AUCTION_INTERVAL_SECONDS * 1_000_000_000)));
 
     ignore metrics.addPullValue("sessions_counter", "", func() = a.sessionsCounter);
     ignore metrics.addPullValue("assets_amount", "", func() = a.assets.nAssets());
@@ -323,9 +337,30 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     ignore metrics.addPullValue("accounts_amount", "", func() = a.credits.nAccounts());
     ignore metrics.addPullValue("quote_surplus", "", func() = a.credits.quoteSurplus);
     ignore metrics.addPullValue("next_session_timestamp", "", nextSessionTimestamp);
+    ignore metrics.addPullValue("total_executed_volume", "", func() = a.orders.totalQuoteVolumeProcessed);
+    ignore metrics.addPullValue("total_unique_participants_amount", "", func() = a.users.participantsArchiveSize);
+    ignore metrics.addPullValue("active_unique_participants_amount", "", func() = a.users.nUsersWithActiveOrders());
+    ignore metrics.addPullValue(
+      "monthly_active_participants_amount",
+      "",
+      func() {
+        let ts : Nat64 = Prim.time() - 30 * 24 * 60 * 60_000_000_000;
+        var amount : Nat = 0;
+        for ((_, { lastOrderPlacement }) in a.users.participantsArchive.entries()) {
+          if (lastOrderPlacement > ts) {
+            amount += 1;
+          };
+        };
+        amount;
+      },
+    );
+    ignore metrics.addPullValue("total_orders_amount", "", func() = a.orders.ordersCounter);
+    ignore metrics.addPullValue("fulfilled_orders_amount", "", func() = a.orders.fulfilledCounter);
+    ignore metrics.addPullValue("auctions_run_amount", "", func() = a.assets.historyLength());
+    ignore metrics.addPullValue("trading_pairs_amount", "", func() = a.assets.nAssets() - 1);
 
     if (Vec.size(assets) == 0) {
-      ignore U.requireOk(registerAsset_(quoteLedgerPrincipal, 0));
+      ignore U.requireOk(registerAsset_(quoteLedgerPrincipal, 0, 0));
     } else {
       for (assetId in Iter.range(0, a.assets.nAssets() - 1)) {
         registerAssetMetrics_(assetId);
@@ -413,6 +448,61 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     U.unwrapUninit(auction).getPriceHistory(assetId)
     |> U.sliceIter(_, limit, skip)
     |> Array.map<Auction.PriceHistoryItem, PriceHistoryItem>(_, func(x) = (x.0, x.1, Vec.get(assets, x.2).ledgerPrincipal, x.3, x.4));
+  };
+
+  type ManageOrdersError = {
+    #UnknownPrincipal;
+    #cancellation : { index : Nat; error : { #UnknownAsset; #UnknownOrder } };
+    #placement : {
+      index : Nat;
+      error : {
+        #ConflictingOrder : ({ #ask; #bid }, ?Auction.OrderId);
+        #NoCredit;
+        #TooLowOrder;
+        #UnknownAsset;
+        #PriceDigitsOverflow : { maxDigits : Nat };
+        #VolumeStepViolated : { baseVolumeStep : Nat };
+      };
+    };
+  };
+
+  public shared ({ caller }) func manageOrders(
+    cancellations : ?{
+      #all : ?[Principal];
+      #orders : [{ #ask : Auction.OrderId; #bid : Auction.OrderId }];
+    },
+    placements : [{
+      #ask : (token : Principal, volume : Nat, price : Float);
+      #bid : (token : Principal, volume : Nat, price : Float);
+    }],
+  ) : async UpperResult<[Auction.OrderId], ManageOrdersError> {
+    manageOrdersCounter.add(1);
+    let cancellationArg : ?Auction.CancellationAction = switch (cancellations) {
+      case (null) null;
+      case (? #orders x) ? #orders(x);
+      case (? #all null) ? #all(null);
+      case (? #all(?tokens)) {
+        let aids = Array.init<Nat>(tokens.size(), 0);
+        for (i in tokens.keys()) {
+          let ?aid = getAssetId(tokens[i]) else return #Err(#cancellation({ index = i; error = #UnknownAsset }));
+          aids[i] := aid;
+        };
+        ? #all(?Array.freeze(aids));
+      };
+    };
+    let placementArg = Array.init<Auction.PlaceOrderAction>(placements.size(), #ask(0, 0, 0.0));
+    for (i in placements.keys()) {
+      let placement = placements[i];
+      let token = switch (placement) { case (#ask x or #bid x) x.0 };
+      let ?aid = getAssetId(token) else return #Err(#placement({ index = i; error = #UnknownAsset }));
+      placementArg[i] := switch (placement) {
+        case (#ask(_, volume, price)) #ask(aid, volume, price);
+        case (#bid(_, volume, price)) #bid(aid, volume, price);
+      };
+    };
+    U.unwrapUninit(auction)
+    |> _.manageOrders(caller, cancellationArg, Array.freeze(placementArg))
+    |> R.toUpper(_);
   };
 
   public shared ({ caller }) func placeBids(arg : [(ledger : Principal, volume : Nat, price : Float)]) : async [UpperResult<Auction.OrderId, Auction.PlaceOrderError>] {
@@ -526,21 +616,56 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   };
 
   private func registerAssetMetrics_(assetId : Auction.AssetId) {
-    let stats = U.unwrapUninit(auction).assets.getAsset(assetId);
-    ignore metrics.addPullValue("asks_amount", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = stats.asks.size);
-    ignore metrics.addPullValue("asks_volume", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = stats.asks.totalVolume);
-    ignore metrics.addPullValue("bids_amount", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = stats.bids.size);
-    ignore metrics.addPullValue("bids_volume", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = stats.bids.totalVolume);
-    ignore metrics.addPullValue("processing_instructions", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = stats.lastProcessingInstructions);
+    let asset = U.unwrapUninit(auction).assets.getAsset(assetId);
+
+    let priceMultiplier = 10 ** Float.fromInt(Vec.get(assets, assetId).decimals);
+    let renderPrice = func(price : Float) : Nat = Int.abs(Float.toInt(price * priceMultiplier));
+
+    ignore metrics.addPullValue("asks_amount", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = asset.asks.size);
+    ignore metrics.addPullValue("asks_volume", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = asset.asks.totalVolume);
+    ignore metrics.addPullValue("bids_amount", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = asset.bids.size);
+    ignore metrics.addPullValue("bids_volume", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = asset.bids.totalVolume);
+    ignore metrics.addPullValue("processing_instructions", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = asset.lastProcessingInstructions);
+
+    ignore metrics.addPullValue(
+      "clearing_price",
+      "asset_id=\"" # Nat.toText(assetId) # "\"",
+      func() = U.unwrapUninit(auction).indicativeAssetStats(assetId).clearingPrice
+      |> renderPrice(_),
+    );
+    ignore metrics.addPullValue("clearing_volume", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = U.unwrapUninit(auction).indicativeAssetStats(assetId).clearingVolume);
+
+    ignore metrics.addPullValue(
+      "last_price",
+      "asset_id=\"" # Nat.toText(assetId) # "\"",
+      func() = U.unwrapUninit(auction).getPriceHistory(?assetId).next()
+      |> (
+        switch (_) {
+          case (?item) renderPrice(item.4);
+          case (null) 0;
+        }
+      ),
+    );
+    ignore metrics.addPullValue(
+      "last_volume",
+      "asset_id=\"" # Nat.toText(assetId) # "\"",
+      func() = U.unwrapUninit(auction).getPriceHistory(?assetId).next()
+      |> (
+        switch (_) {
+          case (?item) item.3;
+          case (null) 0;
+        }
+      ),
+    );
   };
 
-  private func registerAsset_(ledger : Principal, minAskVolume : Nat) : R.Result<Nat, RegisterAssetError> {
+  private func registerAsset_(ledgerPrincipal : Principal, minAskVolume : Nat, decimals : Nat) : R.Result<Nat, RegisterAssetError> {
     for ((assetInfo, i) in Vec.items(assets)) {
-      if (Principal.equal(ledger, assetInfo.ledgerPrincipal)) return #err(#AlreadyRegistered(i));
+      if (Principal.equal(ledgerPrincipal, assetInfo.ledgerPrincipal)) return #err(#AlreadyRegistered(i));
     };
     let id = Vec.size(assets);
     assert id == U.unwrapUninit(auction).assets.nAssets();
-    (actor (Principal.toText(ledger)) : ICRC1.ICRC1Ledger)
+    (actor (Principal.toText(ledgerPrincipal)) : ICRC1.ICRC1Ledger)
     |> {
       balance_of = _.icrc1_balance_of;
       fee = _.icrc1_fee;
@@ -548,15 +673,16 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       transfer_from = _.icrc2_transfer_from;
     }
     |> {
-      ledgerPrincipal = ledger;
-      minAskVolume = minAskVolume;
+      ledgerPrincipal;
+      minAskVolume;
       handler = TokenHandler.TokenHandler({
         ledgerApi = _;
         ownPrincipal = Principal.fromActor(self);
         initialFee = 0;
         triggerOnNotifications = true;
-        log = func(p : Principal, logEvent : TokenHandler.LogEvent) = Vec.add(tokenHandlersJournal, (ledger, p, logEvent));
+        log = func(p : Principal, logEvent : TokenHandler.LogEvent) = Vec.add(tokenHandlersJournal, (ledgerPrincipal, p, logEvent));
       });
+      decimals;
     }
     |> Vec.add<AssetInfo>(assets, _);
     U.unwrapUninit(auction).registerAssets(1);
@@ -567,16 +693,47 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   public shared ({ caller }) func registerAsset(ledger : Principal, minAskVolume : Nat) : async UpperResult<Nat, RegisterAssetError> {
     await* assertAdminAccess(caller);
     // validate ledger
-    let canister = actor (Principal.toText(ledger)) : (actor { icrc1_metadata : () -> async [Any] });
-    try {
-      ignore await canister.icrc1_metadata();
+    let canister = actor (Principal.toText(ledger)) : (actor { icrc1_decimals : () -> async Nat8 });
+    let decimals = try {
+      await canister.icrc1_decimals();
     } catch (err) {
       throw err;
     };
-    registerAsset_(ledger, minAskVolume) |> R.toUpper(_);
+    registerAsset_(ledger, minAskVolume, Nat8.toNat(decimals)) |> R.toUpper(_);
   };
 
-  public shared query func debugLastBidProcessingInstructions() : async Nat64 = async lastBidProcessingInstructions;
+  public shared ({ caller }) func wipePriceHistory(icrc1Ledger : Principal) : async () {
+    await* assertAdminAccess(caller);
+    let ?assetId = getAssetId(icrc1Ledger) else throw Error.reject("Unknown asset");
+    U.unwrapUninit(auction).assets.history := List.filter<Auction.PriceHistoryItem>(
+      U.unwrapUninit(auction).assets.history,
+      func x = x.2 != assetId,
+    );
+  };
+
+  public shared ({ caller }) func wipeOrders() : async () {
+    await* assertAdminAccess(caller);
+    let a = U.unwrapUninit(auction);
+    for ((p, _) in a.users.users.entries()) {
+      ignore a.manageOrders(p, ? #all(null), []);
+    };
+  };
+
+  public shared ({ caller }) func wipeUsers() : async () {
+    await* assertAdminAccess(caller);
+    let a = U.unwrapUninit(auction);
+    for ((p, _) in a.users.users.entries()) {
+      a.users.users.delete(p);
+    };
+    for (asset in Vec.vals(a.assets.assets)) {
+      asset.asks.queue := List.nil();
+      asset.asks.size := 0;
+      asset.asks.totalVolume := 0;
+      asset.bids.queue := List.nil();
+      asset.bids.size := 0;
+      asset.bids.totalVolume := 0;
+    };
+  };
 
   // Auction processing functionality
 
@@ -651,12 +808,13 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   system func preupgrade() {
     switch (auction) {
       case (?a) {
-        assetsData := Vec.map<AssetInfo, StableAssetInfo>(
+        assetsDataV2 := Vec.map<AssetInfo, StableAssetInfo>(
           assets,
           func(x) = {
             ledgerPrincipal = x.ledgerPrincipal;
             minAskVolume = x.minAskVolume;
             handler = x.handler.share();
+            decimals = x.decimals;
           },
         );
         auctionDataV4 := a.share();
@@ -681,8 +839,8 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     },
   );
 
-  let AUCTION_INTERVAL_SECONDS : Nat64 = 86_400; // a day
-  // run daily at 12:00 p.m. UTC
+  // each 2 minutes
+  let AUCTION_INTERVAL_SECONDS : Nat64 = 120;
   var initialSessionTimestamp = 0;
   var initialSessionsCounter = 0;
 
@@ -702,6 +860,6 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
         case (null) {};
       };
     }
-  ) |> Timer.setTimer<system>(#seconds(Nat64.toNat(AUCTION_INTERVAL_SECONDS - (Prim.time() / 1_000_000_000 + 43_200) % AUCTION_INTERVAL_SECONDS)), _);
+  ) |> Timer.setTimer<system>(#seconds(Nat64.toNat(AUCTION_INTERVAL_SECONDS - (Prim.time() / 1_000_000_000) % AUCTION_INTERVAL_SECONDS)), _);
 
 };

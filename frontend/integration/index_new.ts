@@ -4,7 +4,7 @@ import { useSnackbar } from 'notistack';
 import { useIdentity } from './identity';
 import { Principal } from '@dfinity/principal';
 import { useMemo } from 'react';
-import { canisterId as cid, createActor } from '@declarations/icrc1_auction_legacy';
+import { canisterId as cid, createActor } from '@declarations/icrc1_auction';
 import { createActor as createLedgerActor } from '@declarations/icrc1_ledger_mock';
 
 // Custom replacer function for JSON.stringify
@@ -38,7 +38,6 @@ export const useSessionsCounter = () => {
   return useQuery('sessionsCounter', () => auction.nextSession().then(({ counter }) => counter));
 };
 
-
 export const useMinimumOrder = () => {
   const { auction } = useAuction();
   return useQuery('minimumOrder', () => auction.settings().then(({ orderQuoteVolumeMinimum }) => orderQuoteVolumeMinimum));
@@ -65,6 +64,7 @@ export const useAddAsset = () => {
           enqueueSnackbar(`Failed to add ledger: ${JSON.stringify(res.Err, bigIntReplacer)}`, { variant: 'error' });
         } else {
           queryClient.invalidateQueries('assets');
+          queryClient.invalidateQueries('assetInfos');
           enqueueSnackbar(`Ledger ${principal.toText()} added. Asset index: ${minAskVolume}`, { variant: 'success' });
         }
       },
@@ -195,6 +195,7 @@ export const useDeposit = () => {
           owner: arg.owner,
           subaccount: arg.subaccount ? [arg.subaccount] : [],
         },
+        expected_fee: [],
       }),
     {
       onSuccess: res => {
@@ -305,6 +306,7 @@ export const useWithdrawCredit = () => {
         token: Principal.fromText(formObj.ledger),
         to_subaccount: formObj.subaccount ? [formObj.subaccount] : [],
         amount: BigInt(formObj.amount),
+        expected_fee: [],
       }),
     {
       onSuccess: res => {
