@@ -4,7 +4,7 @@ import { useSnackbar } from 'notistack';
 import { useIdentity } from './identity';
 import { Principal } from '@dfinity/principal';
 import { useMemo } from 'react';
-import { canisterId as cid, createActor } from '@declarations/icrc1_auction';
+import { canisterId as cid, createActor } from '@declarations/icrc1_auction_new';
 import { createActor as createLedgerActor } from '@declarations/icrc1_ledger_mock';
 
 // Custom replacer function for JSON.stringify
