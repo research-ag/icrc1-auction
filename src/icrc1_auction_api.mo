@@ -126,7 +126,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   let metrics = PT.PromTracker("", 65);
   metrics.addSystemValues();
-  let sessionStartTimeGauge = metrics.addGauge("session_start_time_offset_ms", "", #none, [0, 500, 1000, 5000, 10000, 25000], false);
+  let sessionStartTimeGauge = metrics.addGauge("session_start_time_offset_ms", "", #none, [0, 4, 16, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144], false);
 
   // call stats
   let notifyCounter = metrics.addCounter("num_calls__icrc84_notify", "", true);
