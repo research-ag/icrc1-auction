@@ -340,6 +340,8 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
     startTimer<system>();
 
+    let startupTime = Prim.time();
+    ignore metrics.addPullValue("uptime", "", func() = Nat64.toNat((Prim.time() - startupTime) / 1_000_000_000));
     ignore metrics.addPullValue("sessions_counter", "", func() = a.sessionsCounter);
     ignore metrics.addPullValue("assets_count", "", func() = a.assets.nAssets());
     ignore metrics.addPullValue("users_count", "", func() = a.users.nUsers());
