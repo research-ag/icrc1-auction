@@ -328,6 +328,8 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     auction := ?a;
     nextSessionTimestamp := Nat64.toNat(AUCTION_INTERVAL_SECONDS * (1 + Prim.time() / (AUCTION_INTERVAL_SECONDS * 1_000_000_000)));
 
+    startTimer<system>();
+
     ignore metrics.addPullValue("sessions_counter", "", func() = a.sessionsCounter);
     ignore metrics.addPullValue("assets_amount", "", func() = a.assets.nAssets());
     ignore metrics.addPullValue("users_amount", "", func() = a.users.nUsers());
@@ -815,20 +817,22 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   let AUCTION_INTERVAL_SECONDS : Nat64 = 120;
   var nextSessionTimestamp = 0;
 
-  ignore (
-    func() : async () {
-      ignore Timer.recurringTimer<system>(
-        #seconds(Nat64.toNat(AUCTION_INTERVAL_SECONDS)),
-        func() : async () = async switch (auction) {
+  func startTimer<system>() {
+    ignore (
+      func() : async () {
+        ignore Timer.recurringTimer<system>(
+          #seconds(Nat64.toNat(AUCTION_INTERVAL_SECONDS)),
+          func() : async () = async switch (auction) {
+            case (?_) await runAuction();
+            case (null) {};
+          },
+        );
+        switch (auction) {
           case (?_) await runAuction();
           case (null) {};
-        },
-      );
-      switch (auction) {
-        case (?_) await runAuction();
-        case (null) {};
-      };
-    }
-  ) |> Timer.setTimer<system>(#seconds(Nat64.toNat(AUCTION_INTERVAL_SECONDS - (Prim.time() / 1_000_000_000) % AUCTION_INTERVAL_SECONDS)), _);
+        };
+      }
+    ) |> Timer.setTimer<system>(#seconds(Nat64.toNat(AUCTION_INTERVAL_SECONDS - (Prim.time() / 1_000_000_000) % AUCTION_INTERVAL_SECONDS)), _);
+  };
 
 };
