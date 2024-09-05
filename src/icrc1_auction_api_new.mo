@@ -332,17 +332,17 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     startTimer<system>();
 
     ignore metrics.addPullValue("sessions_counter", "", func() = a.sessionsCounter);
-    ignore metrics.addPullValue("assets_amount", "", func() = a.assets.nAssets());
-    ignore metrics.addPullValue("users_amount", "", func() = a.users.nUsers());
-    ignore metrics.addPullValue("users_with_credits_amount", "", func() = a.users.nUsersWithCredits());
-    ignore metrics.addPullValue("accounts_amount", "", func() = a.credits.nAccounts());
+    ignore metrics.addPullValue("assets_count", "", func() = a.assets.nAssets());
+    ignore metrics.addPullValue("users_count", "", func() = a.users.nUsers());
+    ignore metrics.addPullValue("users_with_credits_count", "", func() = a.users.nUsersWithCredits());
+    ignore metrics.addPullValue("accounts_count", "", func() = a.credits.nAccounts());
     ignore metrics.addPullValue("quote_surplus", "", func() = a.credits.quoteSurplus);
     ignore metrics.addPullValue("next_session_timestamp", "", func() = nextSessionTimestamp);
     ignore metrics.addPullValue("total_executed_volume", "", func() = a.orders.totalQuoteVolumeProcessed);
-    ignore metrics.addPullValue("total_unique_participants_amount", "", func() = a.users.participantsArchiveSize);
-    ignore metrics.addPullValue("active_unique_participants_amount", "", func() = a.users.nUsersWithActiveOrders());
+    ignore metrics.addPullValue("total_unique_participants", "", func() = a.users.participantsArchiveSize);
+    ignore metrics.addPullValue("active_unique_participants", "", func() = a.users.nUsersWithActiveOrders());
     ignore metrics.addPullValue(
-      "monthly_active_participants_amount",
+      "monthly_active_participants_count",
       "",
       func() {
         let ts : Nat64 = Prim.time() - 30 * 24 * 60 * 60_000_000_000;
@@ -355,10 +355,10 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
         amount;
       },
     );
-    ignore metrics.addPullValue("total_orders_amount", "", func() = a.orders.ordersCounter);
-    ignore metrics.addPullValue("fulfilled_orders_amount", "", func() = a.orders.fulfilledCounter);
-    ignore metrics.addPullValue("auctions_run_amount", "", func() = a.assets.historyLength());
-    ignore metrics.addPullValue("trading_pairs_amount", "", func() = a.assets.nAssets() - 1);
+    ignore metrics.addPullValue("total_orders", "", func() = a.orders.ordersCounter);
+    ignore metrics.addPullValue("fulfilled_orders", "", func() = a.orders.fulfilledCounter);
+    ignore metrics.addPullValue("auctions_run_count", "", func() = a.assets.historyLength());
+    ignore metrics.addPullValue("trading_pairs_count", "", func() = a.assets.nAssets() - 1);
 
     if (Vec.size(assets) == 0) {
       ignore U.requireOk(registerAsset_(quoteLedgerPrincipal, 0, 0));
@@ -622,9 +622,9 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     let priceMultiplier = 10 ** Float.fromInt(Vec.get(assets, assetId).decimals);
     let renderPrice = func(price : Float) : Nat = Int.abs(Float.toInt(price * priceMultiplier));
 
-    ignore metrics.addPullValue("asks_amount", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = asset.asks.size);
+    ignore metrics.addPullValue("asks_count", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = asset.asks.size);
     ignore metrics.addPullValue("asks_volume", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = asset.asks.totalVolume);
-    ignore metrics.addPullValue("bids_amount", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = asset.bids.size);
+    ignore metrics.addPullValue("bids_count", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = asset.bids.size);
     ignore metrics.addPullValue("bids_volume", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = asset.bids.totalVolume);
     ignore metrics.addPullValue("processing_instructions", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = asset.lastProcessingInstructions);
 
