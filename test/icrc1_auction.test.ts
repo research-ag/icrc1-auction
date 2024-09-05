@@ -199,7 +199,7 @@ describe('ICRC1 Auction', () => {
       let metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
-      expect(metrics).toContain(`bids_amount{canister="${shortP}",asset_id="2"} 1 `);
+      expect(metrics).toContain(`bids_count{canister="${shortP}",asset_id="2"} 1 `);
       expect(metrics).toContain(`bids_volume{canister="${shortP}",asset_id="2"} 100 `);
 
       await pic.upgradeCanister({
@@ -218,7 +218,7 @@ describe('ICRC1 Auction', () => {
       metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
-      expect(metrics).toContain(`bids_amount{canister="${shortP}",asset_id="2"} 1 `);
+      expect(metrics).toContain(`bids_count{canister="${shortP}",asset_id="2"} 1 `);
       expect(metrics).toContain(`bids_volume{canister="${shortP}",asset_id="2"} 100 `);
     });
   });
@@ -324,7 +324,7 @@ describe('ICRC1 Auction', () => {
       let metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
-      expect(metrics).toContain(`bids_amount{canister="${shortP}",asset_id="1"} 1 `);
+      expect(metrics).toContain(`bids_count{canister="${shortP}",asset_id="1"} 1 `);
       expect(metrics).toContain(`bids_volume{canister="${shortP}",asset_id="1"} 2000 `);
 
       const seller = createIdentity('seller');
@@ -337,7 +337,7 @@ describe('ICRC1 Auction', () => {
       metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
-      expect(metrics).toContain(`bids_amount{canister="${shortP}",asset_id="1"} 0 `);
+      expect(metrics).toContain(`bids_count{canister="${shortP}",asset_id="1"} 0 `);
       expect(metrics).toContain(`bids_volume{canister="${shortP}",asset_id="1"} 0 `);
     });
 
@@ -356,7 +356,7 @@ describe('ICRC1 Auction', () => {
       let metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
-      expect(metrics).toContain(`asks_amount{canister="${shortP}",asset_id="1"} 1 `);
+      expect(metrics).toContain(`asks_count{canister="${shortP}",asset_id="1"} 1 `);
       expect(metrics).toContain(`asks_volume{canister="${shortP}",asset_id="1"} 2000000 `);
 
       await startNewAuctionSession();
@@ -365,7 +365,7 @@ describe('ICRC1 Auction', () => {
       metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
-      expect(metrics).toContain(`asks_amount{canister="${shortP}",asset_id="1"} 0 `);
+      expect(metrics).toContain(`asks_count{canister="${shortP}",asset_id="1"} 0 `);
       expect(metrics).toContain(`asks_volume{canister="${shortP}",asset_id="1"} 0 `);
     });
 
@@ -420,9 +420,9 @@ describe('ICRC1 Auction', () => {
       let metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
-      expect(metrics).toContain(`accounts_amount{canister="${shortP}"} 2 `);
-      expect(metrics).toContain(`users_amount{canister="${shortP}"} 2 `);
-      expect(metrics).toContain(`users_with_credits_amount{canister="${shortP}"} 2 `);
+      expect(metrics).toContain(`accounts_count{canister="${shortP}"} 2 `);
+      expect(metrics).toContain(`users_count{canister="${shortP}"} 2 `);
+      expect(metrics).toContain(`users_with_credits_count{canister="${shortP}"} 2 `);
 
       const res = await auction.icrc84_withdraw({
         to_subaccount: [],
@@ -435,9 +435,9 @@ describe('ICRC1 Auction', () => {
       metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
-      expect(metrics).toContain(`accounts_amount{canister="${shortP}"} 1 `);
-      expect(metrics).toContain(`users_amount{canister="${shortP}"} 2 `);
-      expect(metrics).toContain(`users_with_credits_amount{canister="${shortP}"} 1 `);
+      expect(metrics).toContain(`accounts_count{canister="${shortP}"} 1 `);
+      expect(metrics).toContain(`users_count{canister="${shortP}"} 2 `);
+      expect(metrics).toContain(`users_with_credits_count{canister="${shortP}"} 1 `);
     });
 
     // TODO uncomment 3 tests below after fixing issue
