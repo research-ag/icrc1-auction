@@ -326,8 +326,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     );
     a.unshare(auctionDataV4);
     auction := ?a;
-    initialSessionsCounter := a.sessionsCounter;
-    initialSessionTimestamp := Nat64.toNat(AUCTION_INTERVAL_SECONDS * (1 + Prim.time() / (AUCTION_INTERVAL_SECONDS * 1_000_000_000)));
+    nextSessionTimestamp := Nat64.toNat(AUCTION_INTERVAL_SECONDS * (1 + Prim.time() / (AUCTION_INTERVAL_SECONDS * 1_000_000_000)));
 
     ignore metrics.addPullValue("sessions_counter", "", func() = a.sessionsCounter);
     ignore metrics.addPullValue("assets_amount", "", func() = a.assets.nAssets());
@@ -335,7 +334,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     ignore metrics.addPullValue("users_with_credits_amount", "", func() = a.users.nUsersWithCredits());
     ignore metrics.addPullValue("accounts_amount", "", func() = a.credits.nAccounts());
     ignore metrics.addPullValue("quote_surplus", "", func() = a.credits.quoteSurplus);
-    ignore metrics.addPullValue("next_session_timestamp", "", nextSessionTimestamp);
+    ignore metrics.addPullValue("next_session_timestamp", "", func() = nextSessionTimestamp);
     ignore metrics.addPullValue("total_executed_volume", "", func() = a.orders.totalQuoteVolumeProcessed);
     ignore metrics.addPullValue("total_unique_participants_amount", "", func() = a.users.participantsArchiveSize);
     ignore metrics.addPullValue("active_unique_participants_amount", "", func() = a.users.nUsersWithActiveOrders());
@@ -372,7 +371,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     timestamp : Nat;
     counter : Nat;
   } = async ({
-    timestamp = nextSessionTimestamp();
+    timestamp = nextSessionTimestamp;
     counter = U.unwrapUninit(auction).sessionsCounter;
   });
 
@@ -745,8 +744,15 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   private func runAuction() : async () {
     let a = U.requireMsg(auction, "Not initialized");
     if (nextAssetIdToProcess == 0) {
-      let startTimeDiff : Int = Nat64.toNat(Prim.time() / 1_000_000) - nextSessionTimestamp() * 1_000;
+      let startTimeDiff : Int = Nat64.toNat(Prim.time() / 1_000_000) - nextSessionTimestamp * 1_000;
       sessionStartTimeGauge.update(Int.max(startTimeDiff, 0) |> Int.abs(_));
+      let next = Nat64.toNat(AUCTION_INTERVAL_SECONDS * (1 + Prim.time() / (AUCTION_INTERVAL_SECONDS * 1_000_000_000)));
+      if (next == nextSessionTimestamp) {
+        // if auction started before expected time
+        nextSessionTimestamp += Nat64.toNat(AUCTION_INTERVAL_SECONDS);
+      } else {
+        nextSessionTimestamp := next;
+      };
     };
     switch (processAssetsChunk(a, nextAssetIdToProcess)) {
       case (#done) {
@@ -784,11 +790,11 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
           },
         );
         auctionDataV4 := a.share();
+        ptData := metrics.share();
       };
       case (null) {};
     };
     stableAdminsMap := adminsMap.share();
-    ptData := metrics.share();
   };
 
   system func postupgrade() {
@@ -807,10 +813,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   // each 2 minutes
   let AUCTION_INTERVAL_SECONDS : Nat64 = 120;
-  var initialSessionTimestamp = 0;
-  var initialSessionsCounter = 0;
-
-  private func nextSessionTimestamp() : Nat = initialSessionTimestamp + Nat64.toNat(AUCTION_INTERVAL_SECONDS) * (U.unwrapUninit(auction).sessionsCounter - initialSessionsCounter);
+  var nextSessionTimestamp = 0;
 
   ignore (
     func() : async () {
