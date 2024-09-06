@@ -199,8 +199,8 @@ describe('ICRC1 Auction', () => {
       let metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
-      expect(metrics).toContain(`bids_count{canister="${shortP}",asset_id="2"} 1 `);
-      expect(metrics).toContain(`bids_volume{canister="${shortP}",asset_id="2"} 100 `);
+      expect(metrics).toContain(`bids_count{canister="${shortP}",asset_id="MOCK"} 1 `);
+      expect(metrics).toContain(`bids_volume{canister="${shortP}",asset_id="MOCK"} 100 `);
 
       await pic.upgradeCanister({
         canisterId: auctionPrincipal,
@@ -218,8 +218,8 @@ describe('ICRC1 Auction', () => {
       metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
-      expect(metrics).toContain(`bids_count{canister="${shortP}",asset_id="2"} 1 `);
-      expect(metrics).toContain(`bids_volume{canister="${shortP}",asset_id="2"} 100 `);
+      expect(metrics).toContain(`bids_count{canister="${shortP}",asset_id="MOCK"} 1 `);
+      expect(metrics).toContain(`bids_volume{canister="${shortP}",asset_id="MOCK"} 100 `);
     });
   });
 
