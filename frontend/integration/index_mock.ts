@@ -262,15 +262,17 @@ export const useTransactionHistory = () => {
   );
 };
 
-export const usePriceHistory = () => {
+export const usePriceHistory = (limit: number, offset: number) => {
   const { auction } = useAuction();
   const { enqueueSnackbar } = useSnackbar();
+
   return useQuery(
-    'price-history',
+    ['price-history', offset],
     async () => {
-      return auction.queryPriceHistory([], BigInt(10000), BigInt(0));
+      return auction.queryPriceHistory([], BigInt(limit), BigInt(offset));
     },
     {
+      keepPreviousData: true,
       onError: err => {
         enqueueSnackbar(`Failed to fetch price history: ${err}`, { variant: 'error' });
       },
