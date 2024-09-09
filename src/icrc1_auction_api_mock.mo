@@ -132,7 +132,7 @@ actor class Icrc1AuctionAPI(adminPrincipal_ : ?Principal) = self {
 
   let metrics = PT.PromTracker("", 65);
   metrics.addSystemValues();
-  let sessionStartTimeGauge = metrics.addGauge("session_start_time_offset_ms", "", #none, [0, 4, 16, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144], false);
+  let sessionStartTimeGauge = metrics.addGauge("session_start_time_offset_ms", "", #none, [0, 1_000, 2_000, 4_000, 8_000, 16_000, 32_000, 64_000, 128_000], false);
 
   // ICRC84 API
   public shared query func principalToSubaccount(p : Principal) : async ?Blob = async ?TokenHandler.toSubaccount(p);
@@ -515,6 +515,7 @@ actor class Icrc1AuctionAPI(adminPrincipal_ : ?Principal) = self {
   };
 
   private func registerAssetMetrics_(assetId : Auction.AssetId) {
+    if (assetId == quoteAssetId) return;
     let asset = U.unwrapUninit(auction).assets.getAsset(assetId);
 
     let renderPrice = func(price : Float) : Nat = Int.abs(Float.toInt(price));

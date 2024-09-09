@@ -129,7 +129,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   let metrics = PT.PromTracker("", 65);
   metrics.addSystemValues();
-  let sessionStartTimeGauge = metrics.addGauge("session_start_time_offset_ms", "", #none, [0, 4, 16, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144], false);
+  let sessionStartTimeGauge = metrics.addGauge("session_start_time_offset_ms", "", #none, [0, 1_000, 2_000, 4_000, 8_000, 16_000, 32_000, 64_000, 128_000], false);
 
   // call stats
   let notifyCounter = metrics.addCounter("num_calls__icrc84_notify", "", true);
@@ -628,6 +628,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   };
 
   private func registerAssetMetrics_(assetId : Auction.AssetId) {
+    if (assetId == quoteAssetId) return;
     let asset = U.unwrapUninit(auction).assets.getAsset(assetId);
 
     let priceMultiplier = 10 ** Float.fromInt(Vec.get(assets, assetId).decimals);
