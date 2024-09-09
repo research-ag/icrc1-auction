@@ -5,6 +5,8 @@ import Prim "mo:prim";
 import Principal "mo:base/Principal";
 import RBTree "mo:base/RBTree";
 
+import Vec "mo:vector";
+
 import T "./types";
 
 module {
@@ -46,7 +48,7 @@ module {
           asks = { var map = null };
           bids = { var map = null };
           var credits = null;
-          var history = null;
+          var history = Vec.new<T.TransactionHistoryItem>();
         };
         let oldValue = users.replace(p, data);
         switch (oldValue) {

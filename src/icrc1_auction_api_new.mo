@@ -48,6 +48,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   stable var auctionDataV3 : Auction.StableDataV3 = Auction.defaultStableDataV3();
   stable var auctionDataV4 : Auction.StableDataV4 = Auction.migrateStableDataV4(auctionDataV3);
+  stable var auctionDataV5 : Auction.StableDataV5 = Auction.migrateStableDataV5(auctionDataV4);
 
   stable var ptData : PT.StableData = null;
 
@@ -334,7 +335,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
         performanceCounter = Prim.performanceCounter;
       },
     );
-    a.unshare(auctionDataV4);
+    a.unshare(auctionDataV5);
     auction := ?a;
     nextSessionTimestamp := Nat64.toNat(AUCTION_INTERVAL_SECONDS * (1 + Prim.time() / (AUCTION_INTERVAL_SECONDS * 1_000_000_000)));
 
@@ -730,10 +731,13 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   public shared ({ caller }) func wipePriceHistory(icrc1Ledger : Principal) : async () {
     await* assertAdminAccess(caller);
     let ?assetId = getAssetId(icrc1Ledger) else throw Error.reject("Unknown asset");
-    U.unwrapUninit(auction).assets.history := List.filter<Auction.PriceHistoryItem>(
-      U.unwrapUninit(auction).assets.history,
-      func x = x.2 != assetId,
-    );
+    let newHistory : Vec.Vector<Auction.PriceHistoryItem> = Vec.new();
+    for (x in Vec.vals(U.unwrapUninit(auction).assets.history)) {
+      if (x.2 != assetId) {
+        Vec.add(newHistory, x);
+      };
+    };
+    U.unwrapUninit(auction).assets.history := newHistory;
   };
 
   public shared ({ caller }) func wipeOrders() : async () {
@@ -850,7 +854,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
             symbol = x.symbol;
           },
         );
-        auctionDataV4 := a.share();
+        auctionDataV5 := a.share();
         ptData := metrics.share();
       };
       case (null) {};
