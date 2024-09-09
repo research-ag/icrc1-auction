@@ -318,12 +318,12 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
         r;
       },
     );
-    for ((asset, id) in Vec.items(assets)) {
-      let (symbol, decimals) = await* fetchLedgerInfo(asset.ledgerPrincipal);
-      if (asset.decimals != decimals or asset.symbol != symbol) {
-        Vec.put(assets, id, { asset with decimals; symbol });
-      };
-    };
+    // for ((asset, id) in Vec.items(assets)) {
+    //   let (symbol, decimals) = await* fetchLedgerInfo(asset.ledgerPrincipal);
+    //   if (asset.decimals != decimals or asset.symbol != symbol) {
+    //     Vec.put(assets, id, { asset with decimals; symbol });
+    //   };
+    // };
     let a = Auction.Auction(
       0,
       {
