@@ -214,7 +214,7 @@ actor class Icrc1AuctionAPI(adminPrincipal_ : ?Principal) = self {
     });
   };
 
-  public shared func icrc84_withdraw(args : { to_subaccount : ?Blob; amount : Nat; token : Principal; expected_fee : ?Nat }) : async WithdrawResult {
+  public shared func icrc84_withdraw(args : { to : { owner : Principal; subaccount : ?Blob }; amount : Nat; token : Principal; expected_fee : ?Nat }) : async WithdrawResult {
     let ?_ = getAssetId(args.token) else throw Error.reject("Unknown token");
     #Err(#CallLedgerError({ message = "Try later" }));
   };
