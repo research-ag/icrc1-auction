@@ -13,7 +13,7 @@
 # frontend code
 node_modules/
 dist/
-dist_legacy/
+dist_new/
 dist_mock/
 declarations/
 

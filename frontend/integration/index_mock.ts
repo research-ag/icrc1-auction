@@ -262,15 +262,17 @@ export const useTransactionHistory = () => {
   );
 };
 
-export const usePriceHistory = () => {
+export const usePriceHistory = (limit: number, offset: number) => {
   const { auction } = useAuction();
   const { enqueueSnackbar } = useSnackbar();
+
   return useQuery(
-    'price-history',
+    ['price-history', offset],
     async () => {
-      return auction.queryPriceHistory([], BigInt(10000), BigInt(0));
+      return auction.queryPriceHistory([], BigInt(limit), BigInt(offset));
     },
     {
+      keepPreviousData: true,
       onError: err => {
         enqueueSnackbar(`Failed to fetch price history: ${err}`, { variant: 'error' });
       },
@@ -282,11 +284,12 @@ export const useWithdrawCredit = () => {
   const { auction } = useAuction();
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
+  const { identity } = useIdentity();
   return useMutation(
     (formObj: { ledger: string; amount: number; subaccount: Uint8Array | null }) =>
       auction.icrc84_withdraw({
         token: Principal.fromText(formObj.ledger),
-        to_subaccount: formObj.subaccount ? [formObj.subaccount] : [],
+        to: { owner: identity.getPrincipal(), subaccount: formObj.subaccount ? [formObj.subaccount] : [] },
         amount: BigInt(formObj.amount),
         expected_fee: [],
       }),

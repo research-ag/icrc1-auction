@@ -1,6 +1,7 @@
 import Array "mo:base/Array";
 import Blob "mo:base/Blob";
 import Error "mo:base/Error";
+import Float "mo:base/Float";
 import Int "mo:base/Int";
 import Iter "mo:base/Iter";
 import Nat "mo:base/Nat";
@@ -56,9 +57,11 @@ actor class Icrc1AuctionAPI(adminPrincipal_ : ?Principal) = self {
   adminsMap.unshare(stableAdminsMap);
 
   stable var assetsData : Vec.Vector<StableAssetInfo> = Vec.new();
-  stable var auctionDataV1 : Auction.StableDataV1 = Auction.defaultStableDataV1();
-  stable var auctionDataV2 : Auction.StableDataV2 = Auction.migrateStableDataV2(auctionDataV1);
-  stable var auctionDataV3 : Auction.StableDataV3 = Auction.migrateStableDataV3(auctionDataV2);
+  stable var auctionDataV3 : Auction.StableDataV3 = Auction.defaultStableDataV3();
+  stable var auctionDataV4 : Auction.StableDataV4 = Auction.migrateStableDataV4(auctionDataV3);
+  stable var auctionDataV5 : Auction.StableDataV5 = Auction.migrateStableDataV5(auctionDataV4);
+
+  stable var ptData : PT.StableData = null;
 
   type AssetInfo = {
     ledgerPrincipal : Principal;
@@ -130,7 +133,7 @@ actor class Icrc1AuctionAPI(adminPrincipal_ : ?Principal) = self {
 
   let metrics = PT.PromTracker("", 65);
   metrics.addSystemValues();
-  let sessionStartTimeGauge = metrics.addGauge("session_start_time_offset_ms", "", #none, [0, 500, 1000, 5000, 10000, 25000], false);
+  let sessionStartTimeGauge = metrics.addGauge("session_start_time_offset_ms", "", #none, [0, 1_000, 2_000, 4_000, 8_000, 16_000, 32_000, 64_000, 128_000], false);
 
   // ICRC84 API
   public shared query func principalToSubaccount(p : Principal) : async ?Blob = async ?TokenHandler.toSubaccount(p);
@@ -211,7 +214,7 @@ actor class Icrc1AuctionAPI(adminPrincipal_ : ?Principal) = self {
     });
   };
 
-  public shared func icrc84_withdraw(args : { to_subaccount : ?Blob; amount : Nat; token : Principal; expected_fee : ?Nat }) : async WithdrawResult {
+  public shared func icrc84_withdraw(args : { to : { owner : Principal; subaccount : ?Blob }; amount : Nat; token : Principal; expected_fee : ?Nat }) : async WithdrawResult {
     let ?_ = getAssetId(args.token) else throw Error.reject("Unknown token");
     #Err(#CallLedgerError({ message = "Try later" }));
   };
@@ -238,17 +241,42 @@ actor class Icrc1AuctionAPI(adminPrincipal_ : ?Principal) = self {
         performanceCounter = Prim.performanceCounter;
       },
     );
-    a.unshare(auctionDataV3);
+    a.unshare(auctionDataV5);
     auction := ?a;
-    initialSessionsCounter := a.sessionsCounter;
+    nextSessionTimestamp := Nat64.toNat(AUCTION_INTERVAL_SECONDS * (1 + Prim.time() / (AUCTION_INTERVAL_SECONDS * 1_000_000_000)));
 
+    startTimer<system>();
+
+    let startupTime = Prim.time();
+    ignore metrics.addPullValue("uptime", "", func() = Nat64.toNat((Prim.time() - startupTime) / 1_000_000_000));
     ignore metrics.addPullValue("sessions_counter", "", func() = a.sessionsCounter);
-    ignore metrics.addPullValue("assets_amount", "", func() = a.assets.nAssets());
-    ignore metrics.addPullValue("users_amount", "", func() = a.users.nUsers());
-    ignore metrics.addPullValue("users_with_credits_amount", "", func() = a.users.nUsersWithCredits());
-    ignore metrics.addPullValue("accounts_amount", "", func() = a.credits.nAccounts());
+    ignore metrics.addPullValue("assets_count", "", func() = a.assets.nAssets());
+    ignore metrics.addPullValue("users_count", "", func() = a.users.nUsers());
+    ignore metrics.addPullValue("users_with_credits_count", "", func() = a.users.nUsersWithCredits());
+    ignore metrics.addPullValue("accounts_count", "", func() = a.credits.nAccounts());
     ignore metrics.addPullValue("quote_surplus", "", func() = a.credits.quoteSurplus);
-    ignore metrics.addPullValue("next_session_timestamp", "", nextSessionTimestamp);
+    ignore metrics.addPullValue("next_session_timestamp", "", func() = nextSessionTimestamp);
+    ignore metrics.addPullValue("total_executed_volume", "", func() = a.orders.totalQuoteVolumeProcessed);
+    ignore metrics.addPullValue("total_unique_participants", "", func() = a.users.participantsArchiveSize);
+    ignore metrics.addPullValue("active_unique_participants", "", func() = a.users.nUsersWithActiveOrders());
+    ignore metrics.addPullValue(
+      "monthly_active_participants_count",
+      "",
+      func() {
+        let ts : Nat64 = Prim.time() - 30 * 24 * 60 * 60_000_000_000;
+        var amount : Nat = 0;
+        for ((_, { lastOrderPlacement }) in a.users.participantsArchive.entries()) {
+          if (lastOrderPlacement > ts) {
+            amount += 1;
+          };
+        };
+        amount;
+      },
+    );
+    ignore metrics.addPullValue("total_orders", "", func() = a.orders.ordersCounter);
+    ignore metrics.addPullValue("fulfilled_orders", "", func() = a.orders.fulfilledCounter);
+    ignore metrics.addPullValue("auctions_run_count", "", func() = a.assets.historyLength());
+    ignore metrics.addPullValue("trading_pairs_count", "", func() = a.assets.nAssets() - 1);
 
     if (Vec.size(assets) == 0) {
       ignore U.requireOk(registerAsset_(quoteLedgerPrincipal, 0));
@@ -264,7 +292,7 @@ actor class Icrc1AuctionAPI(adminPrincipal_ : ?Principal) = self {
     timestamp : Nat;
     counter : Nat;
   } = async ({
-    timestamp = nextSessionTimestamp();
+    timestamp = nextSessionTimestamp;
     counter = U.unwrapUninit(auction).sessionsCounter;
   });
 
@@ -488,12 +516,47 @@ actor class Icrc1AuctionAPI(adminPrincipal_ : ?Principal) = self {
   };
 
   private func registerAssetMetrics_(assetId : Auction.AssetId) {
-    let stats = U.unwrapUninit(auction).assets.getAsset(assetId);
-    ignore metrics.addPullValue("asks_amount", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = stats.asks.size);
-    ignore metrics.addPullValue("asks_volume", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = stats.asks.totalVolume);
-    ignore metrics.addPullValue("bids_amount", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = stats.bids.size);
-    ignore metrics.addPullValue("bids_volume", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = stats.bids.totalVolume);
-    ignore metrics.addPullValue("processing_instructions", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = stats.lastProcessingInstructions);
+    if (assetId == quoteAssetId) return;
+    let asset = U.unwrapUninit(auction).assets.getAsset(assetId);
+
+    let renderPrice = func(price : Float) : Nat = Int.abs(Float.toInt(price));
+
+    ignore metrics.addPullValue("asks_count", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = asset.asks.size);
+    ignore metrics.addPullValue("asks_volume", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = asset.asks.totalVolume);
+    ignore metrics.addPullValue("bids_count", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = asset.bids.size);
+    ignore metrics.addPullValue("bids_volume", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = asset.bids.totalVolume);
+    ignore metrics.addPullValue("processing_instructions", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = asset.lastProcessingInstructions);
+
+    ignore metrics.addPullValue(
+      "clearing_price",
+      "asset_id=\"" # Nat.toText(assetId) # "\"",
+      func() = U.unwrapUninit(auction).indicativeAssetStats(assetId).clearingPrice
+      |> renderPrice(_),
+    );
+    ignore metrics.addPullValue("clearing_volume", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = U.unwrapUninit(auction).indicativeAssetStats(assetId).clearingVolume);
+
+    ignore metrics.addPullValue(
+      "last_price",
+      "asset_id=\"" # Nat.toText(assetId) # "\"",
+      func() = U.unwrapUninit(auction).getPriceHistory(?assetId).next()
+      |> (
+        switch (_) {
+          case (?item) renderPrice(item.4);
+          case (null) 0;
+        }
+      ),
+    );
+    ignore metrics.addPullValue(
+      "last_volume",
+      "asset_id=\"" # Nat.toText(assetId) # "\"",
+      func() = U.unwrapUninit(auction).getPriceHistory(?assetId).next()
+      |> (
+        switch (_) {
+          case (?item) item.3;
+          case (null) 0;
+        }
+      ),
+    );
   };
 
   private func registerAsset_(_ : Principal, minAskVolume : Nat) : R.Result<Nat, RegisterAssetError> {
@@ -514,8 +577,6 @@ actor class Icrc1AuctionAPI(adminPrincipal_ : ?Principal) = self {
     await* assertAdminAccess(caller);
     registerAsset_(ledger, minAskVolume) |> R.toUpper(_);
   };
-
-  public shared query func debugLastBidProcessingInstructions() : async Nat64 = async lastBidProcessingInstructions;
 
   // Auction processing functionality
 
@@ -561,8 +622,15 @@ actor class Icrc1AuctionAPI(adminPrincipal_ : ?Principal) = self {
   private func runAuction() : async () {
     let a = U.requireMsg(auction, "Not initialized");
     if (nextAssetIdToProcess == 0) {
-      let startTimeDiff : Int = Nat64.toNat(Prim.time() / 1_000_000) - nextSessionTimestamp() * 1_000;
+      let startTimeDiff : Int = Nat64.toNat(Prim.time() / 1_000_000) - nextSessionTimestamp * 1_000;
       sessionStartTimeGauge.update(Int.max(startTimeDiff, 0) |> Int.abs(_));
+      let next = Nat64.toNat(AUCTION_INTERVAL_SECONDS * (1 + Prim.time() / (AUCTION_INTERVAL_SECONDS * 1_000_000_000)));
+      if (next == nextSessionTimestamp) {
+        // if auction started before expected time
+        nextSessionTimestamp += Nat64.toNat(AUCTION_INTERVAL_SECONDS);
+      } else {
+        nextSessionTimestamp := next;
+      };
     };
     switch (processAssetsChunk(a, nextAssetIdToProcess)) {
       case (#done) {
@@ -597,34 +665,38 @@ actor class Icrc1AuctionAPI(adminPrincipal_ : ?Principal) = self {
             minAskVolume = x.minAskVolume;
           },
         );
-        auctionDataV3 := a.share();
+        auctionDataV5 := a.share();
+        ptData := metrics.share();
       };
       case (null) {};
     };
     stableAdminsMap := adminsMap.share();
   };
 
-  let AUCTION_INTERVAL_SECONDS : Nat64 = 86_400; // a day
-  // run daily at 12:00 p.m. UTC
-  let initialSessionTimestamp = Nat64.toNat((AUCTION_INTERVAL_SECONDS / 2) * (1 + 2 * Prim.time() / (AUCTION_INTERVAL_SECONDS * 1_000_000_000)));
-  var initialSessionsCounter = 0;
+  system func postupgrade() {
+    metrics.unshare(ptData);
+  };
 
-  private func nextSessionTimestamp() : Nat = initialSessionTimestamp + Nat64.toNat(AUCTION_INTERVAL_SECONDS) * (U.unwrapUninit(auction).sessionsCounter - initialSessionsCounter);
+  // each 2 minutes
+  let AUCTION_INTERVAL_SECONDS : Nat64 = 120;
+  var nextSessionTimestamp = 0;
 
-  ignore (
-    func() : async () {
-      ignore Timer.recurringTimer<system>(
-        #seconds(Nat64.toNat(AUCTION_INTERVAL_SECONDS)),
-        func() : async () = async switch (auction) {
+  func startTimer<system>() {
+    ignore (
+      func() : async () {
+        ignore Timer.recurringTimer<system>(
+          #seconds(Nat64.toNat(AUCTION_INTERVAL_SECONDS)),
+          func() : async () = async switch (auction) {
+            case (?_) await runAuction();
+            case (null) {};
+          },
+        );
+        switch (auction) {
           case (?_) await runAuction();
           case (null) {};
-        },
-      );
-      switch (auction) {
-        case (?_) await runAuction();
-        case (null) {};
-      };
-    }
-  ) |> Timer.setTimer<system>(#seconds(Nat64.toNat(AUCTION_INTERVAL_SECONDS - (Prim.time() / 1_000_000_000 + 43_200) % AUCTION_INTERVAL_SECONDS)), _);
+        };
+      }
+    ) |> Timer.setTimer<system>(#seconds(Nat64.toNat(AUCTION_INTERVAL_SECONDS - (Prim.time() / 1_000_000_000) % AUCTION_INTERVAL_SECONDS)), _);
+  };
 
 };

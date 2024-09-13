@@ -5,6 +5,8 @@ import Prim "mo:prim";
 import Principal "mo:base/Principal";
 import RBTree "mo:base/RBTree";
 
+import Vec "mo:vector";
+
 import T "./types";
 
 module {
@@ -15,7 +17,6 @@ module {
     public let users : RBTree.RBTree<Principal, T.UserInfo> = RBTree.RBTree<Principal, T.UserInfo>(Principal.compare);
 
     public func nUsers() : Nat = usersAmount;
-
     public func nUsersWithCredits() : Nat {
       var res : Nat = 0;
       for ((_, user) in users.entries()) {
@@ -25,6 +26,18 @@ module {
       };
       res;
     };
+    public func nUsersWithActiveOrders() : Nat {
+      var res : Nat = 0;
+      for ((_, user) in users.entries()) {
+        if (not List.isNil(user.asks.map) or not List.isNil(user.bids.map)) {
+          res += 1;
+        };
+      };
+      res;
+    };
+
+    public var participantsArchiveSize : Nat = 0;
+    public let participantsArchive : RBTree.RBTree<Principal, { lastOrderPlacement : Nat64 }> = RBTree.RBTree<Principal, { lastOrderPlacement : Nat64 }>(Principal.compare);
 
     public func get(p : Principal) : ?T.UserInfo = users.get(p);
 
@@ -35,7 +48,7 @@ module {
           asks = { var map = null };
           bids = { var map = null };
           var credits = null;
-          var history = null;
+          var history = Vec.new<T.TransactionHistoryItem>();
         };
         let oldValue = users.replace(p, data);
         switch (oldValue) {
@@ -43,6 +56,8 @@ module {
           case (_) {};
         };
         usersAmount += 1;
+        participantsArchive.put(p, { lastOrderPlacement = 0 });
+        participantsArchiveSize += 1;
         data;
       };
     };

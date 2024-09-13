@@ -27,6 +27,101 @@ import T "./types";
 
 module {
 
+  public func defaultStableDataV5() : T.StableDataV5 = {
+    assets = Vec.new();
+    orders = { globalCounter = 0; fulfilledCounter = 0 };
+    quoteToken = { totalProcessedVolume = 0; surplus = 0 };
+    sessions = { counter = 0; history = Vec.new<T.PriceHistoryItem>() };
+    users = {
+      registry = {
+        tree = #leaf;
+        size = 0;
+      };
+      participantsArchive = {
+        tree = #leaf;
+        size = 0;
+      };
+      accountsAmount = 0;
+    };
+  };
+  public type StableDataV5 = T.StableDataV5;
+  public func migrateStableDataV5(data : StableDataV4) : StableDataV5 {
+
+    func listToVecRev<A>(l : List.List<A>, defaultValue : A) : Vec.Vector<A> {
+      let amount = List.size(l);
+      let v : Vec.Vector<A> = Vec.init(amount, defaultValue);
+      var i : Int = amount - 1;
+      for (x in List.toIter(l)) {
+        Vec.put<A>(v, Int.abs(i), x);
+        i -= 1;
+      };
+      v;
+    };
+
+    let usersTree : RBTree.RBTree<Principal, T.StableUserInfoV3> = RBTree.RBTree(Principal.compare);
+    for ((p, x) in RBTree.iter(data.users.registry.tree, #bwd)) {
+      usersTree.put(p, { x with history = listToVecRev<T.TransactionHistoryItem>(x.history, (0, 0, #ask, 0, 0, 0.0)) });
+    };
+
+    {
+      data with
+      sessions = {
+        data.sessions with history = listToVecRev<T.PriceHistoryItem>(data.sessions.history, (0, 0, 0, 0, 0.0))
+      };
+      users = {
+        data.users with registry = {
+          data.users.registry with tree = usersTree.share()
+        }
+      };
+    };
+  };
+
+  public func defaultStableDataV4() : T.StableDataV4 = {
+    assets = Vec.new();
+    orders = { globalCounter = 0; fulfilledCounter = 0 };
+    quoteToken = { totalProcessedVolume = 0; surplus = 0 };
+    sessions = { counter = 0; history = null };
+    users = {
+      registry = {
+        tree = #leaf;
+        size = 0;
+      };
+      participantsArchive = {
+        tree = #leaf;
+        size = 0;
+      };
+      accountsAmount = 0;
+    };
+  };
+  public type StableDataV4 = T.StableDataV4;
+  public func migrateStableDataV4(data : StableDataV3) : StableDataV4 {
+    var participantsArchive : RBTree.RBTree<Principal, { lastOrderPlacement : Nat64 }> = RBTree.RBTree(Principal.compare);
+    for ((p, user) in RBTree.iter(data.users, #fwd)) {
+      participantsArchive.put(p, { lastOrderPlacement = Prim.time() });
+    };
+
+    {
+      assets = data.assets;
+      orders = {
+        globalCounter = data.counters.1;
+        fulfilledCounter = 0;
+      };
+      quoteToken = { totalProcessedVolume = 0; surplus = data.quoteSurplus };
+      sessions = { counter = data.counters.0; history = data.history };
+      users = {
+        registry = {
+          tree = data.users;
+          size = data.counters.2;
+        };
+        participantsArchive = {
+          tree = participantsArchive.share();
+          size = data.counters.2;
+        };
+        accountsAmount = data.counters.3;
+      };
+    };
+  };
+
   public func defaultStableDataV3() : T.StableDataV3 = {
     counters = (0, 0, 0, 0);
     assets = Vec.new();
@@ -35,68 +130,6 @@ module {
     quoteSurplus = 0;
   };
   public type StableDataV3 = T.StableDataV3;
-  public func migrateStableDataV3(data : StableDataV2) : StableDataV3 = {
-    data with quoteSurplus = 0;
-  };
-
-  public func defaultStableDataV2() : T.StableDataV2 = {
-    counters = (0, 0, 0, 0);
-    assets = Vec.new();
-    history = null;
-    users = #leaf;
-  };
-  public type StableDataV2 = T.StableDataV2;
-  public func migrateStableDataV2(data : StableDataV1) : StableDataV2 {
-    let assets : Vec.Vector<T.StableAssetInfoV2> = Vec.new();
-    for (i in Vec.keys(data.assets)) {
-      let x = Vec.get(data.assets, i);
-      let xs = Vec.get(data.stats.assets, i);
-      Vec.add(
-        assets,
-        {
-          lastRate = x.lastRate;
-          lastProcessingInstructions = xs.lastProcessingInstructions;
-        },
-      );
-    };
-    let usersData = RBTree.RBTree<Principal, T.StableUserInfoV1>(Principal.compare);
-    usersData.unshare(data.users);
-    let users = RBTree.RBTree<Principal, T.StableUserInfoV2>(Principal.compare);
-    for ((p, u) in usersData.entries()) {
-      users.put(
-        p,
-        {
-          asks = {
-            var map = List.map<(T.OrderId, T.StableOrderV1), (T.OrderId, T.StableOrderDataV2)>(u.currentAsks, func(oid, o) = (oid, { assetId = o.assetId; price = o.price; user = o.user; volume = o.volume }));
-          };
-          bids = {
-            var map = List.map<(T.OrderId, T.StableOrderV1), (T.OrderId, T.StableOrderDataV2)>(u.currentBids, func(oid, o) = (oid, { assetId = o.assetId; price = o.price; user = o.user; volume = o.volume }));
-          };
-          credits = u.credits;
-          history = u.history;
-        },
-      );
-    };
-    {
-      counters = (data.counters.0, data.counters.1, data.stats.usersAmount, data.stats.accountsAmount);
-      assets = assets;
-      history = data.history;
-      users = users.share();
-    };
-  };
-
-  public func defaultStableDataV1() : T.StableDataV1 = {
-    counters = (0, 0);
-    assets = Vec.new();
-    users = #leaf;
-    history = null;
-    stats = {
-      usersAmount = 0;
-      accountsAmount = 0;
-      assets = Vec.new();
-    };
-  };
-  public type StableDataV1 = T.StableDataV1;
 
   public type AssetId = T.AssetId;
   public type OrderId = T.OrderId;
@@ -162,8 +195,8 @@ module {
         orders.bids.createOrderBookService(assetInfo),
       );
       assets.pushToHistory(Prim.time(), sessionsCounter, assetId, volume, price);
+      assetInfo.lastProcessingInstructions := Nat64.toNat(settings.performanceCounter(0) - startInstructions);
       if (volume > 0) {
-        assetInfo.lastProcessingInstructions := Nat64.toNat(settings.performanceCounter(0) - startInstructions);
         assetInfo.lastRate := price;
         if (surplus > 0) {
           credits.quoteSurplus += surplus;
@@ -308,27 +341,24 @@ module {
     // ============ history interface =============
     public func getTransactionHistory(p : Principal, assetId : ?AssetId) : Iter.Iter<T.TransactionHistoryItem> {
       let ?userInfo = users.get(p) else return { next = func() = null };
-      var list = userInfo.history;
+      var iter = Vec.valsRev(userInfo.history);
       switch (assetId) {
-        case (?aid) list := List.filter<T.TransactionHistoryItem>(list, func x = x.3 == aid);
-        case (_) {};
+        case (?aid) Iter.filter<T.TransactionHistoryItem>(iter, func x = x.3 == aid);
+        case (_) iter;
       };
-      List.toIter(list);
     };
 
     public func getPriceHistory(assetId : ?AssetId) : Iter.Iter<T.PriceHistoryItem> {
-      var list = assets.history;
+      var iter = Vec.valsRev(assets.history);
       switch (assetId) {
-        case (?aid) list := List.filter<T.PriceHistoryItem>(list, func x = x.2 == aid);
-        case (_) {};
+        case (?aid) Iter.filter<T.PriceHistoryItem>(iter, func x = x.2 == aid);
+        case (_) iter;
       };
-      List.toIter(list);
     };
     // ============ history interface =============
 
     // ============= system interface =============
-    public func share() : T.StableDataV3 = {
-      counters = (sessionsCounter, orders.ordersCounter, users.usersAmount, credits.accountsAmount);
+    public func share() : T.StableDataV5 = {
       assets = Vec.map<T.AssetInfo, T.StableAssetInfoV2>(
         assets.assets,
         func(x) = {
@@ -336,38 +366,49 @@ module {
           lastProcessingInstructions = x.lastProcessingInstructions;
         },
       );
-      history = assets.history;
-      users = (
-        func() : RBTree.Tree<Principal, T.StableUserInfoV2> {
-          let stableUsers = RBTree.RBTree<Principal, T.StableUserInfoV2>(Principal.compare);
-          for ((p, u) in users.users.entries()) {
-            stableUsers.put(
-              p,
-              {
-                asks = {
-                  var map = List.map<(T.OrderId, T.Order), (T.OrderId, T.StableOrderDataV2)>(u.asks.map, func(oid, o) = (oid, { assetId = o.assetId; price = o.price; user = o.user; volume = o.volume }));
-                };
-                bids = {
-                  var map = List.map<(T.OrderId, T.Order), (T.OrderId, T.StableOrderDataV2)>(u.bids.map, func(oid, o) = (oid, { assetId = o.assetId; price = o.price; user = o.user; volume = o.volume }));
-                };
-                credits = u.credits;
-                history = u.history;
-              },
-            );
-          };
-          stableUsers.share();
-        }
-      )();
-      quoteSurplus = credits.quoteSurplus;
+      orders = {
+        globalCounter = orders.ordersCounter;
+        fulfilledCounter = orders.fulfilledCounter;
+      };
+      quoteToken = {
+        totalProcessedVolume = orders.totalQuoteVolumeProcessed;
+        surplus = credits.quoteSurplus;
+      };
+      sessions = { counter = sessionsCounter; history = assets.history };
+      users = {
+        registry = {
+          tree = (
+            func() : RBTree.Tree<Principal, T.StableUserInfoV3> {
+              let stableUsers = RBTree.RBTree<Principal, T.StableUserInfoV3>(Principal.compare);
+              for ((p, u) in users.users.entries()) {
+                stableUsers.put(
+                  p,
+                  {
+                    asks = {
+                      var map = List.map<(T.OrderId, T.Order), (T.OrderId, T.StableOrderDataV2)>(u.asks.map, func(oid, o) = (oid, { assetId = o.assetId; price = o.price; user = o.user; volume = o.volume }));
+                    };
+                    bids = {
+                      var map = List.map<(T.OrderId, T.Order), (T.OrderId, T.StableOrderDataV2)>(u.bids.map, func(oid, o) = (oid, { assetId = o.assetId; price = o.price; user = o.user; volume = o.volume }));
+                    };
+                    credits = u.credits;
+                    history = u.history;
+                  },
+                );
+              };
+              stableUsers.share();
+            }
+          )();
+          size = users.usersAmount;
+        };
+        participantsArchive = {
+          tree = users.participantsArchive.share();
+          size = users.participantsArchiveSize;
+        };
+        accountsAmount = credits.accountsAmount;
+      };
     };
 
-    public func unshare(data : T.StableDataV3) {
-      sessionsCounter := data.counters.0;
-      orders.ordersCounter := data.counters.1;
-      users.usersAmount := data.counters.2;
-      credits.accountsAmount := data.counters.3;
-      credits.quoteSurplus := data.quoteSurplus;
-
+    public func unshare(data : T.StableDataV5) {
       assets.assets := Vec.map<T.StableAssetInfoV2, T.AssetInfo>(
         data.assets,
         func(x) = {
@@ -377,10 +418,19 @@ module {
           var lastProcessingInstructions = x.lastProcessingInstructions;
         },
       );
-      assets.history := data.history;
 
-      let ud = RBTree.RBTree<Principal, T.StableUserInfoV2>(Principal.compare);
-      ud.unshare(data.users);
+      orders.ordersCounter := data.orders.globalCounter;
+      orders.fulfilledCounter := data.orders.fulfilledCounter;
+
+      orders.totalQuoteVolumeProcessed := data.quoteToken.totalProcessedVolume;
+      credits.quoteSurplus := data.quoteToken.surplus;
+
+      sessionsCounter := data.sessions.counter;
+      assets.history := data.sessions.history;
+
+      users.usersAmount := data.users.registry.size;
+      let ud = RBTree.RBTree<Principal, T.StableUserInfoV3>(Principal.compare);
+      ud.unshare(data.users.registry.tree);
       for ((p, u) in ud.entries()) {
         let userData : UserInfo = {
           asks = {
@@ -410,6 +460,11 @@ module {
         };
         users.users.put(p, userData);
       };
+
+      users.participantsArchive.unshare(data.users.participantsArchive.tree);
+      users.participantsArchiveSize := data.users.participantsArchive.size;
+
+      credits.accountsAmount := data.users.accountsAmount;
 
     };
     // ============= system interface =============

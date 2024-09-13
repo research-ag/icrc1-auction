@@ -199,8 +199,8 @@ describe('ICRC1 Auction', () => {
       let metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
-      expect(metrics).toContain(`bids_amount{canister="${shortP}",asset_id="2"} 1 `);
-      expect(metrics).toContain(`bids_volume{canister="${shortP}",asset_id="2"} 100 `);
+      expect(metrics).toContain(`bids_count{canister="${shortP}",asset_id="MOCK"} 1 `);
+      expect(metrics).toContain(`bids_volume{canister="${shortP}",asset_id="MOCK"} 100 `);
 
       await pic.upgradeCanister({
         canisterId: auctionPrincipal,
@@ -218,8 +218,8 @@ describe('ICRC1 Auction', () => {
       metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
-      expect(metrics).toContain(`bids_amount{canister="${shortP}",asset_id="2"} 1 `);
-      expect(metrics).toContain(`bids_volume{canister="${shortP}",asset_id="2"} 100 `);
+      expect(metrics).toContain(`bids_count{canister="${shortP}",asset_id="MOCK"} 1 `);
+      expect(metrics).toContain(`bids_volume{canister="${shortP}",asset_id="MOCK"} 100 `);
     });
   });
 
@@ -280,7 +280,7 @@ describe('ICRC1 Auction', () => {
       expect(await quoteLedger.icrc1_balance_of({ owner: user.getPrincipal(), subaccount: [] })).toEqual(0n);
 
       const res = await auction.icrc84_withdraw({
-        to_subaccount: [],
+        to: { owner: user.getPrincipal(), subaccount: [] },
         amount: 499n,
         token: quoteLedgerPrincipal,
         expected_fee: [],
@@ -293,7 +293,7 @@ describe('ICRC1 Auction', () => {
     test('withdraw deposit should return insufficient deposit error', async () => {
       await prepareDeposit(user);
       const res = await auction.icrc84_withdraw({
-        to_subaccount: [],
+        to: { owner: user.getPrincipal(), subaccount: [] },
         amount: 500_000_001n,
         token: quoteLedgerPrincipal,
         expected_fee: [],
@@ -324,8 +324,8 @@ describe('ICRC1 Auction', () => {
       let metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
-      expect(metrics).toContain(`bids_amount{canister="${shortP}",asset_id="1"} 1 `);
-      expect(metrics).toContain(`bids_volume{canister="${shortP}",asset_id="1"} 2000 `);
+      expect(metrics).toContain(`bids_count{canister="${shortP}",asset_id="MOCK"} 1 `);
+      expect(metrics).toContain(`bids_volume{canister="${shortP}",asset_id="MOCK"} 2000 `);
 
       const seller = createIdentity('seller');
       await prepareDeposit(seller, ledger1Principal);
@@ -337,8 +337,8 @@ describe('ICRC1 Auction', () => {
       metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
-      expect(metrics).toContain(`bids_amount{canister="${shortP}",asset_id="1"} 0 `);
-      expect(metrics).toContain(`bids_volume{canister="${shortP}",asset_id="1"} 0 `);
+      expect(metrics).toContain(`bids_count{canister="${shortP}",asset_id="MOCK"} 0 `);
+      expect(metrics).toContain(`bids_volume{canister="${shortP}",asset_id="MOCK"} 0 `);
     });
 
     test('asks should affect metrics', async () => {
@@ -356,8 +356,8 @@ describe('ICRC1 Auction', () => {
       let metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
-      expect(metrics).toContain(`asks_amount{canister="${shortP}",asset_id="1"} 1 `);
-      expect(metrics).toContain(`asks_volume{canister="${shortP}",asset_id="1"} 2000000 `);
+      expect(metrics).toContain(`asks_count{canister="${shortP}",asset_id="MOCK"} 1 `);
+      expect(metrics).toContain(`asks_volume{canister="${shortP}",asset_id="MOCK"} 2000000 `);
 
       await startNewAuctionSession();
 
@@ -365,8 +365,8 @@ describe('ICRC1 Auction', () => {
       metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
-      expect(metrics).toContain(`asks_amount{canister="${shortP}",asset_id="1"} 0 `);
-      expect(metrics).toContain(`asks_volume{canister="${shortP}",asset_id="1"} 0 `);
+      expect(metrics).toContain(`asks_count{canister="${shortP}",asset_id="MOCK"} 0 `);
+      expect(metrics).toContain(`asks_volume{canister="${shortP}",asset_id="MOCK"} 0 `);
     });
 
   });
@@ -379,7 +379,7 @@ describe('ICRC1 Auction', () => {
 
     test('should return #InsufficientCredit if not registered', async () => {
       const res = await auction.icrc84_withdraw({
-        to_subaccount: [],
+        to: { owner: user.getPrincipal(), subaccount: [] },
         amount: 1_000n,
         token: ledger1Principal,
         expected_fee: [],
@@ -390,7 +390,7 @@ describe('ICRC1 Auction', () => {
     test('should return #InsufficientCredit if not enough credits', async () => {
       await prepareDeposit(user, ledger1Principal, 800);
       const res = await auction.icrc84_withdraw({
-        to_subaccount: [],
+        to: { owner: user.getPrincipal(), subaccount: [] },
         amount: 1_000n,
         token: ledger1Principal,
         expected_fee: [],
@@ -402,7 +402,7 @@ describe('ICRC1 Auction', () => {
     test('should withdraw credit successfully', async () => {
       await prepareDeposit(user, ledger1Principal, 1_200);
       const res = await auction.icrc84_withdraw({
-        to_subaccount: [],
+        to: { owner: user.getPrincipal(), subaccount: [] },
         amount: 1_200n,
         token: ledger1Principal,
         expected_fee: [],
@@ -420,12 +420,12 @@ describe('ICRC1 Auction', () => {
       let metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
-      expect(metrics).toContain(`accounts_amount{canister="${shortP}"} 2 `);
-      expect(metrics).toContain(`users_amount{canister="${shortP}"} 2 `);
-      expect(metrics).toContain(`users_with_credits_amount{canister="${shortP}"} 2 `);
+      expect(metrics).toContain(`accounts_count{canister="${shortP}"} 2 `);
+      expect(metrics).toContain(`users_count{canister="${shortP}"} 2 `);
+      expect(metrics).toContain(`users_with_credits_count{canister="${shortP}"} 2 `);
 
       const res = await auction.icrc84_withdraw({
-        to_subaccount: [],
+        to: { owner: user2.getPrincipal(), subaccount: [] },
         amount: 1_200n,
         token: ledger1Principal,
         expected_fee: [],
@@ -435,9 +435,9 @@ describe('ICRC1 Auction', () => {
       metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
-      expect(metrics).toContain(`accounts_amount{canister="${shortP}"} 1 `);
-      expect(metrics).toContain(`users_amount{canister="${shortP}"} 2 `);
-      expect(metrics).toContain(`users_with_credits_amount{canister="${shortP}"} 1 `);
+      expect(metrics).toContain(`accounts_count{canister="${shortP}"} 1 `);
+      expect(metrics).toContain(`users_count{canister="${shortP}"} 2 `);
+      expect(metrics).toContain(`users_with_credits_count{canister="${shortP}"} 1 `);
     });
 
     // TODO uncomment 3 tests below after fixing issue
@@ -446,7 +446,7 @@ describe('ICRC1 Auction', () => {
       await prepareDeposit(user, ledger1Principal, 1_200);
       expect(await auction.icrc84_credit(ledger1Principal)).toEqual(1197n);
       const res = await auction.icrc84_withdraw({
-        to_subaccount: [],
+        to: { owner: user.getPrincipal(), subaccount: [] },
         amount: 1_197n,
         token: ledger1Principal,
         expected_fee: [50n],
@@ -460,7 +460,7 @@ describe('ICRC1 Auction', () => {
       await prepareDeposit(user, ledger1Principal, 1_200);
       expect(await auction.icrc84_credit(ledger1Principal)).toEqual(1197n);
       const res = await auction.icrc84_withdraw({
-        to_subaccount: [],
+        to: { owner: user.getPrincipal(), subaccount: [] },
         amount: 1_197n,
         token: ledger1Principal,
         expected_fee: [],
@@ -474,7 +474,7 @@ describe('ICRC1 Auction', () => {
       await ledger1.updateFee(BigInt(3));
       await prepareDeposit(user, ledger1Principal, 1_200);
       const res = await auction.icrc84_withdraw({
-        to_subaccount: [],
+        to: { owner: user.getPrincipal(), subaccount: [] },
         amount: 1_197n,
         token: ledger1Principal,
         expected_fee: [3n],

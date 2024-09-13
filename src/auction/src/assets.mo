@@ -16,11 +16,13 @@ module {
     // asset info, index == assetId
     public var assets : Vec.Vector<T.AssetInfo> = Vec.new();
     // asset history
-    public var history : List.List<T.PriceHistoryItem> = null;
+    public var history : Vec.Vector<T.PriceHistoryItem> = Vec.new();
 
     public func nAssets() : Nat = Vec.size(assets);
 
     public func getAsset(assetId : T.AssetId) : T.AssetInfo = Vec.get(assets, assetId);
+
+    public func historyLength() : Nat = Vec.size(history);
 
     public func register(n : Nat) {
       for (i in Iter.range(1, n)) {
@@ -79,7 +81,7 @@ module {
     };
 
     public func pushToHistory(item : T.PriceHistoryItem) {
-      history := List.push(item, history);
+      Vec.add(history, item);
     };
 
   };
