@@ -195,8 +195,8 @@ module {
         orders.bids.createOrderBookService(assetInfo),
       );
       assets.pushToHistory(Prim.time(), sessionsCounter, assetId, volume, price);
+      assetInfo.lastProcessingInstructions := Nat64.toNat(settings.performanceCounter(0) - startInstructions);
       if (volume > 0) {
-        assetInfo.lastProcessingInstructions := Nat64.toNat(settings.performanceCounter(0) - startInstructions);
         assetInfo.lastRate := price;
         if (surplus > 0) {
           credits.quoteSurplus += surplus;

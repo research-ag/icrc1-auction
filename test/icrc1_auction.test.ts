@@ -280,7 +280,7 @@ describe('ICRC1 Auction', () => {
       expect(await quoteLedger.icrc1_balance_of({ owner: user.getPrincipal(), subaccount: [] })).toEqual(0n);
 
       const res = await auction.icrc84_withdraw({
-        to_subaccount: [],
+        to: { owner: user.getPrincipal(), subaccount: [] },
         amount: 499n,
         token: quoteLedgerPrincipal,
         expected_fee: [],
@@ -293,7 +293,7 @@ describe('ICRC1 Auction', () => {
     test('withdraw deposit should return insufficient deposit error', async () => {
       await prepareDeposit(user);
       const res = await auction.icrc84_withdraw({
-        to_subaccount: [],
+        to: { owner: user.getPrincipal(), subaccount: [] },
         amount: 500_000_001n,
         token: quoteLedgerPrincipal,
         expected_fee: [],
@@ -379,7 +379,7 @@ describe('ICRC1 Auction', () => {
 
     test('should return #InsufficientCredit if not registered', async () => {
       const res = await auction.icrc84_withdraw({
-        to_subaccount: [],
+        to: { owner: user.getPrincipal(), subaccount: [] },
         amount: 1_000n,
         token: ledger1Principal,
         expected_fee: [],
@@ -390,7 +390,7 @@ describe('ICRC1 Auction', () => {
     test('should return #InsufficientCredit if not enough credits', async () => {
       await prepareDeposit(user, ledger1Principal, 800);
       const res = await auction.icrc84_withdraw({
-        to_subaccount: [],
+        to: { owner: user.getPrincipal(), subaccount: [] },
         amount: 1_000n,
         token: ledger1Principal,
         expected_fee: [],
@@ -402,7 +402,7 @@ describe('ICRC1 Auction', () => {
     test('should withdraw credit successfully', async () => {
       await prepareDeposit(user, ledger1Principal, 1_200);
       const res = await auction.icrc84_withdraw({
-        to_subaccount: [],
+        to: { owner: user.getPrincipal(), subaccount: [] },
         amount: 1_200n,
         token: ledger1Principal,
         expected_fee: [],
@@ -425,7 +425,7 @@ describe('ICRC1 Auction', () => {
       expect(metrics).toContain(`users_with_credits_count{canister="${shortP}"} 2 `);
 
       const res = await auction.icrc84_withdraw({
-        to_subaccount: [],
+        to: { owner: user2.getPrincipal(), subaccount: [] },
         amount: 1_200n,
         token: ledger1Principal,
         expected_fee: [],
@@ -446,7 +446,7 @@ describe('ICRC1 Auction', () => {
       await prepareDeposit(user, ledger1Principal, 1_200);
       expect(await auction.icrc84_credit(ledger1Principal)).toEqual(1197n);
       const res = await auction.icrc84_withdraw({
-        to_subaccount: [],
+        to: { owner: user.getPrincipal(), subaccount: [] },
         amount: 1_197n,
         token: ledger1Principal,
         expected_fee: [50n],
@@ -460,7 +460,7 @@ describe('ICRC1 Auction', () => {
       await prepareDeposit(user, ledger1Principal, 1_200);
       expect(await auction.icrc84_credit(ledger1Principal)).toEqual(1197n);
       const res = await auction.icrc84_withdraw({
-        to_subaccount: [],
+        to: { owner: user.getPrincipal(), subaccount: [] },
         amount: 1_197n,
         token: ledger1Principal,
         expected_fee: [],
@@ -474,7 +474,7 @@ describe('ICRC1 Auction', () => {
       await ledger1.updateFee(BigInt(3));
       await prepareDeposit(user, ledger1Principal, 1_200);
       const res = await auction.icrc84_withdraw({
-        to_subaccount: [],
+        to: { owner: user.getPrincipal(), subaccount: [] },
         amount: 1_197n,
         token: ledger1Principal,
         expected_fee: [3n],
