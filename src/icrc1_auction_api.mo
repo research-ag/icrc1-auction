@@ -132,13 +132,13 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   let sessionStartTimeGauge = metrics.addGauge("session_start_time_offset_ms", "", #none, [0, 1_000, 2_000, 4_000, 8_000, 16_000, 32_000, 64_000, 128_000], false);
 
   // call stats
-  let notifyCounter = metrics.addCounter("num_calls__icrc84_notify", "", true);
-  let depositCounter = metrics.addCounter("num_calls__icrc84_deposit", "", true);
-  let withdrawCounter = metrics.addCounter("num_calls__icrc84_withdraw", "", true);
-  let manageOrdersCounter = metrics.addCounter("num_calls__manageOrders", "", true);
-  let orderPlacementCounter = metrics.addCounter("num_calls__order_placement", "", true);
-  let orderReplacementCounter = metrics.addCounter("num_calls__order_replacement", "", true);
-  let orderCancellationCounter = metrics.addCounter("num_calls__order_cancellation", "", true);
+  let notifyCounter = metrics.addCounter("total_calls__icrc84_notify", "", true);
+  let depositCounter = metrics.addCounter("total_calls__icrc84_deposit", "", true);
+  let withdrawCounter = metrics.addCounter("total_calls__icrc84_withdraw", "", true);
+  let manageOrdersCounter = metrics.addCounter("total_calls__manageOrders", "", true);
+  let orderPlacementCounter = metrics.addCounter("total_calls__order_placement", "", true);
+  let orderReplacementCounter = metrics.addCounter("total_calls__order_replacement", "", true);
+  let orderCancellationCounter = metrics.addCounter("total_calls__order_cancellation", "", true);
 
   // ICRC84 API
   public shared query func principalToSubaccount(p : Principal) : async ?Blob = async ?TokenHandler.toSubaccount(p);
