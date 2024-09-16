@@ -187,12 +187,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     )
     |> Vec.get(assets, _)
     |> _.handler.trackedDeposit(caller)
-    |> (
-      switch (_) {
-        case (?d) #Ok(d);
-        case (null) #Err(#NotAvailable({ message = "Unknown caller" }));
-      }
-    );
+    |> #Ok(Option.get<Nat>(_, 0));
   };
 
   public shared ({ caller }) func icrc84_notify(args : { token : Principal }) : async NotifyResult {
