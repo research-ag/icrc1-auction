@@ -619,7 +619,25 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     };
   };
 
-  public query func queryTokenHandlerNotificationLocks(ledger : Principal, user : Principal) : async ?{
+  public query func queryTokenHandlerNotificationLocks(ledger : Principal) : async (Nat, [(Principal, { value : Nat; lock : Bool })]) {
+    let sharedData = switch (getAssetId(ledger)) {
+      case (?aid) Vec.get(assets, aid) |> _.handler.share();
+      case (_) throw Error.reject("Unknown asset");
+    };
+    let locks = RBTree.RBTree<Principal, { var value : Nat; var lock : Bool }>(Principal.compare);
+    locks.unshare(sharedData.0.0.0);
+    let iter = locks.entries();
+    let items : Vec.Vector<(Principal, { value : Nat; lock : Bool })> = Vec.new();
+    label l while (true) {
+      switch (iter.next()) {
+        case (?x) Vec.add(items, (x.0, { value = x.1.value; lock = x.1.lock }));
+        case (null) break l;
+      };
+    };
+    (sharedData.0.0.2, Vec.toArray(items));
+  };
+
+  public query func queryTokenHandlerNotificationLock(ledger : Principal, user : Principal) : async ?{
     value : Nat;
     lock : Bool;
   } {
