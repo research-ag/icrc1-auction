@@ -605,6 +605,36 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     };
   };
 
+  public query func queryUserCreditsInTokenHandler(ledger : Principal, user : Principal) : async Int {
+    switch (getAssetId(ledger)) {
+      case (?aid) Vec.get(assets, aid) |> _.handler.userCredit(user);
+      case (_) throw Error.reject("Unknown asset");
+    };
+  };
+
+  public query func queryTokenHandlerNotificationsOnPause(ledger : Principal) : async Bool {
+    switch (getAssetId(ledger)) {
+      case (?aid) Vec.get(assets, aid) |> _.handler.notificationsOnPause();
+      case (_) throw Error.reject("Unknown asset");
+    };
+  };
+
+  public query func queryTokenHandlerNotificationLocks(ledger : Principal, user : Principal) : async ?{
+    value : Nat;
+    lock : Bool;
+  } {
+    let sharedData = switch (getAssetId(ledger)) {
+      case (?aid) Vec.get(assets, aid) |> _.handler.share();
+      case (_) throw Error.reject("Unknown asset");
+    };
+    let locks = RBTree.RBTree<Principal, { var value : Nat; var lock : Bool }>(Principal.compare);
+    locks.unshare(sharedData.0.0.0);
+    switch (locks.get(user)) {
+      case (?v) ?{ value = v.value; lock = v.lock };
+      case (null) null;
+    };
+  };
+
   public query func queryTokenHandlerJournal(ledger : Principal) : async [(Principal, TokenHandler.LogEvent)] {
     Vec.vals(tokenHandlersJournal)
     |> Iter.filter<(Principal, Principal, TokenHandler.LogEvent)>(_, func(l, _, _) = Principal.equal(l, ledger))
