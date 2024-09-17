@@ -27,6 +27,39 @@ import T "./types";
 
 module {
 
+  public func defaultStableDataV6() : T.StableDataV6 = {
+    assets = Vec.new();
+    orders = { globalCounter = 0; fulfilledCounter = 0 };
+    quoteToken = { totalProcessedVolume = 0; surplus = 0 };
+    sessions = { counter = 0; history = Vec.new<T.PriceHistoryItem>() };
+    users = {
+      registry = {
+        tree = #leaf;
+        size = 0;
+      };
+      participantsArchive = {
+        tree = #leaf;
+        size = 0;
+      };
+      accountsAmount = 0;
+    };
+  };
+  public type StableDataV6 = T.StableDataV6;
+  public func migrateStableDataV6(data : StableDataV5) : StableDataV6 {
+    let usersTree : RBTree.RBTree<Principal, T.StableUserInfoV4> = RBTree.RBTree(Principal.compare);
+    for ((p, x) in RBTree.iter(data.users.registry.tree, #bwd)) {
+      usersTree.put(p, { x with transactionHistory = x.history; depositHistory = Vec.new<T.DepositHistoryItem>() });
+    };
+    {
+      data with
+      users = {
+        data.users with registry = {
+          data.users.registry with tree = usersTree.share()
+        }
+      };
+    };
+  };
+
   public func defaultStableDataV5() : T.StableDataV5 = {
     assets = Vec.new();
     orders = { globalCounter = 0; fulfilledCounter = 0 };
@@ -136,6 +169,7 @@ module {
   public type Order = T.Order;
   public type CreditInfo = Credits.CreditInfo;
   public type UserInfo = T.UserInfo;
+  public type DepositHistoryItem = T.DepositHistoryItem;
   public type TransactionHistoryItem = T.TransactionHistoryItem;
   public type PriceHistoryItem = T.PriceHistoryItem;
 
@@ -234,6 +268,7 @@ module {
     public func appendCredit(p : Principal, assetId : AssetId, amount : Nat) : Nat {
       let userInfo = users.getOrCreate(p);
       let acc = credits.getOrCreate(userInfo, assetId);
+      Vec.add<T.DepositHistoryItem>(userInfo.depositHistory, (Prim.time(), #deposit, assetId, amount));
       credits.appendCredit(acc, amount);
     };
 
@@ -242,10 +277,23 @@ module {
       let ?creditAcc = credits.getAccount(user, assetId) else return #err(#NoCredit);
       switch (credits.deductCredit(creditAcc, amount)) {
         case (true, balance) {
+          Vec.add<T.DepositHistoryItem>(user.depositHistory, (Prim.time(), #withdrawal, assetId, amount));
           if (balance == 0 and credits.deleteIfEmpty(user, assetId)) {
-            #ok(0, func() = ignore credits.getOrCreate(user, assetId) |> credits.appendCredit(_, amount));
+            #ok(
+              0,
+              func() {
+                ignore credits.getOrCreate(user, assetId) |> credits.appendCredit(_, amount);
+                Vec.add<T.DepositHistoryItem>(user.depositHistory, (Prim.time(), #withdrawalRollback, assetId, amount));
+              },
+            );
           } else {
-            #ok(balance, func() = ignore credits.appendCredit(creditAcc, amount));
+            #ok(
+              balance,
+              func() {
+                ignore credits.appendCredit(creditAcc, amount);
+                Vec.add<T.DepositHistoryItem>(user.depositHistory, (Prim.time(), #withdrawalRollback, assetId, amount));
+              },
+            );
           };
         };
         case (false, _) #err(#NoCredit);
@@ -339,9 +387,18 @@ module {
     // ============= orders interface =============
 
     // ============ history interface =============
+    public func getDepositHistory(p : Principal, assetId : ?AssetId) : Iter.Iter<T.DepositHistoryItem> {
+      let ?userInfo = users.get(p) else return { next = func() = null };
+      var iter = Vec.valsRev(userInfo.depositHistory);
+      switch (assetId) {
+        case (?aid) Iter.filter<T.DepositHistoryItem>(iter, func x = x.2 == aid);
+        case (_) iter;
+      };
+    };
+
     public func getTransactionHistory(p : Principal, assetId : ?AssetId) : Iter.Iter<T.TransactionHistoryItem> {
       let ?userInfo = users.get(p) else return { next = func() = null };
-      var iter = Vec.valsRev(userInfo.history);
+      var iter = Vec.valsRev(userInfo.transactionHistory);
       switch (assetId) {
         case (?aid) Iter.filter<T.TransactionHistoryItem>(iter, func x = x.3 == aid);
         case (_) iter;
@@ -358,7 +415,7 @@ module {
     // ============ history interface =============
 
     // ============= system interface =============
-    public func share() : T.StableDataV5 = {
+    public func share() : T.StableDataV6 = {
       assets = Vec.map<T.AssetInfo, T.StableAssetInfoV2>(
         assets.assets,
         func(x) = {
@@ -378,8 +435,8 @@ module {
       users = {
         registry = {
           tree = (
-            func() : RBTree.Tree<Principal, T.StableUserInfoV3> {
-              let stableUsers = RBTree.RBTree<Principal, T.StableUserInfoV3>(Principal.compare);
+            func() : RBTree.Tree<Principal, T.StableUserInfoV4> {
+              let stableUsers = RBTree.RBTree<Principal, T.StableUserInfoV4>(Principal.compare);
               for ((p, u) in users.users.entries()) {
                 stableUsers.put(
                   p,
@@ -391,7 +448,8 @@ module {
                       var map = List.map<(T.OrderId, T.Order), (T.OrderId, T.StableOrderDataV2)>(u.bids.map, func(oid, o) = (oid, { assetId = o.assetId; price = o.price; user = o.user; volume = o.volume }));
                     };
                     credits = u.credits;
-                    history = u.history;
+                    depositHistory = u.depositHistory;
+                    transactionHistory = u.transactionHistory;
                   },
                 );
               };
@@ -408,7 +466,7 @@ module {
       };
     };
 
-    public func unshare(data : T.StableDataV5) {
+    public func unshare(data : T.StableDataV6) {
       assets.assets := Vec.map<T.StableAssetInfoV2, T.AssetInfo>(
         data.assets,
         func(x) = {
@@ -429,7 +487,7 @@ module {
       assets.history := data.sessions.history;
 
       users.usersAmount := data.users.registry.size;
-      let ud = RBTree.RBTree<Principal, T.StableUserInfoV3>(Principal.compare);
+      let ud = RBTree.RBTree<Principal, T.StableUserInfoV4>(Principal.compare);
       ud.unshare(data.users.registry.tree);
       for ((p, u) in ud.entries()) {
         let userData : UserInfo = {
@@ -440,7 +498,8 @@ module {
             var map = null;
           };
           var credits = u.credits;
-          var history = u.history;
+          var depositHistory = u.depositHistory;
+          var transactionHistory = u.transactionHistory;
         };
         for ((oid, orderData) in List.toIter(u.asks.map)) {
           let order : T.Order = {

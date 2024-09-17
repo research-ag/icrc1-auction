@@ -49,10 +49,11 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   stable var auctionDataV3 : Auction.StableDataV3 = Auction.defaultStableDataV3();
   stable var auctionDataV4 : Auction.StableDataV4 = Auction.migrateStableDataV4(auctionDataV3);
   stable var auctionDataV5 : Auction.StableDataV5 = Auction.migrateStableDataV5(auctionDataV4);
+  stable var auctionDataV6 : Auction.StableDataV6 = Auction.migrateStableDataV6(auctionDataV5);
 
   stable var ptData : PT.StableData = null;
 
-  var tokenHandlersJournal : Vec.Vector<(ledger : Principal, p : Principal, logEvent : TokenHandler.LogEvent)> = Vec.new();
+  stable var tokenHandlersJournal : Vec.Vector<(ledger : Principal, p : Principal, logEvent : TokenHandler.LogEvent)> = Vec.new();
 
   type AssetInfo = {
     ledgerPrincipal : Principal;
@@ -90,6 +91,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   type UpperResult<Ok, Err> = { #Ok : Ok; #Err : Err };
 
   type PriceHistoryItem = (timestamp : Nat64, sessionNumber : Nat, ledgerPrincipal : Principal, volume : Nat, price : Float);
+  type DepositHistoryItem = (timestamp : Nat64, kind : { #deposit; #withdrawal; #withdrawalRollback }, ledgerPrincipal : Principal, volume : Nat);
   type TransactionHistoryItem = (timestamp : Nat64, sessionNumber : Nat, kind : { #ask; #bid }, ledgerPrincipal : Principal, volume : Nat, price : Float);
 
   type TokenInfo = {
@@ -330,7 +332,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
         performanceCounter = Prim.performanceCounter;
       },
     );
-    a.unshare(auctionDataV5);
+    a.unshare(auctionDataV6);
     auction := ?a;
     nextSessionTimestamp := Nat64.toNat(AUCTION_INTERVAL_SECONDS * (1 + Prim.time() / (AUCTION_INTERVAL_SECONDS * 1_000_000_000)));
 
@@ -437,6 +439,16 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   };
   public shared query ({ caller }) func queryAsks() : async [(Auction.OrderId, Order)] = async U.unwrapUninit(auction).getOrders(caller, #ask, null)
   |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = mapOrder(_ [i]));
+
+  public shared query ({ caller }) func queryDepositHistory(token : ?Principal, limit : Nat, skip : Nat) : async [DepositHistoryItem] {
+    let assetId : ?Auction.AssetId = switch (token) {
+      case (null) null;
+      case (?aid) getAssetId(aid);
+    };
+    U.unwrapUninit(auction).getDepositHistory(caller, assetId)
+    |> U.sliceIter(_, limit, skip)
+    |> Array.map<Auction.DepositHistoryItem, DepositHistoryItem>(_, func(x) = (x.0, x.1, Vec.get(assets, x.2).ledgerPrincipal, x.3));
+  };
 
   public shared query ({ caller }) func queryTransactionHistory(token : ?Principal, limit : Nat, skip : Nat) : async [TransactionHistoryItem] {
     let assetId : ?Auction.AssetId = switch (token) {
@@ -849,7 +861,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
             symbol = x.symbol;
           },
         );
-        auctionDataV5 := a.share();
+        auctionDataV6 := a.share();
         ptData := metrics.share();
       };
       case (null) {};

@@ -49,14 +49,20 @@ module {
     asks : UserOrderBook;
     bids : UserOrderBook;
     var credits : AssocList.AssocList<AssetId, Account>;
-    var history : Vec.Vector<TransactionHistoryItem>;
+    var depositHistory : Vec.Vector<DepositHistoryItem>;
+    var transactionHistory : Vec.Vector<TransactionHistoryItem>;
   };
 
   public type PriceHistoryItem = (timestamp : Nat64, sessionNumber : Nat, assetId : AssetId, volume : Nat, price : Float);
+  public type DepositHistoryItem = (timestamp : Nat64, kind : { #deposit; #withdrawal; #withdrawalRollback }, assetId : AssetId, volume : Nat);
   public type TransactionHistoryItem = (timestamp : Nat64, sessionNumber : Nat, kind : { #ask; #bid }, assetId : AssetId, volume : Nat, price : Float);
 
   // stable data types
-  public type StableDataV5 = {
+  public type StableDataV6 = StableDataV5_6<StableUserInfoV4>;
+
+  // old stable data types
+  public type StableDataV5 = StableDataV5_6<StableUserInfoV3>;
+  public type StableDataV5_6<SUI> = {
     assets : Vec.Vector<StableAssetInfoV2>;
     orders : {
       globalCounter : Nat;
@@ -72,7 +78,7 @@ module {
     };
     users : {
       registry : {
-        tree : RBTree.Tree<Principal, StableUserInfoV3>;
+        tree : RBTree.Tree<Principal, SUI>;
         size : Nat;
       };
       participantsArchive : {
@@ -82,8 +88,6 @@ module {
       accountsAmount : Nat;
     };
   };
-
-  // old stable data types
   public type StableDataV4 = {
     assets : Vec.Vector<StableAssetInfoV2>;
     orders : {
@@ -128,6 +132,13 @@ module {
   public type StableAssetInfoV2 = {
     lastRate : Float;
     lastProcessingInstructions : Nat;
+  };
+  public type StableUserInfoV4 = {
+    asks : UserOrderBook_<StableOrderDataV2>;
+    bids : UserOrderBook_<StableOrderDataV2>;
+    credits : AssocList.AssocList<AssetId, Account>;
+    depositHistory : Vec.Vector<DepositHistoryItem>;
+    transactionHistory : Vec.Vector<TransactionHistoryItem>;
   };
   public type StableUserInfoV3 = {
     asks : UserOrderBook_<StableOrderDataV2>;

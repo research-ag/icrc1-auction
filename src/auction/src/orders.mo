@@ -165,7 +165,7 @@ module {
       let destVol = destVolume(volume, price);
       ignore credits.appendCredit(acc, destVol);
 
-      Vec.add(order.userInfoRef.history, (Prim.time(), sessionNumber, kind, order.assetId, volume, price));
+      Vec.add(order.userInfoRef.transactionHistory, (Prim.time(), sessionNumber, kind, order.assetId, volume, price));
 
       let quoteVolume = switch (kind) {
         case (#ask) destVol;
