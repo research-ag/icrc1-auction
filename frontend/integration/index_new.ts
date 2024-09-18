@@ -173,6 +173,7 @@ export const useNotify = () => {
         enqueueSnackbar(`Failed to deposit: ${JSON.stringify(res.Err, bigIntReplacer)}`, { variant: 'error' });
       } else {
         queryClient.invalidateQueries('myCredits');
+        queryClient.invalidateQueries('deposit-history');
         enqueueSnackbar(`Deposited ${Number(res.Ok.credit_inc)} tokens successfully`, { variant: 'success' });
       }
     },
@@ -264,6 +265,22 @@ export const useCancelOrder = (kind: 'ask' | 'bid') => {
   );
 };
 
+export const useDepositHistory = () => {
+  const { auction } = useAuction();
+  const { enqueueSnackbar } = useSnackbar();
+  return useQuery(
+    'deposit-history',
+    async () => {
+      return auction.queryDepositHistory([], BigInt(10000), BigInt(0));
+    },
+    {
+      onError: err => {
+        enqueueSnackbar(`Failed to fetch deposit history: ${err}`, { variant: 'error' });
+      },
+    },
+  );
+};
+
 export const useTransactionHistory = () => {
   const { auction } = useAuction();
   const { enqueueSnackbar } = useSnackbar();
@@ -319,6 +336,7 @@ export const useWithdrawCredit = () => {
           });
         } else {
           queryClient.invalidateQueries('myCredits');
+          queryClient.invalidateQueries('deposit-history');
           enqueueSnackbar(`Credit withdrawn successfully`, { variant: 'success' });
         }
       },

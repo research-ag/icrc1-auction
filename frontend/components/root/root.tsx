@@ -25,6 +25,7 @@ import { AnonymousIdentity, Identity } from '@dfinity/agent';
 import { useQueryClient } from 'react-query';
 import { Principal } from '@dfinity/principal';
 import { displayWithDecimals } from '@fe/utils';
+import DepositHistory from '@fe/components/deposit-history';
 
 const Root = () => {
   const { identity, setIdentity } = useIdentity();
@@ -61,6 +62,7 @@ const Root = () => {
         queryClient.invalidateQueries('myBids'),
         queryClient.invalidateQueries('myAsks'),
         queryClient.invalidateQueries('transaction-history'),
+        queryClient.invalidateQueries('deposit-history'),
       ]);
     }
   };
@@ -109,6 +111,7 @@ const Root = () => {
             <Tab color="neutral">My credits</Tab>
             <Tab color="neutral">Active Bids</Tab>
             <Tab color="neutral">Active Asks</Tab>
+            <Tab color="neutral">Deposit history</Tab>
             <Tab color="neutral">Transaction history</Tab>
             <Tab color="neutral">Price history</Tab>
             <Tab color="neutral">Admins</Tab>
@@ -120,9 +123,10 @@ const Root = () => {
         {tabValue === 1 && <Credits />}
         {tabValue === 2 && <Orders kind="bid" />}
         {tabValue === 3 && <Orders kind="ask" />}
-        {tabValue === 4 && <TransactionsHistory />}
-        {tabValue === 5 && <PriceHistory />}
-        {tabValue === 6 && <Owners />}
+        {tabValue === 4 && <DepositHistory />}
+        {tabValue === 5 && <TransactionsHistory />}
+        {tabValue === 6 && <PriceHistory />}
+        {tabValue === 7 && <Owners />}
       </Tabs>
     </Box>
   );
