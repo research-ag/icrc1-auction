@@ -67,7 +67,8 @@ export const displayWithDecimals = (value: bigint | number, decimals: number, ma
     let maxFracPartLength = Math.max(0, maxSignificantDigits - intPart.length);
     let fracSignificantPart = intPart.length ? fracPart : fracPart.replace(/^0+/, '');
     if (fracSignificantPart.length > maxFracPartLength) {
-      fracPart = fracPart.slice(0, (fracPart.length - fracSignificantPart.length) + maxFracPartLength);
+      const fracFullLength = (fracPart.length - fracSignificantPart.length) + maxFracPartLength;
+      fracPart = (parseFloat('0.' + fracPart)).toFixed(fracFullLength).slice(2);
     }
   }
   fracPart = fracPart.replace(/0+$/, '');
