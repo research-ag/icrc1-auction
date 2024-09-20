@@ -1,0 +1,15 @@
+.dfx
+.github
+.idea
+.mops
+declarations
+did
+frontend
+node_modules
+test
+.gitignore
+canister_ids.json
+dfx.json
+README.md
+tsconfig.json
+vite.config.ts
