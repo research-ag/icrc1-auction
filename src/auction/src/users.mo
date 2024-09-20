@@ -48,7 +48,8 @@ module {
           asks = { var map = null };
           bids = { var map = null };
           var credits = null;
-          var history = Vec.new<T.TransactionHistoryItem>();
+          var depositHistory = Vec.new<T.DepositHistoryItem>();
+          var transactionHistory = Vec.new<T.TransactionHistoryItem>();
         };
         let oldValue = users.replace(p, data);
         switch (oldValue) {

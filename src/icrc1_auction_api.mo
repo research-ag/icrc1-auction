@@ -48,6 +48,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   stable var auctionDataV3 : Auction.StableDataV3 = Auction.defaultStableDataV3();
   stable var auctionDataV4 : Auction.StableDataV4 = Auction.migrateStableDataV4(auctionDataV3);
   stable var auctionDataV5 : Auction.StableDataV5 = Auction.migrateStableDataV5(auctionDataV4);
+  stable var auctionDataV6 : Auction.StableDataV6 = Auction.migrateStableDataV6(auctionDataV5);
 
   stable var ptData : PT.StableData = null;
 
@@ -89,6 +90,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   type UpperResult<Ok, Err> = { #Ok : Ok; #Err : Err };
 
   type PriceHistoryItem = (timestamp : Nat64, sessionNumber : Nat, ledgerPrincipal : Principal, volume : Nat, price : Float);
+  type DepositHistoryItem = (timestamp : Nat64, kind : { #deposit; #withdrawal; #withdrawalRollback }, ledgerPrincipal : Principal, volume : Nat);
   type TransactionHistoryItem = (timestamp : Nat64, sessionNumber : Nat, kind : { #ask; #bid }, ledgerPrincipal : Principal, volume : Nat, price : Float);
 
   type TokenInfo = {
@@ -132,13 +134,13 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   let sessionStartTimeGauge = metrics.addGauge("session_start_time_offset_ms", "", #none, [0, 1_000, 2_000, 4_000, 8_000, 16_000, 32_000, 64_000, 128_000], false);
 
   // call stats
-  let notifyCounter = metrics.addCounter("num_calls__icrc84_notify", "", true);
-  let depositCounter = metrics.addCounter("num_calls__icrc84_deposit", "", true);
-  let withdrawCounter = metrics.addCounter("num_calls__icrc84_withdraw", "", true);
-  let manageOrdersCounter = metrics.addCounter("num_calls__manageOrders", "", true);
-  let orderPlacementCounter = metrics.addCounter("num_calls__order_placement", "", true);
-  let orderReplacementCounter = metrics.addCounter("num_calls__order_replacement", "", true);
-  let orderCancellationCounter = metrics.addCounter("num_calls__order_cancellation", "", true);
+  let notifyCounter = metrics.addCounter("total_calls__icrc84_notify", "", true);
+  let depositCounter = metrics.addCounter("total_calls__icrc84_deposit", "", true);
+  let withdrawCounter = metrics.addCounter("total_calls__icrc84_withdraw", "", true);
+  let manageOrdersCounter = metrics.addCounter("total_calls__manageOrders", "", true);
+  let orderPlacementCounter = metrics.addCounter("total_calls__order_placement", "", true);
+  let orderReplacementCounter = metrics.addCounter("total_calls__order_replacement", "", true);
+  let orderCancellationCounter = metrics.addCounter("total_calls__order_cancellation", "", true);
 
   // ICRC84 API
   public shared query func principalToSubaccount(p : Principal) : async ?Blob = async ?TokenHandler.toSubaccount(p);
@@ -187,12 +189,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     )
     |> Vec.get(assets, _)
     |> _.handler.trackedDeposit(caller)
-    |> (
-      switch (_) {
-        case (?d) #Ok(d);
-        case (null) #Err(#NotAvailable({ message = "Unknown caller" }));
-      }
-    );
+    |> #Ok(Option.get<Nat>(_, 0));
   };
 
   public shared ({ caller }) func icrc84_notify(args : { token : Principal }) : async NotifyResult {
@@ -334,7 +331,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
         performanceCounter = Prim.performanceCounter;
       },
     );
-    a.unshare(auctionDataV5);
+    a.unshare(auctionDataV6);
     auction := ?a;
     nextSessionTimestamp := Nat64.toNat(AUCTION_INTERVAL_SECONDS * (1 + Prim.time() / (AUCTION_INTERVAL_SECONDS * 1_000_000_000)));
 
@@ -441,6 +438,16 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   };
   public shared query ({ caller }) func queryAsks() : async [(Auction.OrderId, Order)] = async U.unwrapUninit(auction).getOrders(caller, #ask, null)
   |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = mapOrder(_ [i]));
+
+  public shared query ({ caller }) func queryDepositHistory(token : ?Principal, limit : Nat, skip : Nat) : async [DepositHistoryItem] {
+    let assetId : ?Auction.AssetId = switch (token) {
+      case (null) null;
+      case (?aid) getAssetId(aid);
+    };
+    U.unwrapUninit(auction).getDepositHistory(caller, assetId)
+    |> U.sliceIter(_, limit, skip)
+    |> Array.map<Auction.DepositHistoryItem, DepositHistoryItem>(_, func(x) = (x.0, x.1, Vec.get(assets, x.2).ledgerPrincipal, x.3));
+  };
 
   public shared query ({ caller }) func queryTransactionHistory(token : ?Principal, limit : Nat, skip : Nat) : async [TransactionHistoryItem] {
     let assetId : ?Auction.AssetId = switch (token) {
@@ -817,7 +824,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
             decimals = x.decimals;
           },
         );
-        auctionDataV5 := a.share();
+        auctionDataV6 := a.share();
         ptData := metrics.share();
       };
       case (null) {};
