@@ -1,3 +1,5 @@
+import Float "mo:base/Float";
+import Int "mo:base/Int";
 import Prim "mo:prim";
 import Principal "mo:base/Principal";
 
@@ -64,5 +66,56 @@ do {
   assert auction.getCredit(seller4, ft).available == 0;
 
   assert auction.credits.quoteSurplus == 2;
+
+};
+
+do {
+  Prim.debugPrint("rounding test: partial fulfillments should not create inaccuracy...");
+  let (auction, user) = init(0, 0, 0);
+  let ft = createFt(auction);
+
+  // user places big bid, which will be fulfilled with many smaller asks
+  ignore auction.appendCredit(user, 0, 500_000_000);
+
+  let seller = Principal.fromText("dkkzx-rn4st-jpxtx-c2q6z-wy2k7-uyffr-ks7hq-azcmt-zjwxi-btxoi-mqe");
+  ignore auction.appendCredit(seller, ft, 500_000_000_000_000);
+
+  let bidVolume = 6_821_200_000_000_000;
+  let bidPrice = 0.0000000024790000000000002;
+  let askVolume = 1_000_000_000_000;
+  let askPrice = 0.0000000022790000000000002;
+
+  func denominateVolumeInQuoteAsset(volume : Nat, unitPrice : Float) : Nat = unitPrice * Float.fromInt(volume)
+  |> Float.ceil(_)
+  |> Int.abs(Float.toInt(_));
+
+  let oid = switch (auction.placeOrder(user, #bid, ft, bidVolume, bidPrice)) {
+    case (#ok x) x;
+    case (_) {
+      assert false;
+      0;
+    };
+  };
+
+  assert auction.getCredit(user, 0).locked == denominateVolumeInQuoteAsset(bidVolume, bidPrice);
+
+  switch (auction.placeOrder(seller, #ask, ft, askVolume, askPrice)) {
+    case (#ok _) ();
+    case (_) assert false;
+  };
+  auction.processAsset(ft);
+  let ?priceHistoryItem = auction.getPriceHistory(?ft).next() else Prim.trap("");
+  assert priceHistoryItem.3 == askVolume;
+  assert priceHistoryItem.4 == askPrice;
+
+  assert auction.getCredit(user, 0).locked == denominateVolumeInQuoteAsset(bidVolume - askVolume, bidPrice);
+
+  switch (auction.cancelOrder(user, #bid, oid)) {
+    case (#ok _) ();
+    case (x) {
+      Prim.debugPrint(debug_show x);
+      assert false;
+    };
+  };
 
 };
