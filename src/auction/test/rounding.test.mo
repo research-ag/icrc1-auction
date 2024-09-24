@@ -74,9 +74,6 @@ do {
   let (auction, user) = init(0, 0, 0);
   let ft = createFt(auction);
 
-  // user places big bid, which will be fulfilled with many smaller asks
-  ignore auction.appendCredit(user, 0, 500_000_000);
-
   let seller = Principal.fromText("dkkzx-rn4st-jpxtx-c2q6z-wy2k7-uyffr-ks7hq-azcmt-zjwxi-btxoi-mqe");
   ignore auction.appendCredit(seller, ft, 500_000_000_000_000);
 
@@ -89,6 +86,7 @@ do {
   |> Float.ceil(_)
   |> Int.abs(Float.toInt(_));
 
+  ignore auction.appendCredit(user, 0, denominateVolumeInQuoteAsset(bidVolume, bidPrice));
   let oid = switch (auction.placeOrder(user, #bid, ft, bidVolume, bidPrice)) {
     case (#ok x) x;
     case (_) {

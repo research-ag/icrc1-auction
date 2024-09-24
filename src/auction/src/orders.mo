@@ -143,13 +143,10 @@ module {
 
     public func fulfil(assetInfo : T.AssetInfo, sessionNumber : Nat, orderId : T.OrderId, order : T.Order, maxVolume : Nat, price : Float) : (volume : Nat, quoteVol : Nat) {
       let ?sourceAcc = credits.getAccount(order.userInfoRef, srcAssetId(order.assetId)) else Prim.trap("Can never happen");
+      let orderOriginalVolume = order.volume;
 
       // determine volume, remove from order lists
       let (volume, isPartial) = if (maxVolume < order.volume) {
-        // refresh locked funds to avoid rounding error accumulation
-        let (s1, _) = credits.unlockCredit(sourceAcc, srcVolume(order.volume, order.price));
-        let (s2, _) = credits.lockCredit(sourceAcc, srcVolume(order.volume - maxVolume, order.price) + srcVolume(maxVolume, order.price));
-        assert s1 and s2;
         assets.deductOrderVolume(assetInfo, kind, order, maxVolume);
         (maxVolume, true);
       } else {
@@ -159,7 +156,10 @@ module {
       };
 
       // debit user (source asset)
-      let (s1, _) = credits.unlockCredit(sourceAcc, srcVolume(volume, order.price));
+      let (s1, _) = credits.unlockCredit(sourceAcc, srcVolume(orderOriginalVolume, order.price));
+      if (isPartial) {
+        assert credits.lockCredit(sourceAcc, srcVolume(orderOriginalVolume - volume, order.price)).0;
+      };
       let srcVol = srcVolume(volume, price);
       let (s2, _) = credits.deductCredit(sourceAcc, srcVol);
       assert s1 and s2;
@@ -180,7 +180,6 @@ module {
       fulfilOrderCallback(quoteVolume, isPartial);
 
       (volume, quoteVolume);
-
     };
   };
 
