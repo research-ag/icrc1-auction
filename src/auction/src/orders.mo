@@ -157,10 +157,17 @@ module {
 
       // debit user (source asset)
       let (s1, _) = credits.unlockCredit(sourceAcc, srcVolume(orderOriginalVolume, order.price));
-      if (isPartial) {
+      let srcVol = if (isPartial) {
         assert credits.lockCredit(sourceAcc, srcVolume(orderOriginalVolume - volume, order.price)).0;
+        // for partially fulfilled bid we use rounding down
+        switch (kind) {
+          case (#bid) price * Float.fromInt(volume) |> Int.abs(Float.toInt(Float.floor(_)));
+          case (_) srcVolume(volume, price);
+        };
+      } else {
+        srcVolume(volume, price);
       };
-      let srcVol = srcVolume(volume, price);
+
       let (s2, _) = credits.deductCredit(sourceAcc, srcVol);
       assert s1 and s2;
       ignore credits.deleteIfEmpty(order.userInfoRef, srcAssetId(order.assetId));
