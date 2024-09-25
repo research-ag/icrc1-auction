@@ -104,7 +104,7 @@ do {
   auction.processAsset(ft);
   let ?priceHistoryItem = auction.getPriceHistory(?ft).next() else Prim.trap("");
   assert priceHistoryItem.3 == askVolume;
-  assert priceHistoryItem.4 == askPrice;
+  assert priceHistoryItem.4 == bidPrice;
 
   assert auction.getCredit(user, 0).locked == denominateVolumeInQuoteAsset(bidVolume - askVolume, bidPrice);
 

@@ -79,7 +79,7 @@ do {
 
   let ?priceHistoryItem = auction.getPriceHistory(?ft).next() else Prim.trap("");
   assert priceHistoryItem.3 == 5_000_000; // volume
-  assert priceHistoryItem.4 == 0.8; // ask 0.8, bid 1
+  assert priceHistoryItem.4 == 1.0; // ask 0.8, bid 1
 };
 
 do {
@@ -178,15 +178,15 @@ do {
 
   // note: user ask was not fulfilled because has too high price
   userExpectedCredits[0] += 98_000; // bid fulfilled part funds unlocked
-  userExpectedCredits[0] -= 78_400; // bid fulfilled part funds charged (980_000 * 0.08)
+  userExpectedCredits[0] -= 98_000; // bid fulfilled part funds charged (980_000 * 0.1)
   userExpectedCredits[1] += 980_000; // credited with bought token
 
   // note user2 [1] balance not changed: whole volume was locked and then charged
-  user2ExpectedCredits[0] += 78_400; // credited from sold token (980_000 * 0.08)
+  user2ExpectedCredits[0] += 98_000; // credited from sold token (980_000 * 0.1)
 
   let ?priceHistoryItem = auction.getPriceHistory(?ft).next() else Prim.trap("");
   assert priceHistoryItem.3 == 980_000;
-  assert priceHistoryItem.4 == 0.08;
+  assert priceHistoryItem.4 == 0.1;
 
   assertBalances(user, userExpectedCredits);
   assertBalances(user2, user2ExpectedCredits);

@@ -4,7 +4,7 @@ promtracker = "0.5.4"
 vector = "0.4.0"
 token_handler = "https://github.com/research-ag/token-handler#e637a3e7be5a1dc1ac9757c2e456f0f76c1a3795"
 mrr = "https://github.com/research-ag/motoko-lib#main"
-auction = "2.0.0"
+auction = "https://github.com/research-ag/auction#b14f446fdc5257699d8bb80d7771b5cb66591008"
 icrc84 = "https://github.com/research-ag/icrc-84#750573596a0f31780bf0caaab1cd247832a0b0f5"
 
 [toolchain]
