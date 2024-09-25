@@ -141,31 +141,41 @@ module {
       ?existingOrder;
     };
 
+    // bid: source = quote, dest = base
+    // ask: source = base, dest = quote
     public func fulfil(assetInfo : T.AssetInfo, sessionNumber : Nat, orderId : T.OrderId, order : T.Order, maxVolume : Nat, price : Float) : (volume : Nat, quoteVol : Nat) {
-      // determine volume, remove from order lists
-      let (volume, isPartial) = if (maxVolume < order.volume) {
-        assets.deductOrderVolume(assetInfo, kind, order, maxVolume);
-        (maxVolume, true);
+      let ?sourceAcc = credits.getAccount(order.userInfoRef, srcAssetId(order.assetId)) else Prim.trap("Can never happen");
+
+      credits.unlockCredit(sourceAcc, srcVolume(order.volume, order.price)) |> (assert _.0);
+
+      let isPartial = maxVolume < order.volume;
+      let baseVolume = Nat.min(maxVolume, order.volume); // = executed volume
+
+      // source and destination volumes
+      let srcVol = switch (isPartial, kind) {
+        case (true, #bid) price * Float.fromInt(baseVolume) |> Float.floor(_) |> Int.abs(Float.toInt(_));
+        case (_) srcVolume(baseVolume, price);
+      };
+      let destVol = destVolume(baseVolume, price);
+
+      // adjust orders
+      if (isPartial) {
+        credits.lockCredit(sourceAcc, srcVolume(order.volume - baseVolume, order.price)) |> (assert _.0); // re-lock credit
+        assets.deductOrderVolume(assetInfo, kind, order, baseVolume); // shrink order
       } else {
-        ignore users.deleteOrder(order.userInfoRef, kind, orderId);
-        assets.deleteOrder(assetInfo, kind, orderId);
-        (order.volume, false);
+        users.deleteOrder(order.userInfoRef, kind, orderId) |> (ignore _); // delete order
+        assets.deleteOrder(assetInfo, kind, orderId); // delete order
       };
 
-      // debit user (source asset)
-      let ?sourceAcc = credits.getAccount(order.userInfoRef, srcAssetId(order.assetId)) else Prim.trap("Can never happen");
-      let (s1, _) = credits.unlockCredit(sourceAcc, srcVolume(volume, order.price));
-      let srcVol = srcVolume(volume, price);
-      let (s2, _) = credits.deductCredit(sourceAcc, srcVol);
-      assert s1 and s2;
+      // debit at source
+      credits.deductCredit(sourceAcc, srcVol) |> (assert _.0);
       ignore credits.deleteIfEmpty(order.userInfoRef, srcAssetId(order.assetId));
 
-      // credit user (target asset)
+      // credit at destination
       let acc = credits.getOrCreate(order.userInfoRef, destAssetId(order.assetId));
-      let destVol = destVolume(volume, price);
       ignore credits.appendCredit(acc, destVol);
 
-      Vec.add(order.userInfoRef.transactionHistory, (Prim.time(), sessionNumber, kind, order.assetId, volume, price));
+      Vec.add(order.userInfoRef.transactionHistory, (Prim.time(), sessionNumber, kind, order.assetId, baseVolume, price));
 
       let quoteVolume = switch (kind) {
         case (#ask) destVol;
@@ -174,8 +184,7 @@ module {
 
       fulfilOrderCallback(quoteVolume, isPartial);
 
-      (volume, quoteVolume);
-
+      (baseVolume, quoteVolume);
     };
   };
 
