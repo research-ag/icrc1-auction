@@ -670,6 +670,12 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     };
   };
 
+  private func assertAdminAccessSync(principal : Principal) : () {
+    if (adminsMap.get(principal) == null) {
+      Prim.trap("No Access for this principal " # Principal.toText(principal));
+    };
+  };
+
   public shared ({ caller }) func addAdmin(principal : Principal) : async () {
     await* assertAdminAccess(caller);
     adminsMap.put(principal, ());
@@ -817,6 +823,45 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       asset.bids.size := 0;
       asset.bids.totalVolume := 0;
     };
+  };
+
+  public shared query ({ caller }) func queryUserCredits(p : Principal) : async [(Principal, Auction.CreditInfo)] {
+    assertAdminAccessSync(caller);
+    U.unwrapUninit(auction).getCredits(p) |> Array.tabulate<(Principal, Auction.CreditInfo)>(_.size(), func(i) = (getIcrc1Ledger(_ [i].0), _ [i].1));
+  };
+
+  public shared query ({ caller }) func queryUserBids(p : Principal) : async [(Auction.OrderId, Order)] {
+    assertAdminAccessSync(caller);
+    U.unwrapUninit(auction).getOrders(p, #bid, null)
+    |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = mapOrder(_ [i]));
+  };
+
+  public shared query ({ caller }) func queryUserAsks(p : Principal) : async [(Auction.OrderId, Order)] {
+    assertAdminAccessSync(caller);
+    U.unwrapUninit(auction).getOrders(p, #ask, null)
+    |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = mapOrder(_ [i]));
+  };
+
+  public shared query ({ caller }) func queryUserDepositHistory(p : Principal, token : ?Principal, limit : Nat, skip : Nat) : async [DepositHistoryItem] {
+    assertAdminAccessSync(caller);
+    let assetId : ?Auction.AssetId = switch (token) {
+      case (null) null;
+      case (?aid) getAssetId(aid);
+    };
+    U.unwrapUninit(auction).getDepositHistory(p, assetId)
+    |> U.sliceIter(_, limit, skip)
+    |> Array.map<Auction.DepositHistoryItem, DepositHistoryItem>(_, func(x) = (x.0, x.1, Vec.get(assets, x.2).ledgerPrincipal, x.3));
+  };
+
+  public shared query ({ caller }) func queryUserTransactionHistory(p : Principal, token : ?Principal, limit : Nat, skip : Nat) : async [TransactionHistoryItem] {
+    assertAdminAccessSync(caller);
+    let assetId : ?Auction.AssetId = switch (token) {
+      case (null) null;
+      case (?aid) getAssetId(aid);
+    };
+    U.unwrapUninit(auction).getTransactionHistory(p, assetId)
+    |> U.sliceIter(_, limit, skip)
+    |> Array.map<Auction.TransactionHistoryItem, TransactionHistoryItem>(_, func(x) = (x.0, x.1, x.2, Vec.get(assets, x.3).ledgerPrincipal, x.4, x.5));
   };
 
   // Auction processing functionality
