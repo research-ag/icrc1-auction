@@ -42,8 +42,11 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   let adminsMap = RBTree.RBTree<Principal, ()>(Principal.compare);
   adminsMap.unshare(stableAdminsMap);
 
-  stable var assetsDataV2 : Vec.Vector<{ ledgerPrincipal : Principal; minAskVolume : Nat; handler : TokenHandler.StableData; decimals : Nat }> = Vec.new();
-  stable var assetsDataV3 : Vec.Vector<StableAssetInfo> = Vec.map<{ ledgerPrincipal : Principal; minAskVolume : Nat; handler : TokenHandler.StableData; decimals : Nat }, StableAssetInfo>(assetsDataV2, func(ad) = { ad with symbol = "" });
+  stable var assetsDataV3 : Vec.Vector<{ ledgerPrincipal : Principal; minAskVolume : Nat; handler : (((RBTree.Tree<Principal, { var value : Nat; var lock : Bool }>, Nat, Nat, Nat), Nat, Nat, Nat, Nat), ([(Principal, Int)], Int, Int)); symbol : Text; decimals : Nat }> = Vec.new();
+  stable var assetsDataV4 : Vec.Vector<StableAssetInfo> = Vec.map<{ ledgerPrincipal : Principal; minAskVolume : Nat; handler : (((RBTree.Tree<Principal, { var value : Nat; var lock : Bool }>, Nat, Nat, Nat), Nat, Nat, Nat, Nat), ([(Principal, Int)], Int, Int)); symbol : Text; decimals : Nat }, StableAssetInfo>(
+    assetsDataV3,
+    func(ad) = { ad with handler = ad.handler.1 },
+  );
 
   stable var auctionDataV3 : Auction.StableDataV3 = Auction.defaultStableDataV3();
   stable var auctionDataV4 : Auction.StableDataV4 = Auction.migrateStableDataV4(auctionDataV3);
@@ -289,7 +292,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   public shared func init() : async () {
     assert Option.isNull(auction);
     assets := Vec.map<StableAssetInfo, AssetInfo>(
-      assetsDataV3,
+      assetsDataV4,
       func(x) {
         let r = TokenHandler.buildLedgerApi(x.ledgerPrincipal)
         |> {
@@ -897,7 +900,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   system func preupgrade() {
     switch (auction) {
       case (?a) {
-        assetsDataV3 := Vec.map<AssetInfo, StableAssetInfo>(
+        assetsDataV4 := Vec.map<AssetInfo, StableAssetInfo>(
           assets,
           func(x) = {
             ledgerPrincipal = x.ledgerPrincipal;
