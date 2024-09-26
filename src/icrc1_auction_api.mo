@@ -15,7 +15,6 @@ import Text "mo:base/Text";
 import Timer "mo:base/Timer";
 
 import Auction "./auction/src";
-import ICRC1 "mo:token_handler/ICRC1";
 import PT "mo:promtracker";
 import TokenHandler "mo:token_handler";
 import Vec "mo:vector";
@@ -291,13 +290,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     assets := Vec.map<StableAssetInfo, AssetInfo>(
       assetsDataV3,
       func(x) {
-        let r = (actor (Principal.toText(x.ledgerPrincipal)) : ICRC1.ICRC1Ledger)
-        |> {
-          balance_of = _.icrc1_balance_of;
-          fee = _.icrc1_fee;
-          transfer = _.icrc1_transfer;
-          transfer_from = _.icrc2_transfer_from;
-        }
+        let r = TokenHandler.buildLedgerApi(x.ledgerPrincipal)
         |> {
           ledgerPrincipal = x.ledgerPrincipal;
           minAskVolume = x.minAskVolume;
@@ -702,13 +695,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     };
     let id = Vec.size(assets);
     assert id == U.unwrapUninit(auction).assets.nAssets();
-    (actor (Principal.toText(ledgerPrincipal)) : ICRC1.ICRC1Ledger)
-    |> {
-      balance_of = _.icrc1_balance_of;
-      fee = _.icrc1_fee;
-      transfer = _.icrc1_transfer;
-      transfer_from = _.icrc2_transfer_from;
-    }
+    TokenHandler.buildLedgerApi(ledgerPrincipal)
     |> {
       ledgerPrincipal;
       minAskVolume;
