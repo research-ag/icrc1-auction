@@ -3,6 +3,7 @@ import Error "mo:base/Error";
 import Float "mo:base/Float";
 import Int "mo:base/Int";
 import Iter "mo:base/Iter";
+import List "mo:base/List";
 import Nat "mo:base/Nat";
 import Nat8 "mo:base/Nat8";
 import Nat64 "mo:base/Nat64";
@@ -54,7 +55,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   stable var ptData : PT.StableData = null;
 
-  var tokenHandlersJournal : Vec.Vector<(ledger : Principal, p : Principal, logEvent : TokenHandler.LogEvent)> = Vec.new();
+  stable var tokenHandlersJournal : Vec.Vector<(ledger : Principal, p : Principal, logEvent : TokenHandler.LogEvent)> = Vec.new();
 
   type AssetInfo = {
     ledgerPrincipal : Principal;
@@ -311,12 +312,12 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
         r;
       },
     );
-    for ((asset, id) in Vec.items(assets)) {
-      let (symbol, decimals) = await* fetchLedgerInfo(asset.ledgerPrincipal);
-      if (asset.decimals != decimals or asset.symbol != symbol) {
-        Vec.put(assets, id, { asset with decimals; symbol });
-      };
-    };
+    // for ((asset, id) in Vec.items(assets)) {
+    //   let (symbol, decimals) = await* fetchLedgerInfo(asset.ledgerPrincipal);
+    //   if (asset.decimals != decimals or asset.symbol != symbol) {
+    //     Vec.put(assets, id, { asset with decimals; symbol });
+    //   };
+    // };
     let a = Auction.Auction(
       0,
       {
@@ -600,6 +601,20 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     };
   };
 
+  public query func queryUserCreditsInTokenHandler(ledger : Principal, user : Principal) : async Int {
+    switch (getAssetId(ledger)) {
+      case (?aid) Vec.get(assets, aid) |> _.handler.userCredit(user);
+      case (_) throw Error.reject("Unknown asset");
+    };
+  };
+
+  public query func queryTokenHandlerNotificationsOnPause(ledger : Principal) : async Bool {
+    switch (getAssetId(ledger)) {
+      case (?aid) Vec.get(assets, aid) |> _.handler.notificationsOnPause();
+      case (_) throw Error.reject("Unknown asset");
+    };
+  };
+
   public query func queryTokenHandlerJournal(ledger : Principal) : async [(Principal, TokenHandler.LogEvent)] {
     Vec.vals(tokenHandlersJournal)
     |> Iter.filter<(Principal, Principal, TokenHandler.LogEvent)>(_, func(l, _, _) = Principal.equal(l, ledger))
@@ -614,6 +629,12 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   private func assertAdminAccess(principal : Principal) : async* () {
     if (adminsMap.get(principal) == null) {
       throw Error.reject("No Access for this principal " # Principal.toText(principal));
+    };
+  };
+
+  private func assertAdminAccessSync(principal : Principal) : () {
+    if (adminsMap.get(principal) == null) {
+      Prim.trap("No Access for this principal " # Principal.toText(principal));
     };
   };
 
@@ -724,6 +745,81 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     R.toUpper(res);
   };
 
+  public shared ({ caller }) func wipePriceHistory(icrc1Ledger : Principal) : async () {
+    await* assertAdminAccess(caller);
+    let ?assetId = getAssetId(icrc1Ledger) else throw Error.reject("Unknown asset");
+    let newHistory : Vec.Vector<Auction.PriceHistoryItem> = Vec.new();
+    for (x in Vec.vals(U.unwrapUninit(auction).assets.history)) {
+      if (x.2 != assetId) {
+        Vec.add(newHistory, x);
+      };
+    };
+    U.unwrapUninit(auction).assets.history := newHistory;
+  };
+
+  public shared ({ caller }) func wipeOrders() : async () {
+    await* assertAdminAccess(caller);
+    let a = U.unwrapUninit(auction);
+    for ((p, _) in a.users.users.entries()) {
+      ignore a.manageOrders(p, ? #all(null), []);
+    };
+  };
+
+  public shared ({ caller }) func wipeUsers() : async () {
+    await* assertAdminAccess(caller);
+    let a = U.unwrapUninit(auction);
+    for ((p, _) in a.users.users.entries()) {
+      a.users.users.delete(p);
+    };
+    for (asset in Vec.vals(a.assets.assets)) {
+      asset.asks.queue := List.nil();
+      asset.asks.size := 0;
+      asset.asks.totalVolume := 0;
+      asset.bids.queue := List.nil();
+      asset.bids.size := 0;
+      asset.bids.totalVolume := 0;
+    };
+  };
+
+  public shared query ({ caller }) func queryUserCredits(p : Principal) : async [(Principal, Auction.CreditInfo)] {
+    assertAdminAccessSync(caller);
+    U.unwrapUninit(auction).getCredits(p) |> Array.tabulate<(Principal, Auction.CreditInfo)>(_.size(), func(i) = (getIcrc1Ledger(_ [i].0), _ [i].1));
+  };
+
+  public shared query ({ caller }) func queryUserBids(p : Principal) : async [(Auction.OrderId, Order)] {
+    assertAdminAccessSync(caller);
+    U.unwrapUninit(auction).getOrders(p, #bid, null)
+    |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = mapOrder(_ [i]));
+  };
+
+  public shared query ({ caller }) func queryUserAsks(p : Principal) : async [(Auction.OrderId, Order)] {
+    assertAdminAccessSync(caller);
+    U.unwrapUninit(auction).getOrders(p, #ask, null)
+    |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = mapOrder(_ [i]));
+  };
+
+  public shared query ({ caller }) func queryUserDepositHistory(p : Principal, token : ?Principal, limit : Nat, skip : Nat) : async [DepositHistoryItem] {
+    assertAdminAccessSync(caller);
+    let assetId : ?Auction.AssetId = switch (token) {
+      case (null) null;
+      case (?aid) getAssetId(aid);
+    };
+    U.unwrapUninit(auction).getDepositHistory(p, assetId)
+    |> U.sliceIter(_, limit, skip)
+    |> Array.map<Auction.DepositHistoryItem, DepositHistoryItem>(_, func(x) = (x.0, x.1, Vec.get(assets, x.2).ledgerPrincipal, x.3));
+  };
+
+  public shared query ({ caller }) func queryUserTransactionHistory(p : Principal, token : ?Principal, limit : Nat, skip : Nat) : async [TransactionHistoryItem] {
+    assertAdminAccessSync(caller);
+    let assetId : ?Auction.AssetId = switch (token) {
+      case (null) null;
+      case (?aid) getAssetId(aid);
+    };
+    U.unwrapUninit(auction).getTransactionHistory(p, assetId)
+    |> U.sliceIter(_, limit, skip)
+    |> Array.map<Auction.TransactionHistoryItem, TransactionHistoryItem>(_, func(x) = (x.0, x.1, x.2, Vec.get(assets, x.3).ledgerPrincipal, x.4, x.5));
+  };
+
   // Auction processing functionality
 
   var nextAssetIdToProcess : Nat = 0;
@@ -810,8 +906,8 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
             ledgerPrincipal = x.ledgerPrincipal;
             minAskVolume = x.minAskVolume;
             handler = x.handler.share();
-            symbol = x.symbol;
             decimals = x.decimals;
+            symbol = x.symbol;
           },
         );
         auctionDataV6 := a.share();
