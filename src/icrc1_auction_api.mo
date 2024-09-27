@@ -594,6 +594,19 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     users : {
       queued : Nat;
     };
+    depositManager : {
+      paused : Bool;
+      fee : { ledger : Nat; deposit : Nat; surcharge : Nat };
+      flow : { credited : Nat };
+      totalConsolidated : Nat;
+      funds : {
+        deposited : Nat;
+        underway : Nat;
+        queued : Nat;
+      };
+      nDeposits : Nat;
+      nLocks : Nat;
+    };
   } {
     switch (getAssetId(ledger)) {
       case (?aid) Vec.get(assets, aid) |> _.handler.state();
