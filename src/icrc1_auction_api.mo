@@ -238,14 +238,20 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     let assetInfo = Vec.get(assets, assetId);
     let res = await* assetInfo.handler.depositFromAllowance(caller, args.from, args.amount, args.expected_fee);
     switch (res) {
-      case (#ok(credited, txid)) {
-        assert assetInfo.handler.debitUser(caller, credited);
-        ignore a.appendCredit(caller, assetId, credited);
-        #Ok({
-          credit_inc = credited;
-          txid = txid;
-          credit = a.getCredit(caller, assetId).available;
-        });
+      case (#ok(_, txid)) {
+        let userCredit = assetInfo.handler.userCredit(caller);
+        if (userCredit > 0) {
+          let credited = Int.abs(userCredit);
+          assert assetInfo.handler.debitUser(caller, credited);
+          ignore a.appendCredit(caller, assetId, credited);
+          #Ok({
+            credit_inc = credited;
+            txid = txid;
+            credit = a.getCredit(caller, assetId).available;
+          });
+        } else {
+          #Err(#AmountBelowMinimum({}));
+        };
       };
       case (#err x) #Err(
         switch (x) {
