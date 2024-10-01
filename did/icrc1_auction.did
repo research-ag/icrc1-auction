@@ -108,6 +108,7 @@ type ManageOrdersResponse = variant {
       error : variant {
         UnknownAsset;
         UnknownOrder;
+        SessionNumberMismatch : Token;
       };
     };
     placement : record {
@@ -119,6 +120,7 @@ type ManageOrdersResponse = variant {
         UnknownAsset;
         PriceDigitsOverflow : record { maxDigits : nat };
         VolumeStepViolated : record { baseVolumeStep : nat };
+        SessionNumberMismatch : Token;
       };
     };
   };
@@ -134,6 +136,7 @@ type PlaceOrderResponse = variant {
     UnknownPrincipal;
     PriceDigitsOverflow : record { maxDigits : nat };
     VolumeStepViolated : record { baseVolumeStep : nat };
+    SessionNumberMismatch : Token;
   };
 };
 type ReplaceOrderResponse = variant {
@@ -147,6 +150,7 @@ type ReplaceOrderResponse = variant {
     UnknownPrincipal;
     PriceDigitsOverflow : record { maxDigits : nat };
     VolumeStepViolated : record { baseVolumeStep : nat };
+    SessionNumberMismatch : Token;
   };
 };
 type CancelOrderResponse = variant {
@@ -154,6 +158,7 @@ type CancelOrderResponse = variant {
   Err : variant {
     UnknownOrder;
     UnknownPrincipal;
+    SessionNumberMismatch : Token;
   };
 };
 
@@ -206,22 +211,22 @@ service : (opt principal, opt principal) -> {
   // Providing token in the arguments to history queries will filter results by token
 
   // return values are: timestamp in nanoseconds; type; ICRC1 ledger principal; operation volume;
-  queryDepositHistory : (opt Token, nat, nat) -> (vec record { nat64; variant { deposit; withdrawal; withdrawalRollback; }; Token; nat }) query;
+  queryDepositHistory : (opt Token, nat, nat) -> (vec record { nat64; variant { deposit; withdrawal; withdrawalRollback }; Token; nat }) query;
   // return values are: timestamp in nanoseconds; number of auction session; transaction type; ICRC1 ledger principal; transaction volume; transaction price
   queryTransactionHistory : (opt Token, nat, nat) -> (vec record { nat64; nat; variant { ask; bid }; Token; nat; float64 }) query;
   // return values are: timestamp in nanoseconds; number of auction session; ICRC1 ledger principal; volume sold; price
   queryPriceHistory : (opt Token, nat, nat) -> (vec record { nat64; nat; Token; nat; float64 }) query;
 
   // update
-  manageOrders : (opt CancellationArg, PlaceArg) -> (ManageOrdersResponse);
+  manageOrders : (opt CancellationArg, PlaceArg, opt nat) -> (ManageOrdersResponse);
 
-  placeAsks : (vec record { Token; nat; float64 }) -> (vec PlaceOrderResponse);
-  replaceAsk : (OrderId, nat, float64) -> (ReplaceOrderResponse);
-  cancelAsks : (vec OrderId) -> (vec CancelOrderResponse);
+  placeAsks : (vec record { Token; nat; float64 }, opt nat) -> (vec PlaceOrderResponse);
+  replaceAsk : (OrderId, nat, float64, opt nat) -> (ReplaceOrderResponse);
+  cancelAsks : (vec OrderId, opt nat) -> (vec CancelOrderResponse);
 
-  placeBids : (vec record { Token; nat; float64 }) -> (vec PlaceOrderResponse);
-  replaceBid : (OrderId, nat, float64) -> (ReplaceOrderResponse);
-  cancelBids : (vec OrderId) -> (vec CancelOrderResponse);
+  placeBids : (vec record { Token; nat; float64 }, opt nat) -> (vec PlaceOrderResponse);
+  replaceBid : (OrderId, nat, float64, opt nat) -> (ReplaceOrderResponse);
+  cancelBids : (vec OrderId, opt nat) -> (vec CancelOrderResponse);
 
   // ADMIN API
   // query
