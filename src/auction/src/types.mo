@@ -43,6 +43,7 @@ module {
     bids : AssetOrderBook;
     var lastRate : Float;
     var lastProcessingInstructions : Nat;
+    var sessionsCounter : Nat;
   };
 
   public type UserInfo = {

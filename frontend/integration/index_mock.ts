@@ -201,9 +201,10 @@ export const usePlaceOrder = (kind: 'ask' | 'bid') => {
   const { enqueueSnackbar } = useSnackbar();
   return useMutation(
     (formObj: { ledger: string; volume: number; price: number }) =>
-      (kind === 'bid' ? auction.placeBids : auction.placeAsks).bind(auction)([
-        [Principal.fromText(formObj.ledger), BigInt(formObj.volume), Number(formObj.price)],
-      ]),
+      (kind === 'bid' ? auction.placeBids : auction.placeAsks).bind(auction)(
+        [[Principal.fromText(formObj.ledger), BigInt(formObj.volume), Number(formObj.price)]],
+        [],
+      ),
     {
       onSuccess: ([res]) => {
         if ('Err' in res) {
@@ -227,7 +228,7 @@ export const useCancelOrder = (kind: 'ask' | 'bid') => {
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
   return useMutation(
-    (orderId: bigint) => (kind === 'bid' ? auction.cancelBids([orderId]) : auction.cancelAsks([orderId])),
+    (orderId: bigint) => (kind === 'bid' ? auction.cancelBids([orderId], []) : auction.cancelAsks([orderId], [])),
     {
       onSuccess: ([res]) => {
         if ('Err' in res) {

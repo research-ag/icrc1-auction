@@ -478,7 +478,10 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   type ManageOrdersError = {
     #UnknownPrincipal;
-    #cancellation : { index : Nat; error : { #UnknownAsset; #UnknownOrder } };
+    #cancellation : {
+      index : Nat;
+      error : { #UnknownAsset; #UnknownOrder; #SessionNumberMismatch : Auction.AssetId };
+    };
     #placement : {
       index : Nat;
       error : {
@@ -488,6 +491,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
         #UnknownAsset;
         #PriceDigitsOverflow : { maxDigits : Nat };
         #VolumeStepViolated : { baseVolumeStep : Nat };
+        #SessionNumberMismatch : Auction.AssetId;
       };
     };
   };
@@ -501,6 +505,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       #ask : (token : Principal, volume : Nat, price : Float);
       #bid : (token : Principal, volume : Nat, price : Float);
     }],
+    expectedSessionNumber : ?Nat,
   ) : async UpperResult<[Auction.OrderId], ManageOrdersError> {
     manageOrdersCounter.add(1);
     let cancellationArg : ?Auction.CancellationAction = switch (cancellations) {
@@ -527,57 +532,57 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       };
     };
     U.unwrapUninit(auction)
-    |> _.manageOrders(caller, cancellationArg, Array.freeze(placementArg))
+    |> _.manageOrders(caller, cancellationArg, Array.freeze(placementArg), expectedSessionNumber)
     |> R.toUpper(_);
   };
 
-  public shared ({ caller }) func placeBids(arg : [(ledger : Principal, volume : Nat, price : Float)]) : async [UpperResult<Auction.OrderId, Auction.PlaceOrderError>] {
+  public shared ({ caller }) func placeBids(arg : [(ledger : Principal, volume : Nat, price : Float)], expectedSessionNumber : ?Nat) : async [UpperResult<Auction.OrderId, Auction.PlaceOrderError>] {
     orderPlacementCounter.add(1);
     Array.tabulate<UpperResult<Auction.OrderId, Auction.PlaceOrderError>>(
       arg.size(),
       func(i) = switch (getAssetId(arg[i].0)) {
-        case (?aid) U.unwrapUninit(auction).placeOrder(caller, #bid, aid, arg[i].1, arg[i].2) |> R.toUpper(_);
+        case (?aid) U.unwrapUninit(auction).placeOrder(caller, #bid, aid, arg[i].1, arg[i].2, expectedSessionNumber) |> R.toUpper(_);
         case (_) #Err(#UnknownAsset);
       },
     );
   };
 
-  public shared ({ caller }) func replaceBid(orderId : Auction.OrderId, volume : Nat, price : Float) : async UpperResult<Auction.OrderId, Auction.ReplaceOrderError> {
+  public shared ({ caller }) func replaceBid(orderId : Auction.OrderId, volume : Nat, price : Float, expectedSessionNumber : ?Nat) : async UpperResult<Auction.OrderId, Auction.ReplaceOrderError> {
     orderReplacementCounter.add(1);
-    U.unwrapUninit(auction).replaceOrder(caller, #bid, orderId, volume : Nat, price : Float) |> R.toUpper(_);
+    U.unwrapUninit(auction).replaceOrder(caller, #bid, orderId, volume : Nat, price : Float, expectedSessionNumber) |> R.toUpper(_);
   };
 
-  public shared ({ caller }) func cancelBids(orderIds : [Auction.OrderId]) : async [UpperResult<(), Auction.CancelOrderError>] {
+  public shared ({ caller }) func cancelBids(orderIds : [Auction.OrderId], expectedSessionNumber : ?Nat) : async [UpperResult<(), Auction.CancelOrderError>] {
     orderCancellationCounter.add(1);
     let a = U.unwrapUninit(auction);
     Array.tabulate<UpperResult<(), Auction.CancelOrderError>>(
       orderIds.size(),
-      func(i) = a.cancelOrder(caller, #bid, orderIds[i]) |> R.toUpper(_),
+      func(i) = a.cancelOrder(caller, #bid, orderIds[i], expectedSessionNumber) |> R.toUpper(_),
     );
   };
 
-  public shared ({ caller }) func placeAsks(arg : [(ledger : Principal, volume : Nat, price : Float)]) : async [UpperResult<Auction.OrderId, Auction.PlaceOrderError>] {
+  public shared ({ caller }) func placeAsks(arg : [(ledger : Principal, volume : Nat, price : Float)], expectedSessionNumber : ?Nat) : async [UpperResult<Auction.OrderId, Auction.PlaceOrderError>] {
     orderPlacementCounter.add(1);
     Array.tabulate<UpperResult<Auction.OrderId, Auction.PlaceOrderError>>(
       arg.size(),
       func(i) = switch (getAssetId(arg[i].0)) {
-        case (?aid) U.unwrapUninit(auction).placeOrder(caller, #ask, aid, arg[i].1, arg[i].2) |> R.toUpper(_);
+        case (?aid) U.unwrapUninit(auction).placeOrder(caller, #ask, aid, arg[i].1, arg[i].2, expectedSessionNumber) |> R.toUpper(_);
         case (_) #Err(#UnknownAsset);
       },
     );
   };
 
-  public shared ({ caller }) func replaceAsk(orderId : Auction.OrderId, volume : Nat, price : Float) : async UpperResult<Auction.OrderId, Auction.ReplaceOrderError> {
+  public shared ({ caller }) func replaceAsk(orderId : Auction.OrderId, volume : Nat, price : Float, expectedSessionNumber : ?Nat) : async UpperResult<Auction.OrderId, Auction.ReplaceOrderError> {
     orderReplacementCounter.add(1);
-    U.unwrapUninit(auction).replaceOrder(caller, #ask, orderId, volume : Nat, price : Float) |> R.toUpper(_);
+    U.unwrapUninit(auction).replaceOrder(caller, #ask, orderId, volume : Nat, price : Float, expectedSessionNumber) |> R.toUpper(_);
   };
 
-  public shared ({ caller }) func cancelAsks(orderIds : [Auction.OrderId]) : async [UpperResult<(), Auction.CancelOrderError>] {
+  public shared ({ caller }) func cancelAsks(orderIds : [Auction.OrderId], expectedSessionNumber : ?Nat) : async [UpperResult<(), Auction.CancelOrderError>] {
     orderCancellationCounter.add(1);
     let a = U.unwrapUninit(auction);
     Array.tabulate<UpperResult<(), Auction.CancelOrderError>>(
       orderIds.size(),
-      func(i) = a.cancelOrder(caller, #ask, orderIds[i]) |> R.toUpper(_),
+      func(i) = a.cancelOrder(caller, #ask, orderIds[i], expectedSessionNumber) |> R.toUpper(_),
     );
   };
 
@@ -811,7 +816,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     await* assertAdminAccess(caller);
     let a = U.unwrapUninit(auction);
     for ((p, _) in a.users.users.entries()) {
-      ignore a.manageOrders(p, ? #all(null), []);
+      ignore a.manageOrders(p, ? #all(null), [], null);
     };
   };
 

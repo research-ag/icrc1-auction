@@ -182,11 +182,11 @@ describe('ICRC1 Auction', () => {
       await startNewAuctionSession();
 
       await prepareDeposit(user);
-      await auction.placeBids([[ledger1Principal, 1_500n, 100_000]]);
-      await auction.placeBids([[ledger2Principal, 100n, 100_000]]);
+      await auction.placeBids([[ledger1Principal, 1_500n, 100_000]], []);
+      await auction.placeBids([[ledger2Principal, 100n, 100_000]], []);
       const seller = createIdentity('seller');
       await prepareDeposit(seller, ledger1Principal);
-      await auction.placeAsks([[ledger1Principal, 1_500_000n, 100_000]]);
+      await auction.placeAsks([[ledger1Principal, 1_500_000n, 100_000]], []);
 
       await startNewAuctionSession();
 
@@ -306,12 +306,12 @@ describe('ICRC1 Auction', () => {
 
     test('should be able to manage orders via single query', async () => {
       await prepareDeposit(user);
-      await auction.placeBids([[ledger1Principal, 1_000n, 15_000]]);
+      await auction.placeBids([[ledger1Principal, 1_000n, 15_000]], []);
       expect(await auction.queryBids()).toHaveLength(1);
       let res2 = await auction.manageOrders([{ all: [] }], [
         { bid: [ledger1Principal, 1_000n, 15_100] },
         { bid: [ledger1Principal, 1_000n, 15_200] },
-      ]);
+      ], []);
       expect(res2).toHaveProperty('Ok');
       expect(await auction.queryBids()).toHaveLength(2);
     });
@@ -319,7 +319,7 @@ describe('ICRC1 Auction', () => {
     test('bids should affect metrics', async () => {
       await startNewAuctionSession();
       await prepareDeposit(user);
-      await auction.placeBids([[ledger1Principal, 2_000n, 15_000]]);
+      await auction.placeBids([[ledger1Principal, 2_000n, 15_000]], []);
       const shortP = auctionPrincipal.toText().substring(0, auctionPrincipal.toString().indexOf('-'));
       let metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
@@ -329,7 +329,7 @@ describe('ICRC1 Auction', () => {
 
       const seller = createIdentity('seller');
       await prepareDeposit(seller, ledger1Principal);
-      await auction.placeAsks([[ledger1Principal, 200_000_000n, 15_000]]);
+      await auction.placeAsks([[ledger1Principal, 200_000_000n, 15_000]], []);
       auction.setIdentity(user);
       await startNewAuctionSession();
 
@@ -348,10 +348,10 @@ describe('ICRC1 Auction', () => {
       const buyer = createIdentity('buyer');
       await prepareDeposit(buyer);
       auction.setIdentity(buyer);
-      await auction.placeBids([[ledger1Principal, 2_000_000n, 100]]);
+      await auction.placeBids([[ledger1Principal, 2_000_000n, 100]], []);
 
       auction.setIdentity(user);
-      await auction.placeAsks([[ledger1Principal, 2_000_000n, 100]]);
+      await auction.placeAsks([[ledger1Principal, 2_000_000n, 100]], []);
       const shortP = auctionPrincipal.toText().substring(0, auctionPrincipal.toString().indexOf('-'));
       let metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })

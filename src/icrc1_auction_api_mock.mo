@@ -383,7 +383,10 @@ actor class Icrc1AuctionAPI(adminPrincipal_ : ?Principal) = self {
 
   type ManageOrdersError = {
     #UnknownPrincipal;
-    #cancellation : { index : Nat; error : { #UnknownAsset; #UnknownOrder } };
+    #cancellation : {
+      index : Nat;
+      error : { #UnknownAsset; #UnknownOrder; #SessionNumberMismatch : Auction.AssetId };
+    };
     #placement : {
       index : Nat;
       error : {
@@ -393,6 +396,7 @@ actor class Icrc1AuctionAPI(adminPrincipal_ : ?Principal) = self {
         #UnknownAsset;
         #PriceDigitsOverflow : { maxDigits : Nat };
         #VolumeStepViolated : { baseVolumeStep : Nat };
+        #SessionNumberMismatch : Auction.AssetId;
       };
     };
   };
@@ -406,6 +410,7 @@ actor class Icrc1AuctionAPI(adminPrincipal_ : ?Principal) = self {
       #ask : (token : Principal, volume : Nat, price : Float);
       #bid : (token : Principal, volume : Nat, price : Float);
     }],
+    expectedSessionNumber : ?Nat,
   ) : async UpperResult<[Auction.OrderId], ManageOrdersError> {
     let cancellationArg : ?Auction.CancellationAction = switch (cancellations) {
       case (null) null;
@@ -431,51 +436,51 @@ actor class Icrc1AuctionAPI(adminPrincipal_ : ?Principal) = self {
       };
     };
     U.unwrapUninit(auction)
-    |> _.manageOrders(caller, cancellationArg, Array.freeze(placementArg))
+    |> _.manageOrders(caller, cancellationArg, Array.freeze(placementArg), expectedSessionNumber)
     |> R.toUpper(_);
   };
 
-  public shared ({ caller }) func placeBids(arg : [(ledger : Principal, volume : Nat, price : Float)]) : async [UpperResult<Auction.OrderId, Auction.PlaceOrderError>] {
+  public shared ({ caller }) func placeBids(arg : [(ledger : Principal, volume : Nat, price : Float)], expectedSessionNumber : ?Nat) : async [UpperResult<Auction.OrderId, Auction.PlaceOrderError>] {
     Array.tabulate<UpperResult<Auction.OrderId, Auction.PlaceOrderError>>(
       arg.size(),
       func(i) = switch (getAssetId(arg[i].0)) {
-        case (?aid) U.unwrapUninit(auction).placeOrder(caller, #bid, aid, arg[i].1, arg[i].2) |> R.toUpper(_);
+        case (?aid) U.unwrapUninit(auction).placeOrder(caller, #bid, aid, arg[i].1, arg[i].2, expectedSessionNumber) |> R.toUpper(_);
         case (_) #Err(#UnknownAsset);
       },
     );
   };
 
-  public shared ({ caller }) func replaceBid(orderId : Auction.OrderId, volume : Nat, price : Float) : async UpperResult<Auction.OrderId, Auction.ReplaceOrderError> {
-    U.unwrapUninit(auction).replaceOrder(caller, #bid, orderId, volume : Nat, price : Float) |> R.toUpper(_);
+  public shared ({ caller }) func replaceBid(orderId : Auction.OrderId, volume : Nat, price : Float, expectedSessionNumber : ?Nat) : async UpperResult<Auction.OrderId, Auction.ReplaceOrderError> {
+    U.unwrapUninit(auction).replaceOrder(caller, #bid, orderId, volume : Nat, price : Float, expectedSessionNumber) |> R.toUpper(_);
   };
 
-  public shared ({ caller }) func cancelBids(orderIds : [Auction.OrderId]) : async [UpperResult<(), Auction.CancelOrderError>] {
+  public shared ({ caller }) func cancelBids(orderIds : [Auction.OrderId], expectedSessionNumber : ?Nat) : async [UpperResult<(), Auction.CancelOrderError>] {
     let a = U.unwrapUninit(auction);
     Array.tabulate<UpperResult<(), Auction.CancelOrderError>>(
       orderIds.size(),
-      func(i) = a.cancelOrder(caller, #bid, orderIds[i]) |> R.toUpper(_),
+      func(i) = a.cancelOrder(caller, #bid, orderIds[i], expectedSessionNumber) |> R.toUpper(_),
     );
   };
 
-  public shared ({ caller }) func placeAsks(arg : [(ledger : Principal, volume : Nat, price : Float)]) : async [UpperResult<Auction.OrderId, Auction.PlaceOrderError>] {
+  public shared ({ caller }) func placeAsks(arg : [(ledger : Principal, volume : Nat, price : Float)], expectedSessionNumber : ?Nat) : async [UpperResult<Auction.OrderId, Auction.PlaceOrderError>] {
     Array.tabulate<UpperResult<Auction.OrderId, Auction.PlaceOrderError>>(
       arg.size(),
       func(i) = switch (getAssetId(arg[i].0)) {
-        case (?aid) U.unwrapUninit(auction).placeOrder(caller, #ask, aid, arg[i].1, arg[i].2) |> R.toUpper(_);
+        case (?aid) U.unwrapUninit(auction).placeOrder(caller, #ask, aid, arg[i].1, arg[i].2, expectedSessionNumber) |> R.toUpper(_);
         case (_) #Err(#UnknownAsset);
       },
     );
   };
 
-  public shared ({ caller }) func replaceAsk(orderId : Auction.OrderId, volume : Nat, price : Float) : async UpperResult<Auction.OrderId, Auction.ReplaceOrderError> {
-    U.unwrapUninit(auction).replaceOrder(caller, #ask, orderId, volume : Nat, price : Float) |> R.toUpper(_);
+  public shared ({ caller }) func replaceAsk(orderId : Auction.OrderId, volume : Nat, price : Float, expectedSessionNumber : ?Nat) : async UpperResult<Auction.OrderId, Auction.ReplaceOrderError> {
+    U.unwrapUninit(auction).replaceOrder(caller, #ask, orderId, volume : Nat, price : Float, expectedSessionNumber) |> R.toUpper(_);
   };
 
-  public shared ({ caller }) func cancelAsks(orderIds : [Auction.OrderId]) : async [UpperResult<(), Auction.CancelOrderError>] {
+  public shared ({ caller }) func cancelAsks(orderIds : [Auction.OrderId], expectedSessionNumber : ?Nat) : async [UpperResult<(), Auction.CancelOrderError>] {
     let a = U.unwrapUninit(auction);
     Array.tabulate<UpperResult<(), Auction.CancelOrderError>>(
       orderIds.size(),
-      func(i) = a.cancelOrder(caller, #ask, orderIds[i]) |> R.toUpper(_),
+      func(i) = a.cancelOrder(caller, #ask, orderIds[i], expectedSessionNumber) |> R.toUpper(_),
     );
   };
 
