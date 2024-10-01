@@ -16,9 +16,9 @@ import Text "mo:base/Text";
 import Timer "mo:base/Timer";
 
 import Auction "./auction/src";
-import ICRC1 "mo:token_handler/ICRC1";
+import ICRC1 "mo:token_handler_legacy/ICRC1";
 import PT "mo:promtracker";
-import TokenHandler "mo:token_handler";
+import TokenHandler "mo:token_handler_legacy";
 import Vec "mo:vector";
 
 import HTTP "./http";
@@ -236,14 +236,20 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     let assetInfo = Vec.get(assets, assetId);
     let res = await* assetInfo.handler.depositFromAllowance(caller, args.from, args.amount, args.expected_fee);
     switch (res) {
-      case (#ok(credited, txid)) {
-        assert assetInfo.handler.debitUser(caller, credited);
-        ignore a.appendCredit(caller, assetId, credited);
-        #Ok({
-          credit_inc = credited;
-          txid = txid;
-          credit = a.getCredit(caller, assetId).available;
-        });
+      case (#ok(creditInc, txid)) {
+        let userCredit = assetInfo.handler.userCredit(caller);
+        if (userCredit > 0) {
+          let credited = Int.abs(userCredit);
+          assert assetInfo.handler.debitUser(caller, credited);
+          ignore a.appendCredit(caller, assetId, credited);
+          #Ok({
+            credit_inc = creditInc;
+            txid = txid;
+            credit = a.getCredit(caller, assetId).available;
+          });
+        } else {
+          #Err(#AmountBelowMinimum({}));
+        };
       };
       case (#err x) #Err(
         switch (x) {
