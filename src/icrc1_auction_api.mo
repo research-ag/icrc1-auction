@@ -792,7 +792,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     await* assertAdminAccess(caller);
     let a = U.unwrapUninit(auction);
     for ((p, _) in a.users.users.entries()) {
-      ignore a.manageOrders(p, ? #all(null), [], null);
+      ignore a.manageOrders(p, ? #all(null), []);
     };
   };
 
