@@ -183,6 +183,9 @@ module {
     totalAskVolume : Nat;
   };
 
+  public type ManageOrdersError = Orders.OrderManagementError or {
+    #UnknownPrincipal;
+  };
   public type CancelOrderError = Orders.InternalCancelOrderError or {
     #UnknownPrincipal;
   };
@@ -325,7 +328,7 @@ module {
       cancellations : ?Orders.CancellationAction,
       placements : [Orders.PlaceOrderAction],
       expectedSessionNumber : ?Nat,
-    ) : R.Result<[OrderId], Orders.OrderManagementError or { #UnknownPrincipal }> {
+    ) : R.Result<[OrderId], ManageOrdersError> {
       let ?userInfo = users.get(p) else return #err(#UnknownPrincipal);
       orders.manageOrders(p, userInfo, cancellations, placements, expectedSessionNumber);
     };
