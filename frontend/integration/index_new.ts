@@ -137,7 +137,7 @@ export const useListOrders = (kind: 'ask' | 'bid') => {
   return useQuery(
     kind === 'bid' ? 'myBids' : 'myAsks',
     async () => {
-      return kind === 'bid' ? auction.queryBids() : auction.queryAsks();
+      return (kind === 'bid' ? auction.queryBids() : auction.queryAsks()).then(([orders, _]) => orders);
     },
     {
       onError: err => {

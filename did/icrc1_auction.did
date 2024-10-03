@@ -202,10 +202,10 @@ service : (opt principal, opt principal) -> {
   indicativeStats : (principal) -> (IndicativeStats) query;
 
   // user queries
-  queryTokenBids : (Token) -> (vec record { OrderId; Order }) query;
-  queryBids : () -> (vec record { OrderId; Order }) query;
-  queryTokenAsks : (Token) -> (vec record { OrderId; Order }) query;
-  queryAsks : () -> (vec record { OrderId; Order }) query;
+  queryTokenBids : (Token) -> (record { vec record { OrderId; Order }; nat }) query;
+  queryBids : () -> (record { vec record { OrderId; Order }; nat }) query;
+  queryTokenAsks : (Token) -> (record { vec record { OrderId; Order }; nat }) query;
+  queryAsks : () -> (record { vec record { OrderId; Order }; nat }) query;
   queryCredits : () -> (vec record { principal; record { total : nat; available : nat; locked : nat } }) query;
 
   // Providing token in the arguments to history queries will filter results by token
