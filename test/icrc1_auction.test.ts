@@ -316,6 +316,21 @@ describe('ICRC1 Auction', () => {
       expect(await auction.queryBids()).toHaveLength(2);
     });
 
+    test('should reject changes if session number is wrong', async () => {
+      await prepareDeposit(user);
+      const res = await auction.placeBids([[ledger1Principal, 1_000n, 15_000]], [1005n]);
+      expect(res[0]).toHaveProperty('Err');
+      expect((res[0] as any)['Err']).toHaveProperty('SessionNumberMismatch');
+      expect(await auction.queryBids()).toHaveLength(0);
+    });
+
+    test('should accept correct session number', async () => {
+      await prepareDeposit(user);
+      const res = await auction.placeBids([[ledger1Principal, 1_000n, 15_000]], [1n]);
+      expect(res[0]).toHaveProperty('Ok');
+      expect(await auction.queryBids()).toHaveLength(1);
+    });
+
     test('bids should affect metrics', async () => {
       await startNewAuctionSession();
       await prepareDeposit(user);

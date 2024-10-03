@@ -348,9 +348,9 @@ module {
         );
       };
 
-      func checkSessionNumberMismatch(list : Iter.Iter<(T.AssetInfo, T.AssetId)>) : ?T.AssetId = switch (expectedSessionNumber) {
+      func checkSessionNumberMismatch(iter : Iter.Iter<(T.AssetInfo, T.AssetId)>) : ?T.AssetId = switch (expectedSessionNumber) {
         case (?sn) {
-          for ((asset, aid) in list) {
+          for ((asset, aid) in iter) {
             if (asset.sessionsCounter != sn) {
               return ?aid;
             };
@@ -511,7 +511,7 @@ module {
       |> Iter.map<(T.AssetId, ()), (T.AssetInfo, T.AssetId)>(_, func(aid, _) = (Vec.get(assets.assets, aid), aid))
       |> (
         switch (checkSessionNumberMismatch(_)) {
-          case (?aid) return #err(#cancellation({ error = #SessionNumberMismatch(aid); index = 0 }));
+          case (?aid) return #err(#placement({ error = #SessionNumberMismatch(aid); index = 0 }));
           case (_) {};
         }
       );
