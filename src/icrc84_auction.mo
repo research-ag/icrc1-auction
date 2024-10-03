@@ -10,7 +10,6 @@ module Icrc84Auction {
   type InternalCancelOrderError = {
     #UnknownOrder;
     #SessionNumberMismatch : Principal;
-    #UnknownAsset;
   };
   type InternalPlaceOrderError = {
     #ConflictingOrder : ({ #ask; #bid }, ?T.OrderId);
@@ -23,7 +22,10 @@ module Icrc84Auction {
   };
 
   type OrderManagementError = {
-    #cancellation : { index : Nat; error : InternalCancelOrderError };
+    #cancellation : {
+      index : Nat;
+      error : InternalCancelOrderError or { #UnknownAsset };
+    };
     #placement : { index : Nat; error : InternalPlaceOrderError };
   };
 
