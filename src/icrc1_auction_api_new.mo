@@ -427,14 +427,11 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   };
 
   public shared query ({ caller }) func queryTokenBids(ledger : Principal) : async ([(Auction.OrderId, Order)], Nat) {
-    let orders = switch (getAssetId(ledger)) {
-      case (?aid) {
-        U.unwrapUninit(auction).getOrders(caller, #bid, ?aid)
-        |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = mapOrder(_ [i]));
-      };
-      case (_) [];
-    };
-    (orders, U.unwrapUninit(auction).sessionsCounter);
+    let ?assetId = getAssetId(ledger) else return ([], U.unwrapUninit(auction).sessionsCounter);
+
+    U.unwrapUninit(auction).getOrders(caller, #bid, ?assetId)
+    |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = mapOrder(_ [i]))
+    |> (_, U.unwrapUninit(auction).sessionsCounter);
   };
 
   public shared query ({ caller }) func queryBids() : async ([(Auction.OrderId, Order)], Nat) = async U.unwrapUninit(auction).getOrders(caller, #bid, null)
@@ -442,14 +439,11 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   |> (_, U.unwrapUninit(auction).sessionsCounter);
 
   public shared query ({ caller }) func queryTokenAsks(ledger : Principal) : async ([(Auction.OrderId, Order)], Nat) {
-    let orders = switch (getAssetId(ledger)) {
-      case (?aid) {
-        U.unwrapUninit(auction).getOrders(caller, #ask, ?aid)
-        |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = mapOrder(_ [i]));
-      };
-      case (_) [];
-    };
-    (orders, U.unwrapUninit(auction).sessionsCounter);
+    let ?assetId = getAssetId(ledger) else return ([], U.unwrapUninit(auction).sessionsCounter);
+
+    U.unwrapUninit(auction).getOrders(caller, #ask, ?assetId)
+    |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = mapOrder(_ [i]))
+    |> (_, U.unwrapUninit(auction).sessionsCounter);
   };
   public shared query ({ caller }) func queryAsks() : async ([(Auction.OrderId, Order)], Nat) = async U.unwrapUninit(auction).getOrders(caller, #ask, null)
   |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = mapOrder(_ [i]))
@@ -529,12 +523,10 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     orderPlacementCounter.add(1);
     Array.tabulate<UpperResult<Auction.OrderId, ICRC84Auction.PlaceOrderError>>(
       arg.size(),
-      func(i) = switch (getAssetId(arg[i].0)) {
-        case (?aid) {
-          U.unwrapUninit(auction).placeOrder(caller, #bid, aid, arg[i].1, arg[i].2, expectedSessionNumber)
-          |> ICRC84Auction.mapPlaceOrderResult(_, getIcrc1Ledger);
-        };
-        case (_) #Err(#UnknownAsset);
+      func(i) {
+        let ?assetId = getAssetId(arg[i].0) else return #Err(#UnknownAsset);
+        U.unwrapUninit(auction).placeOrder(caller, #bid, assetId, arg[i].1, arg[i].2, expectedSessionNumber)
+        |> ICRC84Auction.mapPlaceOrderResult(_, getIcrc1Ledger);
       },
     );
   };
@@ -558,12 +550,10 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     orderPlacementCounter.add(1);
     Array.tabulate<UpperResult<Auction.OrderId, ICRC84Auction.PlaceOrderError>>(
       arg.size(),
-      func(i) = switch (getAssetId(arg[i].0)) {
-        case (?aid) {
-          U.unwrapUninit(auction).placeOrder(caller, #ask, aid, arg[i].1, arg[i].2, expectedSessionNumber)
-          |> ICRC84Auction.mapPlaceOrderResult(_, getIcrc1Ledger);
-        };
-        case (_) #Err(#UnknownAsset);
+      func(i) {
+        let ?assetId = getAssetId(arg[i].0) else return #Err(#UnknownAsset);
+        U.unwrapUninit(auction).placeOrder(caller, #ask, assetId, arg[i].1, arg[i].2, expectedSessionNumber)
+        |> ICRC84Auction.mapPlaceOrderResult(_, getIcrc1Ledger);
       },
     );
   };
@@ -583,14 +573,14 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     );
   };
 
-  public func updateTokenHandlerFee(ledger : Principal) : async ?Nat = async switch (getAssetId(ledger)) {
-    case (?aid) await* Vec.get(assets, aid) |> _.handler.fetchFee();
-    case (_) throw Error.reject("Unknown asset");
+  public func updateTokenHandlerFee(ledger : Principal) : async ?Nat {
+    let ?assetId = getAssetId(ledger) else throw Error.reject("Unknown asset");
+    await* Vec.get(assets, assetId) |> _.handler.fetchFee();
   };
 
-  public query func isTokenHandlerFrozen(ledger : Principal) : async Bool = async switch (getAssetId(ledger)) {
-    case (?aid) Vec.get(assets, aid) |> _.handler.isFrozen();
-    case (_) throw Error.reject("Unknown asset");
+  public query func isTokenHandlerFrozen(ledger : Principal) : async Bool {
+    let ?assetId = getAssetId(ledger) else throw Error.reject("Unknown asset");
+    Vec.get(assets, assetId) |> _.handler.isFrozen();
   };
 
   public query func queryTokenHandlerState(ledger : Principal) : async {
@@ -612,31 +602,23 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       queued : Nat;
     };
   } {
-    switch (getAssetId(ledger)) {
-      case (?aid) Vec.get(assets, aid) |> _.handler.state();
-      case (_) throw Error.reject("Unknown asset");
-    };
+    let ?assetId = getAssetId(ledger) else throw Error.reject("Unknown asset");
+    Vec.get(assets, assetId) |> _.handler.state();
   };
 
   public query func queryUserCreditsInTokenHandler(ledger : Principal, user : Principal) : async Int {
-    switch (getAssetId(ledger)) {
-      case (?aid) Vec.get(assets, aid) |> _.handler.userCredit(user);
-      case (_) throw Error.reject("Unknown asset");
-    };
+    let ?assetId = getAssetId(ledger) else throw Error.reject("Unknown asset");
+    Vec.get(assets, assetId) |> _.handler.userCredit(user);
   };
 
   public query func queryTokenHandlerNotificationsOnPause(ledger : Principal) : async Bool {
-    switch (getAssetId(ledger)) {
-      case (?aid) Vec.get(assets, aid) |> _.handler.notificationsOnPause();
-      case (_) throw Error.reject("Unknown asset");
-    };
+    let ?assetId = getAssetId(ledger) else throw Error.reject("Unknown asset");
+    Vec.get(assets, assetId) |> _.handler.notificationsOnPause();
   };
 
   public query func queryTokenHandlerNotificationLocks(ledger : Principal) : async (Nat, [(Principal, { value : Nat; lock : Bool })]) {
-    let sharedData = switch (getAssetId(ledger)) {
-      case (?aid) Vec.get(assets, aid) |> _.handler.share();
-      case (_) throw Error.reject("Unknown asset");
-    };
+    let ?assetId = getAssetId(ledger) else throw Error.reject("Unknown asset");
+    let sharedData = Vec.get(assets, assetId) |> _.handler.share();
     let locks = RBTree.RBTree<Principal, { var value : Nat; var lock : Bool }>(Principal.compare);
     locks.unshare(sharedData.0.0.0);
     let iter = locks.entries();
@@ -654,10 +636,8 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     value : Nat;
     lock : Bool;
   } {
-    let sharedData = switch (getAssetId(ledger)) {
-      case (?aid) Vec.get(assets, aid) |> _.handler.share();
-      case (_) throw Error.reject("Unknown asset");
-    };
+    let ?assetId = getAssetId(ledger) else throw Error.reject("Unknown asset");
+    let sharedData = Vec.get(assets, assetId) |> _.handler.share();
     let locks = RBTree.RBTree<Principal, { var value : Nat; var lock : Bool }>(Principal.compare);
     locks.unshare(sharedData.0.0.0);
     switch (locks.get(user)) {

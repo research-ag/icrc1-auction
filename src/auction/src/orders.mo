@@ -348,24 +348,18 @@ module {
         );
       };
 
-      func checkSessionNumberMismatch(iter : Iter.Iter<(T.AssetInfo, T.AssetId)>) : ?T.AssetId = switch (expectedSessionNumber) {
-        case (?sn) {
-          for ((asset, aid) in iter) {
-            if (asset.sessionsCounter != sn) {
-              return ?aid;
-            };
-          };
-          null;
-        };
-        case (null) null;
-      };
-
       switch (cancellations) {
         case (null) {};
         case (? #all(null)) {
-          switch (checkSessionNumberMismatch(Vec.items(assets.assets))) {
-            case (?aid) return #err(#cancellation({ error = #SessionNumberMismatch(aid); index = 0 }));
-            case (_) {};
+          switch (expectedSessionNumber) {
+            case (?sn) {
+              for ((asset, aid) in Vec.items(assets.assets)) {
+                if (asset.sessionsCounter != sn) {
+                  return #err(#cancellation({ error = #SessionNumberMismatch(aid); index = 0 }));
+                };
+              };
+            };
+            case (null) {};
           };
           asksDelta.isOrderCancelled := func(_, _) = true;
           bidsDelta.isOrderCancelled := func(_, _) = true;
@@ -373,14 +367,16 @@ module {
           prepareBulkCancelation(bids);
         };
         case (? #all(?aids)) {
-          aids.vals()
-          |> Iter.map<T.AssetId, (T.AssetInfo, T.AssetId)>(_, func(aid) = (Vec.get(assets.assets, aid), aid))
-          |> (
-            switch (checkSessionNumberMismatch(_)) {
-              case (?aid) return #err(#cancellation({ error = #SessionNumberMismatch(aid); index = 0 }));
-              case (_) {};
-            }
-          );
+          switch (expectedSessionNumber) {
+            case (?sn) {
+              for (aid in aids.vals()) {
+                if (Vec.get(assets.assets, aid).sessionsCounter != sn) {
+                  return #err(#cancellation({ error = #SessionNumberMismatch(aid); index = 0 }));
+                };
+              };
+            };
+            case (null) {};
+          };
           asksDelta.isOrderCancelled := func(assetId, _) = Array.find<Nat>(aids, func(x) = x == assetId) |> not Option.isNull(_);
           bidsDelta.isOrderCancelled := func(assetId, _) = Array.find<Nat>(aids, func(x) = x == assetId) |> not Option.isNull(_);
           prepareBulkCancelationWithFilter(asks, asksDelta.isOrderCancelled);
@@ -407,14 +403,16 @@ module {
             );
             AssocList.replace<T.AssetId, ()>(assetIdSet, oldOrder.assetId, Nat.equal, ?()) |> (assetIdSet := _.0);
           };
-          List.toIter(assetIdSet)
-          |> Iter.map<(T.AssetId, ()), (T.AssetInfo, T.AssetId)>(_, func(aid, _) = (Vec.get(assets.assets, aid), aid))
-          |> (
-            switch (checkSessionNumberMismatch(_)) {
-              case (?aid) return #err(#cancellation({ error = #SessionNumberMismatch(aid); index = 0 }));
-              case (_) {};
-            }
-          );
+          switch (expectedSessionNumber) {
+            case (?sn) {
+              for ((aid, _) in List.toIter(assetIdSet)) {
+                if (Vec.get(assets.assets, aid).sessionsCounter != sn) {
+                  return #err(#cancellation({ error = #SessionNumberMismatch(aid); index = 0 }));
+                };
+              };
+            };
+            case (null) {};
+          };
         };
       };
 
@@ -506,15 +504,16 @@ module {
         };
         AssocList.replace<T.AssetId, ()>(assetIdSet, assetId, Nat.equal, ?()) |> (assetIdSet := _.0);
       };
-
-      List.toIter(assetIdSet)
-      |> Iter.map<(T.AssetId, ()), (T.AssetInfo, T.AssetId)>(_, func(aid, _) = (Vec.get(assets.assets, aid), aid))
-      |> (
-        switch (checkSessionNumberMismatch(_)) {
-          case (?aid) return #err(#placement({ error = #SessionNumberMismatch(aid); index = 0 }));
-          case (_) {};
-        }
-      );
+      switch (expectedSessionNumber) {
+        case (?sn) {
+          for ((aid, _) in List.toIter(assetIdSet)) {
+            if (Vec.get(assets.assets, aid).sessionsCounter != sn) {
+              return #err(#cancellation({ error = #SessionNumberMismatch(aid); index = 0 }));
+            };
+          };
+        };
+        case (null) {};
+      };
 
       // commit changes, return results
       for (cancel in List.toIter(cancellationCommitActions)) {
