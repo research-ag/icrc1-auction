@@ -583,6 +583,11 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     );
   };
 
+  public func updateTokenHandlerFee(ledger : Principal) : async ?Nat = async switch (getAssetId(ledger)) {
+    case (?aid) await* Vec.get(assets, aid) |> _.handler.fetchFee();
+    case (_) throw Error.reject("Unknown asset");
+  };
+
   public query func isTokenHandlerFrozen(ledger : Principal) : async Bool = async switch (getAssetId(ledger)) {
     case (?aid) Vec.get(assets, aid) |> _.handler.isFrozen();
     case (_) throw Error.reject("Unknown asset");
@@ -661,11 +666,11 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     };
   };
 
-  public query func queryTokenHandlerJournal(ledger : Principal) : async [(Principal, TokenHandler.LogEvent)] {
+  public query func queryTokenHandlerJournal(ledger : Principal, limit : Nat, skip : Nat) : async [(Principal, TokenHandler.LogEvent)] {
     Vec.vals(tokenHandlersJournal)
     |> Iter.filter<(Principal, Principal, TokenHandler.LogEvent)>(_, func(l, _, _) = Principal.equal(l, ledger))
     |> Iter.map<(Principal, Principal, TokenHandler.LogEvent), (Principal, TokenHandler.LogEvent)>(_, func(_, p, e) = (p, e))
-    |> Iter.toArray(_);
+    |> U.sliceIter(_, limit, skip);
   };
 
   public query func listAdmins() : async [Principal] = async adminsMap.entries()
@@ -700,6 +705,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   private func registerAssetMetrics_(assetId : Auction.AssetId) {
     if (assetId == quoteAssetId) return;
     let asset = U.unwrapUninit(auction).assets.getAsset(assetId);
+    let tokenHandler = Vec.get(assets, assetId).handler;
 
     let priceMultiplier = 10 ** Float.fromInt(Vec.get(assets, assetId).decimals);
     let renderPrice = func(price : Float) : Nat = Int.abs(Float.toInt(price * priceMultiplier));
@@ -740,6 +746,25 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
           case (null) 0;
         }
       ),
+    );
+    ignore metrics.addPullValue(
+      "token_handler_locks",
+      labels,
+      func() {
+        let tree = tokenHandler.share().0.0.0;
+        var nLocks = 0;
+        for ((_, x) in RBTree.iter(tree, #fwd)) {
+          if (x.lock) {
+            nLocks += 1;
+          };
+        };
+        nLocks;
+      },
+    );
+    ignore metrics.addPullValue(
+      "token_handler_frozen",
+      labels,
+      func() = if (tokenHandler.isFrozen()) { 1 } else { 0 },
     );
   };
 

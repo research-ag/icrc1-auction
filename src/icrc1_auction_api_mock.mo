@@ -534,24 +534,25 @@ actor class Icrc1AuctionAPI(adminPrincipal_ : ?Principal) = self {
     let asset = U.unwrapUninit(auction).assets.getAsset(assetId);
 
     let renderPrice = func(price : Float) : Nat = Int.abs(Float.toInt(price));
+    let labels = "asset_id=\"" # Nat.toText(assetId) # "\"";
 
-    ignore metrics.addPullValue("asks_count", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = asset.asks.size);
-    ignore metrics.addPullValue("asks_volume", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = asset.asks.totalVolume);
-    ignore metrics.addPullValue("bids_count", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = asset.bids.size);
-    ignore metrics.addPullValue("bids_volume", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = asset.bids.totalVolume);
-    ignore metrics.addPullValue("processing_instructions", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = asset.lastProcessingInstructions);
+    ignore metrics.addPullValue("asks_count", labels, func() = asset.asks.size);
+    ignore metrics.addPullValue("asks_volume", labels, func() = asset.asks.totalVolume);
+    ignore metrics.addPullValue("bids_count", labels, func() = asset.bids.size);
+    ignore metrics.addPullValue("bids_volume", labels, func() = asset.bids.totalVolume);
+    ignore metrics.addPullValue("processing_instructions", labels, func() = asset.lastProcessingInstructions);
 
     ignore metrics.addPullValue(
       "clearing_price",
-      "asset_id=\"" # Nat.toText(assetId) # "\"",
+      labels,
       func() = U.unwrapUninit(auction).indicativeAssetStats(assetId).clearingPrice
       |> renderPrice(_),
     );
-    ignore metrics.addPullValue("clearing_volume", "asset_id=\"" # Nat.toText(assetId) # "\"", func() = U.unwrapUninit(auction).indicativeAssetStats(assetId).clearingVolume);
+    ignore metrics.addPullValue("clearing_volume", labels, func() = U.unwrapUninit(auction).indicativeAssetStats(assetId).clearingVolume);
 
     ignore metrics.addPullValue(
       "last_price",
-      "asset_id=\"" # Nat.toText(assetId) # "\"",
+      labels,
       func() = U.unwrapUninit(auction).getPriceHistory(?assetId).next()
       |> (
         switch (_) {
@@ -562,7 +563,7 @@ actor class Icrc1AuctionAPI(adminPrincipal_ : ?Principal) = self {
     );
     ignore metrics.addPullValue(
       "last_volume",
-      "asset_id=\"" # Nat.toText(assetId) # "\"",
+      labels,
       func() = U.unwrapUninit(auction).getPriceHistory(?assetId).next()
       |> (
         switch (_) {
