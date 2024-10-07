@@ -584,6 +584,11 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     );
   };
 
+  public func updateTokenHandlerFee(ledger : Principal) : async ?Nat = async switch (getAssetId(ledger)) {
+    case (?aid) await* Vec.get(assets, aid) |> _.handler.fetchFee();
+    case (_) throw Error.reject("Unknown asset");
+  };
+
   public query func isTokenHandlerFrozen(ledger : Principal) : async Bool = async switch (getAssetId(ledger)) {
     case (?aid) Vec.get(assets, aid) |> _.handler.isFrozen();
     case (_) throw Error.reject("Unknown asset");
