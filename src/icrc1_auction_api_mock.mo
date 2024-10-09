@@ -480,6 +480,9 @@ actor class Icrc1AuctionAPI(adminPrincipal_ : ?Principal) = self {
   };
 
   public query func queryTokenHandlerState(ledger : Principal) : async {
+    ledger : {
+      fee : Nat;
+    };
     balance : {
       deposited : Nat;
       underway : Nat;

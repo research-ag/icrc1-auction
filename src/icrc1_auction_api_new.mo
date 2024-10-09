@@ -592,6 +592,9 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   };
 
   public query func queryTokenHandlerState(ledger : Principal) : async {
+    ledger : {
+      fee : Nat;
+    };
     balance : {
       deposited : Nat;
       underway : Nat;
@@ -630,7 +633,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     };
   };
 
-  public query func queryTokenHandlerNotificationLocks(ledger : Principal) : async (Nat, [(Principal, { value : Nat; lock : Bool })]) {
+  public query func queryTokenHandlerDepositRegistry(ledger : Principal) : async (sum : Nat, size : Nat, minimum : Nat, [(Principal, { value : Nat; lock : Bool })]) {
     let sharedData = switch (getAssetId(ledger)) {
       case (?aid) Vec.get(assets, aid) |> _.handler.share();
       case (_) throw Error.reject("Unknown asset");
@@ -645,7 +648,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
         case (null) break l;
       };
     };
-    (sharedData.0.0.2, Vec.toArray(items));
+    (sharedData.0.0.1, sharedData.0.0.2, sharedData.0.0.3, Vec.toArray(items));
   };
 
   public query func queryTokenHandlerNotificationLock(ledger : Principal, user : Principal) : async ?{
