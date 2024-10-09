@@ -55,6 +55,8 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   stable var tokenHandlersJournal : Vec.Vector<(ledger : Principal, p : Principal, logEvent : TokenHandler.LogEvent)> = Vec.new();
 
+  stable var consolidationTimerEnabled : Bool = true;
+
   type AssetInfo = {
     ledgerPrincipal : Principal;
     minAskVolume : Nat;
@@ -1001,14 +1003,40 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   };
 
   // A timer for consolidating backlog subaccounts
-  ignore Timer.recurringTimer<system>(
-    #seconds 60,
-    func() : async () {
-      for (asset in Vec.vals(assets)) {
-        await* asset.handler.trigger(10);
-      };
-    },
-  );
+  var cTimer : ?Nat = null;
+  func startConsolidationTimer_<system>() = switch (cTimer) {
+    case (null) {
+      cTimer := ?Timer.recurringTimer<system>(
+        #seconds 60,
+        func() : async () {
+          for (asset in Vec.vals(assets)) {
+            await* asset.handler.trigger(10);
+          };
+        },
+      );
+    };
+    case (?_) {};
+  };
+  func stopConsolidationTimer_<system>() = switch (cTimer) {
+    case (null) {};
+    case (?t) {
+      cTimer := null;
+      Timer.cancelTimer(t);
+    };
+  };
+
+  if (consolidationTimerEnabled) {
+    startConsolidationTimer_<system>();
+  };
+
+  public func setConsolidationTimerEnabled(enabled : Bool) : async () {
+    consolidationTimerEnabled := enabled;
+    if (enabled) {
+      startConsolidationTimer_<system>();
+    } else {
+      stopConsolidationTimer_<system>();
+    };
+  };
 
   // each 2 minutes
   let AUCTION_INTERVAL_SECONDS : Nat64 = 120;
