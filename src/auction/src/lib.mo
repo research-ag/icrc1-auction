@@ -220,6 +220,8 @@ module {
     );
 
     // ============= assets interface =============
+    public func getAssetSessionNumber(assetId : AssetId) : Nat = assets.getAsset(assetId).sessionsCounter;
+
     public func registerAssets(n : Nat) = assets.register(n, sessionsCounter);
 
     public func processAsset(assetId : AssetId) : () {

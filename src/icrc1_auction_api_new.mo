@@ -80,14 +80,11 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     price : Float;
     volume : Nat;
   };
-  func mapOrder(order : (Auction.OrderId, Auction.Order)) : (Auction.OrderId, Order) = (
-    order.0,
-    {
-      icrc1Ledger = Vec.get(assets, order.1.assetId).ledgerPrincipal;
-      price = order.1.price;
-      volume = order.1.volume;
-    },
-  );
+  func mapOrder(order : Auction.Order) : Order = ({
+    icrc1Ledger = Vec.get(assets, order.assetId).ledgerPrincipal;
+    price = order.price;
+    volume = order.volume;
+  });
 
   type UpperResult<Ok, Err> = { #Ok : Ok; #Err : Err };
 
@@ -412,8 +409,10 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     U.unwrapUninit(auction).indicativeAssetStats(assetId);
   };
 
-  public shared query ({ caller }) func queryCredits() : async [(Principal, Auction.CreditInfo)] {
-    U.unwrapUninit(auction).getCredits(caller) |> Array.tabulate<(Principal, Auction.CreditInfo)>(_.size(), func(i) = (getIcrc1Ledger(_ [i].0), _ [i].1));
+  public shared query ({ caller }) func queryCredits() : async [(Principal, Auction.CreditInfo, Nat)] {
+    let a = U.unwrapUninit(auction);
+    a.getCredits(caller)
+    |> Array.tabulate<(Principal, Auction.CreditInfo, Nat)>(_.size(), func(i) = (getIcrc1Ledger(_ [i].0), _ [i].1, a.getAssetSessionNumber(_ [i].0)));
   };
 
   private func getIcrc1Ledger(assetId : Nat) : Principal = Vec.get(assets, assetId).ledgerPrincipal;
@@ -430,24 +429,29 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     let ?assetId = getAssetId(ledger) else return ([], U.unwrapUninit(auction).sessionsCounter);
 
     U.unwrapUninit(auction).getOrders(caller, #bid, ?assetId)
-    |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = mapOrder(_ [i]))
-    |> (_, U.unwrapUninit(auction).sessionsCounter);
+    |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = (_ [i].0, mapOrder(_ [i].1)))
+    |> (_, U.unwrapUninit(auction).getAssetSessionNumber(assetId));
   };
 
-  public shared query ({ caller }) func queryBids() : async ([(Auction.OrderId, Order)], Nat) = async U.unwrapUninit(auction).getOrders(caller, #bid, null)
-  |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = mapOrder(_ [i]))
-  |> (_, U.unwrapUninit(auction).sessionsCounter);
+  public shared query ({ caller }) func queryBids() : async ([(Auction.OrderId, Order, Nat)]) {
+    let a = U.unwrapUninit(auction);
+    a.getOrders(caller, #bid, null)
+    |> Array.tabulate<(Auction.OrderId, Order, Nat)>(_.size(), func(i) = (_ [i].0, mapOrder(_ [i].1), a.getAssetSessionNumber(_ [i].0)));
+  };
 
   public shared query ({ caller }) func queryTokenAsks(ledger : Principal) : async ([(Auction.OrderId, Order)], Nat) {
     let ?assetId = getAssetId(ledger) else return ([], U.unwrapUninit(auction).sessionsCounter);
 
     U.unwrapUninit(auction).getOrders(caller, #ask, ?assetId)
-    |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = mapOrder(_ [i]))
-    |> (_, U.unwrapUninit(auction).sessionsCounter);
+    |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = (_ [i].0, mapOrder(_ [i].1)))
+    |> (_, U.unwrapUninit(auction).getAssetSessionNumber(assetId));
   };
-  public shared query ({ caller }) func queryAsks() : async ([(Auction.OrderId, Order)], Nat) = async U.unwrapUninit(auction).getOrders(caller, #ask, null)
-  |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = mapOrder(_ [i]))
-  |> (_, U.unwrapUninit(auction).sessionsCounter);
+
+  public shared query ({ caller }) func queryAsks() : async ([(Auction.OrderId, Order, Nat)]) {
+    let a = U.unwrapUninit(auction);
+    a.getOrders(caller, #ask, null)
+    |> Array.tabulate<(Auction.OrderId, Order, Nat)>(_.size(), func(i) = (_ [i].0, mapOrder(_ [i].1), a.getAssetSessionNumber(_ [i].0)));
+  };
 
   public shared query ({ caller }) func queryDepositHistory(token : ?Principal, limit : Nat, skip : Nat) : async [DepositHistoryItem] {
     let assetId : ?Auction.AssetId = switch (token) {
@@ -846,13 +850,13 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   public shared query ({ caller }) func queryUserBids(p : Principal) : async [(Auction.OrderId, Order)] {
     assertAdminAccessSync(caller);
     U.unwrapUninit(auction).getOrders(p, #bid, null)
-    |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = mapOrder(_ [i]));
+    |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = (_ [i].0, mapOrder(_ [i].1)));
   };
 
   public shared query ({ caller }) func queryUserAsks(p : Principal) : async [(Auction.OrderId, Order)] {
     assertAdminAccessSync(caller);
     U.unwrapUninit(auction).getOrders(p, #ask, null)
-    |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = mapOrder(_ [i]));
+    |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = (_ [i].0, mapOrder(_ [i].1)));
   };
 
   public shared query ({ caller }) func queryUserDepositHistory(p : Principal, token : ?Principal, limit : Nat, skip : Nat) : async [DepositHistoryItem] {
