@@ -30,7 +30,10 @@ module {
     #bid : (assetId : T.AssetId, volume : Nat, price : Float);
   };
 
-  public type InternalCancelOrderError = { #UnknownOrder };
+  public type InternalCancelOrderError = {
+    #UnknownOrder;
+    #SessionNumberMismatch : T.AssetId;
+  };
   public type InternalPlaceOrderError = {
     #ConflictingOrder : ({ #ask; #bid }, ?T.OrderId);
     #NoCredit;
@@ -38,6 +41,7 @@ module {
     #UnknownAsset;
     #PriceDigitsOverflow : { maxDigits : Nat };
     #VolumeStepViolated : { baseVolumeStep : Nat };
+    #SessionNumberMismatch : T.AssetId;
   };
 
   public type OrderManagementError = {
@@ -266,6 +270,7 @@ module {
       userInfo : T.UserInfo,
       cancellations : ?CancellationAction,
       placements : [PlaceOrderAction],
+      expectedSessionNumber : ?Nat,
     ) : R.Result<[T.OrderId], OrderManagementError> {
 
       // temporary list of new balances for all affected user credit accounts
@@ -346,12 +351,33 @@ module {
       switch (cancellations) {
         case (null) {};
         case (? #all(null)) {
+          switch (expectedSessionNumber) {
+            case (?sn) {
+              for ((asset, aid) in Vec.items(assets.assets)) {
+                if (asset.sessionsCounter != sn) {
+                  return #err(#cancellation({ error = #SessionNumberMismatch(aid); index = 0 }));
+                };
+              };
+            };
+            case (null) {};
+          };
           asksDelta.isOrderCancelled := func(_, _) = true;
           bidsDelta.isOrderCancelled := func(_, _) = true;
           prepareBulkCancelation(asks);
           prepareBulkCancelation(bids);
         };
         case (? #all(?aids)) {
+          switch (expectedSessionNumber) {
+            case (?sn) {
+              for (i in aids.keys()) {
+                let aid = aids[i];
+                if (Vec.get(assets.assets, aid).sessionsCounter != sn) {
+                  return #err(#cancellation({ error = #SessionNumberMismatch(aid); index = i }));
+                };
+              };
+            };
+            case (null) {};
+          };
           asksDelta.isOrderCancelled := func(assetId, _) = Array.find<Nat>(aids, func(x) = x == assetId) |> not Option.isNull(_);
           bidsDelta.isOrderCancelled := func(assetId, _) = Array.find<Nat>(aids, func(x) = x == assetId) |> not Option.isNull(_);
           prepareBulkCancelationWithFilter(asks, asksDelta.isOrderCancelled);
@@ -363,6 +389,7 @@ module {
           asksDelta.isOrderCancelled := func(_, orderId) = cancelledAsks.get(orderId) |> not Option.isNull(_);
           bidsDelta.isOrderCancelled := func(_, orderId) = cancelledBids.get(orderId) |> not Option.isNull(_);
 
+          var assetIdSet : AssocList.AssocList<T.AssetId, Nat> = null;
           for (i in orders.keys()) {
             let (ordersService, orderId, cancelledTree) = switch (orders[i]) {
               case (#ask orderId) (asks, orderId, cancelledAsks);
@@ -375,11 +402,23 @@ module {
               func() = ignore ordersService.cancel(userInfo, orderId),
               cancellationCommitActions,
             );
+            AssocList.replace<T.AssetId, Nat>(assetIdSet, oldOrder.assetId, Nat.equal, ?i) |> (assetIdSet := _.0);
+          };
+          switch (expectedSessionNumber) {
+            case (?sn) {
+              for ((aid, index) in List.toIter(assetIdSet)) {
+                if (Vec.get(assets.assets, aid).sessionsCounter != sn) {
+                  return #err(#cancellation({ error = #SessionNumberMismatch(aid); index }));
+                };
+              };
+            };
+            case (null) {};
           };
         };
       };
 
       // validate and prepare placements
+      var assetIdSet : AssocList.AssocList<T.AssetId, Nat> = null;
       for (i in placements.keys()) {
         let (ordersService, (assetId, volume, price), ordersDelta, oppositeOrdersDelta) = switch (placements[i]) {
           case (#ask(args)) (asks, args, asksDelta, bidsDelta);
@@ -464,6 +503,17 @@ module {
           ordersService.place(userInfo, chargeAcc, assetInfo, orderId, order);
           orderId;
         };
+        AssocList.replace<T.AssetId, Nat>(assetIdSet, assetId, Nat.equal, ?i) |> (assetIdSet := _.0);
+      };
+      switch (expectedSessionNumber) {
+        case (?sn) {
+          for ((aid, index) in List.toIter(assetIdSet)) {
+            if (Vec.get(assets.assets, aid).sessionsCounter != sn) {
+              return #err(#placement({ error = #SessionNumberMismatch(aid); index }));
+            };
+          };
+        };
+        case (null) {};
       };
 
       // commit changes, return results
