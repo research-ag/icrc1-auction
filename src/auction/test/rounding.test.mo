@@ -22,24 +22,24 @@ do {
   let seller4 = Principal.fromText("qo2aj-uwwcl-gw2to-zzmko-mdptl-ogqy3-ondre-dmlra-tal7p-klf4v-uae");
   ignore auction.appendCredit(seller4, ft, 1_000);
 
-  switch (auction.placeOrder(user, #bid, ft, 4_000, 1)) {
+  switch (auction.placeOrder(user, #bid, ft, 4_000, 1, null)) {
     case (#ok _) ();
     case (_) assert false;
   };
 
-  switch (auction.placeOrder(seller1, #ask, ft, 1_000, 0.0125)) {
+  switch (auction.placeOrder(seller1, #ask, ft, 1_000, 0.0125, null)) {
     case (#ok _) ();
     case (_) assert false;
   };
-  switch (auction.placeOrder(seller2, #ask, ft, 1_000, 0.0125)) {
+  switch (auction.placeOrder(seller2, #ask, ft, 1_000, 0.0125, null)) {
     case (#ok _) ();
     case (_) assert false;
   };
-  switch (auction.placeOrder(seller3, #ask, ft, 1_000, 0.0125)) {
+  switch (auction.placeOrder(seller3, #ask, ft, 1_000, 0.0125, null)) {
     case (#ok _) ();
     case (_) assert false;
   };
-  switch (auction.placeOrder(seller4, #ask, ft, 1_000, 0.0125)) {
+  switch (auction.placeOrder(seller4, #ask, ft, 1_000, 0.0125, null)) {
     case (#ok _) ();
     case (_) assert false;
   };
@@ -87,7 +87,7 @@ do {
   |> Int.abs(Float.toInt(_));
 
   ignore auction.appendCredit(user, 0, denominateVolumeInQuoteAsset(bidVolume, bidPrice));
-  let oid = switch (auction.placeOrder(user, #bid, ft, bidVolume, bidPrice)) {
+  let oid = switch (auction.placeOrder(user, #bid, ft, bidVolume, bidPrice, null)) {
     case (#ok x) x;
     case (_) {
       assert false;
@@ -97,7 +97,7 @@ do {
 
   assert auction.getCredit(user, 0).locked == denominateVolumeInQuoteAsset(bidVolume, bidPrice);
 
-  switch (auction.placeOrder(seller, #ask, ft, askVolume, askPrice)) {
+  switch (auction.placeOrder(seller, #ask, ft, askVolume, askPrice, null)) {
     case (#ok _) ();
     case (_) assert false;
   };
@@ -108,7 +108,7 @@ do {
 
   assert auction.getCredit(user, 0).locked == denominateVolumeInQuoteAsset(bidVolume - askVolume, bidPrice);
 
-  switch (auction.cancelOrder(user, #bid, oid)) {
+  switch (auction.cancelOrder(user, #bid, oid, null)) {
     case (#ok _) ();
     case (x) {
       Prim.debugPrint(debug_show x);
