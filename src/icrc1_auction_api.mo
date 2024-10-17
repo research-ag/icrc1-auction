@@ -409,6 +409,13 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     U.unwrapUninit(auction).indicativeAssetStats(assetId);
   };
 
+  public shared query ({ caller }) func queryCredit(icrc1Ledger : Principal) : async (Auction.CreditInfo, Nat) {
+    if (icrc1Ledger == quoteLedgerPrincipal) throw Error.reject("Unknown asset");
+    let ?assetId = getAssetId(icrc1Ledger) else throw Error.reject("Unknown asset");
+    let a = U.unwrapUninit(auction);
+    (a.getCredit(caller, assetId), a.getAssetSessionNumber(assetId));
+  };
+
   public shared query ({ caller }) func queryCredits() : async [(Principal, Auction.CreditInfo, Nat)] {
     let a = U.unwrapUninit(auction);
     a.getCredits(caller)
