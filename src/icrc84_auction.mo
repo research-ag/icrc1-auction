@@ -9,7 +9,6 @@ module Icrc84Auction {
 
   type InternalCancelOrderError = {
     #UnknownOrder;
-    #SessionNumberMismatch : Principal;
   };
   type InternalPlaceOrderError = {
     #ConflictingOrder : ({ #ask; #bid }, ?T.OrderId);
@@ -18,24 +17,23 @@ module Icrc84Auction {
     #UnknownAsset;
     #PriceDigitsOverflow : { maxDigits : Nat };
     #VolumeStepViolated : { baseVolumeStep : Nat };
-    #SessionNumberMismatch : Principal;
   };
 
-  type OrderManagementError = {
+  public type ManageOrdersError = {
+    #SessionNumberMismatch : Principal;
+    #UnknownPrincipal;
     #cancellation : {
       index : Nat;
       error : InternalCancelOrderError or { #UnknownAsset };
     };
     #placement : { index : Nat; error : InternalPlaceOrderError };
   };
-
-  public type ManageOrdersError = OrderManagementError or {
-    #UnknownPrincipal;
-  };
   public type CancelOrderError = InternalCancelOrderError or {
+    #SessionNumberMismatch : Principal;
     #UnknownPrincipal;
   };
   public type PlaceOrderError = InternalPlaceOrderError or {
+    #SessionNumberMismatch : Principal;
     #UnknownPrincipal;
   };
   public type ReplaceOrderError = CancelOrderError or PlaceOrderError;
@@ -98,13 +96,8 @@ module Icrc84Auction {
       case (#err err) #Err(
         switch (err) {
           case (#UnknownPrincipal x) #UnknownPrincipal(x);
-          case (#cancellation { index; error }) #cancellation({
-            index;
-            error = switch (error) {
-              case (#UnknownOrder x) #UnknownOrder(x);
-              case (#SessionNumberMismatch aid) #SessionNumberMismatch(getToken(aid));
-            };
-          });
+          case (#SessionNumberMismatch aid) #SessionNumberMismatch(getToken(aid));
+          case (#cancellation { index; error }) #cancellation({ index; error });
           case (#placement { index; error }) #placement({
             index;
             error = switch (error) {
@@ -114,7 +107,6 @@ module Icrc84Auction {
               case (#UnknownAsset x) #UnknownAsset(x);
               case (#PriceDigitsOverflow x) #PriceDigitsOverflow(x);
               case (#VolumeStepViolated x) #VolumeStepViolated(x);
-              case (#SessionNumberMismatch aid) #SessionNumberMismatch(getToken(aid));
             };
           });
         }

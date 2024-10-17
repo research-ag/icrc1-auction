@@ -187,9 +187,11 @@ module {
     #UnknownPrincipal;
   };
   public type CancelOrderError = Orders.InternalCancelOrderError or {
+    #SessionNumberMismatch : T.AssetId;
     #UnknownPrincipal;
   };
   public type PlaceOrderError = Orders.InternalPlaceOrderError or {
+    #SessionNumberMismatch : T.AssetId;
     #UnknownPrincipal;
   };
   public type ReplaceOrderError = CancelOrderError or PlaceOrderError;
@@ -342,6 +344,7 @@ module {
       };
       switch (manageOrders(p, null, [placement], expectedSessionNumber)) {
         case (#ok orderIds) #ok(orderIds[0]);
+        case (#err(#SessionNumberMismatch x)) #err(#SessionNumberMismatch(x));
         case (#err(#UnknownPrincipal)) #err(#UnknownPrincipal);
         case (#err(#placement { error })) #err(error);
         case (#err(#cancellation _)) Prim.trap("Can never happen");
@@ -359,6 +362,7 @@ module {
       };
       switch (manageOrders(p, ? #orders([cancellation]), [placement], expectedSessionNumber)) {
         case (#ok orderIds) #ok(orderIds[0]);
+        case (#err(#SessionNumberMismatch x)) #err(#SessionNumberMismatch(x));
         case (#err(#UnknownPrincipal)) #err(#UnknownPrincipal);
         case (#err(#cancellation({ error }))) #err(error);
         case (#err(#placement({ error }))) #err(error);
@@ -372,6 +376,7 @@ module {
       };
       switch (manageOrders(p, ? #orders([cancellation]), [], expectedSessionNumber)) {
         case (#ok _) #ok();
+        case (#err(#SessionNumberMismatch x)) #err(#SessionNumberMismatch(x));
         case (#err(#UnknownPrincipal)) #err(#UnknownPrincipal);
         case (#err(#cancellation({ error }))) #err(error);
         case (#err(#placement _)) Prim.trap("Can never happen");

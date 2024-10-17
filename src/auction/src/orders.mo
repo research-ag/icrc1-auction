@@ -32,7 +32,6 @@ module {
 
   public type InternalCancelOrderError = {
     #UnknownOrder;
-    #SessionNumberMismatch : T.AssetId;
   };
   public type InternalPlaceOrderError = {
     #ConflictingOrder : ({ #ask; #bid }, ?T.OrderId);
@@ -41,10 +40,10 @@ module {
     #UnknownAsset;
     #PriceDigitsOverflow : { maxDigits : Nat };
     #VolumeStepViolated : { baseVolumeStep : Nat };
-    #SessionNumberMismatch : T.AssetId;
   };
 
   public type OrderManagementError = {
+    #SessionNumberMismatch : T.AssetId;
     #cancellation : { index : Nat; error : InternalCancelOrderError };
     #placement : { index : Nat; error : InternalPlaceOrderError };
   };
@@ -309,7 +308,7 @@ module {
       };
 
       // prepare cancellation of all orders by type (ask or bid)
-      func prepareBulkCancelation(ordersService : OrdersService) {
+      func prepareBulkCancellation(ordersService : OrdersService) {
         let userOrderBook = users.getOrderBook(userInfo, ordersService.kind);
         for ((orderId, order) in List.toIter(userOrderBook.map)) {
           affectNewBalancesWithCancellation(ordersService, order);
@@ -328,7 +327,7 @@ module {
       };
 
       // prepare cancellation of all orders by given filter function by type (ask or bid)
-      func prepareBulkCancelationWithFilter(ordersService : OrdersService, isCancel : (assetId : T.AssetId, orderId : T.OrderId) -> Bool) {
+      func prepareBulkCancellationWithFilter(ordersService : OrdersService, isCancel : (assetId : T.AssetId, orderId : T.OrderId) -> Bool) {
         // TODO can be optimized: cancelOrderInternal searches for order by it's id with linear complexity
         let userOrderBook = users.getOrderBook(userInfo, ordersService.kind);
         let orderIds : Vec.Vector<T.OrderId> = Vec.new();
@@ -355,7 +354,7 @@ module {
             case (?sn) {
               for ((asset, aid) in Vec.items(assets.assets)) {
                 if (asset.sessionsCounter != sn) {
-                  return #err(#cancellation({ error = #SessionNumberMismatch(aid); index = 0 }));
+                  return #err(#SessionNumberMismatch(aid));
                 };
               };
             };
@@ -363,8 +362,8 @@ module {
           };
           asksDelta.isOrderCancelled := func(_, _) = true;
           bidsDelta.isOrderCancelled := func(_, _) = true;
-          prepareBulkCancelation(asks);
-          prepareBulkCancelation(bids);
+          prepareBulkCancellation(asks);
+          prepareBulkCancellation(bids);
         };
         case (? #all(?aids)) {
           switch (expectedSessionNumber) {
@@ -372,7 +371,7 @@ module {
               for (i in aids.keys()) {
                 let aid = aids[i];
                 if (Vec.get(assets.assets, aid).sessionsCounter != sn) {
-                  return #err(#cancellation({ error = #SessionNumberMismatch(aid); index = i }));
+                  return #err(#SessionNumberMismatch(aid));
                 };
               };
             };
@@ -380,8 +379,8 @@ module {
           };
           asksDelta.isOrderCancelled := func(assetId, _) = Array.find<Nat>(aids, func(x) = x == assetId) |> not Option.isNull(_);
           bidsDelta.isOrderCancelled := func(assetId, _) = Array.find<Nat>(aids, func(x) = x == assetId) |> not Option.isNull(_);
-          prepareBulkCancelationWithFilter(asks, asksDelta.isOrderCancelled);
-          prepareBulkCancelationWithFilter(bids, bidsDelta.isOrderCancelled);
+          prepareBulkCancellationWithFilter(asks, asksDelta.isOrderCancelled);
+          prepareBulkCancellationWithFilter(bids, bidsDelta.isOrderCancelled);
         };
         case (? #orders(orders)) {
           let cancelledAsks : RBTree.RBTree<T.OrderId, ()> = RBTree.RBTree(Nat.compare);
@@ -408,7 +407,7 @@ module {
             case (?sn) {
               for ((aid, index) in List.toIter(assetIdSet)) {
                 if (Vec.get(assets.assets, aid).sessionsCounter != sn) {
-                  return #err(#cancellation({ error = #SessionNumberMismatch(aid); index }));
+                  return #err(#SessionNumberMismatch(aid));
                 };
               };
             };
@@ -509,7 +508,7 @@ module {
         case (?sn) {
           for ((aid, index) in List.toIter(assetIdSet)) {
             if (Vec.get(assets.assets, aid).sessionsCounter != sn) {
-              return #err(#placement({ error = #SessionNumberMismatch(aid); index }));
+              return #err(#SessionNumberMismatch(aid));
             };
           };
         };

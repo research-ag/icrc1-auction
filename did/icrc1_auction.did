@@ -102,13 +102,13 @@ type PlaceArg = vec variant {
 type ManageOrdersResponse = variant {
   Ok : vec OrderId;
   Err : variant {
+    SessionNumberMismatch : Token;
     UnknownPrincipal;
     cancellation : record {
       index : nat;
       error : variant {
         UnknownAsset;
         UnknownOrder;
-        SessionNumberMismatch : Token;
       };
     };
     placement : record {
@@ -120,7 +120,6 @@ type ManageOrdersResponse = variant {
         UnknownAsset;
         PriceDigitsOverflow : record { maxDigits : nat };
         VolumeStepViolated : record { baseVolumeStep : nat };
-        SessionNumberMismatch : Token;
       };
     };
   };
