@@ -30,7 +30,9 @@ module {
     #bid : (assetId : T.AssetId, volume : Nat, price : Float);
   };
 
-  public type InternalCancelOrderError = { #UnknownOrder };
+  public type InternalCancelOrderError = {
+    #UnknownOrder;
+  };
   public type InternalPlaceOrderError = {
     #ConflictingOrder : ({ #ask; #bid }, ?T.OrderId);
     #NoCredit;
@@ -41,6 +43,7 @@ module {
   };
 
   public type OrderManagementError = {
+    #SessionNumberMismatch : T.AssetId;
     #cancellation : { index : Nat; error : InternalCancelOrderError };
     #placement : { index : Nat; error : InternalPlaceOrderError };
   };
@@ -266,6 +269,7 @@ module {
       userInfo : T.UserInfo,
       cancellations : ?CancellationAction,
       placements : [PlaceOrderAction],
+      expectedSessionNumber : ?Nat,
     ) : R.Result<[T.OrderId], OrderManagementError> {
 
       // temporary list of new balances for all affected user credit accounts
@@ -304,7 +308,7 @@ module {
       };
 
       // prepare cancellation of all orders by type (ask or bid)
-      func prepareBulkCancelation(ordersService : OrdersService) {
+      func prepareBulkCancellation(ordersService : OrdersService) {
         let userOrderBook = users.getOrderBook(userInfo, ordersService.kind);
         for ((orderId, order) in List.toIter(userOrderBook.map)) {
           affectNewBalancesWithCancellation(ordersService, order);
@@ -323,7 +327,7 @@ module {
       };
 
       // prepare cancellation of all orders by given filter function by type (ask or bid)
-      func prepareBulkCancelationWithFilter(ordersService : OrdersService, isCancel : (assetId : T.AssetId, orderId : T.OrderId) -> Bool) {
+      func prepareBulkCancellationWithFilter(ordersService : OrdersService, isCancel : (assetId : T.AssetId, orderId : T.OrderId) -> Bool) {
         // TODO can be optimized: cancelOrderInternal searches for order by it's id with linear complexity
         let userOrderBook = users.getOrderBook(userInfo, ordersService.kind);
         let orderIds : Vec.Vector<T.OrderId> = Vec.new();
@@ -346,16 +350,37 @@ module {
       switch (cancellations) {
         case (null) {};
         case (? #all(null)) {
+          switch (expectedSessionNumber) {
+            case (?sn) {
+              for ((asset, aid) in Vec.items(assets.assets)) {
+                if (asset.sessionsCounter != sn) {
+                  return #err(#SessionNumberMismatch(aid));
+                };
+              };
+            };
+            case (null) {};
+          };
           asksDelta.isOrderCancelled := func(_, _) = true;
           bidsDelta.isOrderCancelled := func(_, _) = true;
-          prepareBulkCancelation(asks);
-          prepareBulkCancelation(bids);
+          prepareBulkCancellation(asks);
+          prepareBulkCancellation(bids);
         };
         case (? #all(?aids)) {
+          switch (expectedSessionNumber) {
+            case (?sn) {
+              for (i in aids.keys()) {
+                let aid = aids[i];
+                if (Vec.get(assets.assets, aid).sessionsCounter != sn) {
+                  return #err(#SessionNumberMismatch(aid));
+                };
+              };
+            };
+            case (null) {};
+          };
           asksDelta.isOrderCancelled := func(assetId, _) = Array.find<Nat>(aids, func(x) = x == assetId) |> not Option.isNull(_);
           bidsDelta.isOrderCancelled := func(assetId, _) = Array.find<Nat>(aids, func(x) = x == assetId) |> not Option.isNull(_);
-          prepareBulkCancelationWithFilter(asks, asksDelta.isOrderCancelled);
-          prepareBulkCancelationWithFilter(bids, bidsDelta.isOrderCancelled);
+          prepareBulkCancellationWithFilter(asks, asksDelta.isOrderCancelled);
+          prepareBulkCancellationWithFilter(bids, bidsDelta.isOrderCancelled);
         };
         case (? #orders(orders)) {
           let cancelledAsks : RBTree.RBTree<T.OrderId, ()> = RBTree.RBTree(Nat.compare);
@@ -363,6 +388,7 @@ module {
           asksDelta.isOrderCancelled := func(_, orderId) = cancelledAsks.get(orderId) |> not Option.isNull(_);
           bidsDelta.isOrderCancelled := func(_, orderId) = cancelledBids.get(orderId) |> not Option.isNull(_);
 
+          var assetIdSet : AssocList.AssocList<T.AssetId, Nat> = null;
           for (i in orders.keys()) {
             let (ordersService, orderId, cancelledTree) = switch (orders[i]) {
               case (#ask orderId) (asks, orderId, cancelledAsks);
@@ -375,11 +401,23 @@ module {
               func() = ignore ordersService.cancel(userInfo, orderId),
               cancellationCommitActions,
             );
+            AssocList.replace<T.AssetId, Nat>(assetIdSet, oldOrder.assetId, Nat.equal, ?i) |> (assetIdSet := _.0);
+          };
+          switch (expectedSessionNumber) {
+            case (?sn) {
+              for ((aid, index) in List.toIter(assetIdSet)) {
+                if (Vec.get(assets.assets, aid).sessionsCounter != sn) {
+                  return #err(#SessionNumberMismatch(aid));
+                };
+              };
+            };
+            case (null) {};
           };
         };
       };
 
       // validate and prepare placements
+      var assetIdSet : AssocList.AssocList<T.AssetId, Nat> = null;
       for (i in placements.keys()) {
         let (ordersService, (assetId, volume, price), ordersDelta, oppositeOrdersDelta) = switch (placements[i]) {
           case (#ask(args)) (asks, args, asksDelta, bidsDelta);
@@ -464,6 +502,17 @@ module {
           ordersService.place(userInfo, chargeAcc, assetInfo, orderId, order);
           orderId;
         };
+        AssocList.replace<T.AssetId, Nat>(assetIdSet, assetId, Nat.equal, ?i) |> (assetIdSet := _.0);
+      };
+      switch (expectedSessionNumber) {
+        case (?sn) {
+          for ((aid, index) in List.toIter(assetIdSet)) {
+            if (Vec.get(assets.assets, aid).sessionsCounter != sn) {
+              return #err(#SessionNumberMismatch(aid));
+            };
+          };
+        };
+        case (null) {};
       };
 
       // commit changes, return results

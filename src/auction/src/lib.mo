@@ -183,10 +183,15 @@ module {
     totalAskVolume : Nat;
   };
 
+  public type ManageOrdersError = Orders.OrderManagementError or {
+    #UnknownPrincipal;
+  };
   public type CancelOrderError = Orders.InternalCancelOrderError or {
+    #SessionNumberMismatch : T.AssetId;
     #UnknownPrincipal;
   };
   public type PlaceOrderError = Orders.InternalPlaceOrderError or {
+    #SessionNumberMismatch : T.AssetId;
     #UnknownPrincipal;
   };
   public type ReplaceOrderError = CancelOrderError or PlaceOrderError;
@@ -217,7 +222,9 @@ module {
     );
 
     // ============= assets interface =============
-    public func registerAssets(n : Nat) = assets.register(n);
+    public func getAssetSessionNumber(assetId : AssetId) : Nat = assets.getAsset(assetId).sessionsCounter;
+
+    public func registerAssets(n : Nat) = assets.register(n, sessionsCounter);
 
     public func processAsset(assetId : AssetId) : () {
       if (assetId == quoteAssetId) return;
@@ -230,6 +237,7 @@ module {
       );
       assets.pushToHistory(Prim.time(), sessionsCounter, assetId, volume, price);
       assetInfo.lastProcessingInstructions := Nat64.toNat(settings.performanceCounter(0) - startInstructions);
+      assetInfo.sessionsCounter := sessionsCounter + 1;
       if (volume > 0) {
         assetInfo.lastRate := price;
         if (surplus > 0) {
@@ -323,32 +331,27 @@ module {
       p : Principal,
       cancellations : ?Orders.CancellationAction,
       placements : [Orders.PlaceOrderAction],
-    ) : R.Result<[OrderId], Orders.OrderManagementError or { #UnknownPrincipal }> {
+      expectedSessionNumber : ?Nat,
+    ) : R.Result<[OrderId], ManageOrdersError> {
       let ?userInfo = users.get(p) else return #err(#UnknownPrincipal);
-      orders.manageOrders(p, userInfo, cancellations, placements);
+      orders.manageOrders(p, userInfo, cancellations, placements, expectedSessionNumber);
     };
 
-    public func placeOrder(p : Principal, kind : { #ask; #bid }, assetId : AssetId, volume : Nat, price : Float) : R.Result<OrderId, PlaceOrderError> {
+    public func placeOrder(p : Principal, kind : { #ask; #bid }, assetId : AssetId, volume : Nat, price : Float, expectedSessionNumber : ?Nat) : R.Result<OrderId, PlaceOrderError> {
       let placement = switch (kind) {
         case (#ask) #ask(assetId, volume, price);
         case (#bid) #bid(assetId, volume, price);
       };
-      switch (manageOrders(p, null, [placement])) {
+      switch (manageOrders(p, null, [placement], expectedSessionNumber)) {
         case (#ok orderIds) #ok(orderIds[0]);
+        case (#err(#SessionNumberMismatch x)) #err(#SessionNumberMismatch(x));
         case (#err(#UnknownPrincipal)) #err(#UnknownPrincipal);
-        case (#err(#placement { error })) switch (error) {
-          case (#ConflictingOrder x) #err(#ConflictingOrder(x));
-          case (#NoCredit) #err(#NoCredit);
-          case (#TooLowOrder) #err(#TooLowOrder);
-          case (#UnknownAsset) #err(#UnknownAsset);
-          case (#PriceDigitsOverflow x) #err(#PriceDigitsOverflow(x));
-          case (#VolumeStepViolated x) #err(#VolumeStepViolated(x));
-        };
+        case (#err(#placement { error })) #err(error);
         case (#err(#cancellation _)) Prim.trap("Can never happen");
       };
     };
 
-    public func replaceOrder(p : Principal, kind : { #ask; #bid }, orderId : OrderId, volume : Nat, price : Float) : R.Result<OrderId, ReplaceOrderError> {
+    public func replaceOrder(p : Principal, kind : { #ask; #bid }, orderId : OrderId, volume : Nat, price : Float, expectedSessionNumber : ?Nat) : R.Result<OrderId, ReplaceOrderError> {
       let assetId = switch (getOrder(p, kind, orderId)) {
         case (?o) o.assetId;
         case (null) return #err(#UnknownOrder);
@@ -357,28 +360,23 @@ module {
         case (#ask) (#ask(orderId), #ask(assetId, volume, price));
         case (#bid) (#bid(orderId), #bid(assetId, volume, price));
       };
-      switch (manageOrders(p, ? #orders([cancellation]), [placement])) {
+      switch (manageOrders(p, ? #orders([cancellation]), [placement], expectedSessionNumber)) {
         case (#ok orderIds) #ok(orderIds[0]);
+        case (#err(#SessionNumberMismatch x)) #err(#SessionNumberMismatch(x));
         case (#err(#UnknownPrincipal)) #err(#UnknownPrincipal);
         case (#err(#cancellation({ error }))) #err(error);
-        case (#err(#placement({ error }))) switch (error) {
-          case (#ConflictingOrder x) #err(#ConflictingOrder(x));
-          case (#NoCredit) #err(#NoCredit);
-          case (#TooLowOrder) #err(#TooLowOrder);
-          case (#UnknownAsset) #err(#UnknownAsset);
-          case (#PriceDigitsOverflow x) #err(#PriceDigitsOverflow(x));
-          case (#VolumeStepViolated x) #err(#VolumeStepViolated(x));
-        };
+        case (#err(#placement({ error }))) #err(error);
       };
     };
 
-    public func cancelOrder(p : Principal, kind : { #ask; #bid }, orderId : OrderId) : R.Result<(), CancelOrderError> {
+    public func cancelOrder(p : Principal, kind : { #ask; #bid }, orderId : OrderId, expectedSessionNumber : ?Nat) : R.Result<(), CancelOrderError> {
       let cancellation = switch (kind) {
         case (#ask) #ask(orderId);
         case (#bid) #bid(orderId);
       };
-      switch (manageOrders(p, ? #orders([cancellation]), [])) {
+      switch (manageOrders(p, ? #orders([cancellation]), [], expectedSessionNumber)) {
         case (#ok _) #ok();
+        case (#err(#SessionNumberMismatch x)) #err(#SessionNumberMismatch(x));
         case (#err(#UnknownPrincipal)) #err(#UnknownPrincipal);
         case (#err(#cancellation({ error }))) #err(error);
         case (#err(#placement _)) Prim.trap("Can never happen");
@@ -474,6 +472,7 @@ module {
           bids = { var queue = null; var size = 0; var totalVolume = 0 };
           var lastRate = x.lastRate;
           var lastProcessingInstructions = x.lastProcessingInstructions;
+          var sessionsCounter = data.sessions.counter;
         },
       );
 

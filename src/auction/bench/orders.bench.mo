@@ -67,6 +67,7 @@ module {
             minVolumeSteps = 0;
             minAskVolume = func(_) = 0;
             performanceCounter = Prim.performanceCounter;
+            priceMaxDigits = 5;
           },
         );
         a.registerAssets(2);
@@ -82,56 +83,56 @@ module {
           case (0) (null, createBidsActions);
           case (1) (null, Array.reverse(createBidsActions));
           case (2) {
-            let orderIds = switch (a.manageOrders(user, null, createBidsActions)) {
+            let orderIds = switch (a.manageOrders(user, null, createBidsActions, null)) {
               case (#ok oids) oids;
               case (_) Prim.trap("Cannot prepare N set orders");
             };
             (? #orders(Array.tabulate<{ #bid : Nat }>(nActions, func(i) = #bid(orderIds[i]))), []);
           };
           case (3) {
-            let orderIds = switch (a.manageOrders(user, null, createBidsActions)) {
+            let orderIds = switch (a.manageOrders(user, null, createBidsActions, null)) {
               case (#ok oids) oids;
               case (_) Prim.trap("Cannot prepare N set orders");
             };
             (? #orders(Array.tabulate<{ #bid : Nat }>(nActions, func(i) = #bid(orderIds[nActions - 1 - i]))), []);
           };
           case (4) {
-            switch (a.manageOrders(user, null, createBidsActions)) {
+            switch (a.manageOrders(user, null, createBidsActions, null)) {
               case (#ok _) ();
               case (_) Prim.trap("Cannot prepare N set orders");
             };
             (? #all(null), []);
           };
           case (5) {
-            switch (a.manageOrders(user, null, createBidsActions)) {
+            switch (a.manageOrders(user, null, createBidsActions, null)) {
               case (#ok _) ();
               case (_) Prim.trap("Cannot prepare N set orders");
             };
             (? #all(?[1]), []);
           };
           case (6) {
-            let orderIds = switch (a.manageOrders(user, null, createBidsActions)) {
+            let orderIds = switch (a.manageOrders(user, null, createBidsActions, null)) {
               case (#ok oids) oids;
               case (_) Prim.trap("Cannot prepare N set orders");
             };
             (? #orders(Array.tabulate<{ #bid : Nat }>(nActions, func(i) = #bid(orderIds[i]))), createBidsActions);
           };
           case (7) {
-            let orderIds = switch (a.manageOrders(user, null, createBidsActions)) {
+            let orderIds = switch (a.manageOrders(user, null, createBidsActions, null)) {
               case (#ok oids) oids;
               case (_) Prim.trap("Cannot prepare N set orders");
             };
             (? #orders(Array.tabulate<{ #bid : Nat }>(nActions, func(i) = #bid(orderIds[nActions - 1 - i]))), Array.reverse(createBidsActions));
           };
           case (8) {
-            switch (a.manageOrders(user, null, createBidsActions)) {
+            switch (a.manageOrders(user, null, createBidsActions, null)) {
               case (#ok _) ();
               case (_) Prim.trap("Cannot prepare N set orders");
             };
             (? #all(null), createBidsActions);
           };
           case (9) {
-            switch (a.manageOrders(user, null, createBidsActions)) {
+            switch (a.manageOrders(user, null, createBidsActions, null)) {
               case (#ok _) ();
               case (_) Prim.trap("Cannot prepare N set orders");
             };
@@ -148,7 +149,7 @@ module {
         let ?ci = Array.indexOf<Text>(col, cols, Text.equal) else Prim.trap("Cannot determine column: " # col);
         let ?ri = Array.indexOf<Text>(row, rows, Text.equal) else Prim.trap("Cannot determine row: " # row);
         let (auction, cancellation, placements) = env[ci * rows.size() + ri];
-        let res = auction.manageOrders(user, cancellation, placements);
+        let res = auction.manageOrders(user, cancellation, placements, null);
         switch (res) {
           case (#ok _) ();
           case (#err _) Prim.trap("Actions failed");
