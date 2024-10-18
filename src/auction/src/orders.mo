@@ -391,26 +391,19 @@ module {
 
       // validate and prepare placements
       for (i in placements.keys()) {
-        let (ordersService, (assetId, volume, pr), ordersDelta, oppositeOrdersDelta) = switch (placements[i]) {
+        let (ordersService, (assetId, volume, rawPrice), ordersDelta, oppositeOrdersDelta) = switch (placements[i]) {
           case (#ask(args)) (asks, args, asksDelta, bidsDelta);
           case (#bid(args)) (bids, args, bidsDelta, asksDelta);
         };
-        var price = pr;
-
         // validate asset id
         if (assetId == quoteAssetId or assetId >= assets.nAssets()) return #err(#placement({ index = i; error = #UnknownAsset }));
 
         // validate order volume and price
         let assetInfo = assets.getAsset(assetId);
-        switch (roundPriceDigits(price)) {
-          case (?roundedPrice) {
-            price := roundedPrice;
-          };
-          case (null) {
-            return #err(#placement({ index = i; error = #PriceDigitsOverflow({ maxDigits = priceMaxDigits }) }));
-          };
-        };
+        let ?price = roundPriceDigits(rawPrice) else return #err(#placement({ index = i; error = #PriceDigitsOverflow({ maxDigits = priceMaxDigits }) }));
+
         if (ordersService.isOrderLow(assetId, assetInfo, volume, price)) return #err(#placement({ index = i; error = #TooLowOrder }));
+
         let baseVolumeStep = getBaseVolumeStep(price);
         if (volume % baseVolumeStep != 0) return #err(#placement({ index = i; error = #VolumeStepViolated({ baseVolumeStep }) }));
 
