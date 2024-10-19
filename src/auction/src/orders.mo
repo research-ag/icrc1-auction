@@ -215,19 +215,29 @@ module {
       Int.abs(10 ** Float.toInt(zf));
     };
 
-    public func validatePriceDigits(price : Float) : Bool {
+    public func roundPriceDigits(price : Float) : ?Float {
       if (price >= 1) {
         let e1 = Float.log(price) / 2.302_585_092_994_045;
         let e = Float.trunc(e1);
-        let n = price / 10 ** (e + 1 - Prim.intToFloat(priceMaxDigits)); // normalized
+        let m = 10 ** (e + 1 - Prim.intToFloat(priceMaxDigits));
+        let n = price / m; // normalized
         let r = Float.nearest(n); // rounded
-        Float.equalWithin(n, r, 1e-10);
+        if (Float.equalWithin(n, r, 1e-10)) {
+          ?(r * m);
+        } else {
+          null;
+        };
       } else {
         let e1 = Float.log(price) / 2.302_585_092_994_047;
         let e = Float.trunc(e1);
-        let n = price * 10 ** (Prim.intToFloat(priceMaxDigits) - e); // normalized
+        let m = 10 ** (Prim.intToFloat(priceMaxDigits) - e);
+        let n = price * m; // normalized
         let r = Float.nearest(n); // rounded
-        Float.equalWithin(n, r, 1e-10);
+        if (Float.equalWithin(n, r, 1e-10)) {
+          ?(r / m);
+        } else {
+          null;
+        };
       };
     };
 
@@ -419,20 +429,19 @@ module {
       // validate and prepare placements
       var assetIdSet : AssocList.AssocList<T.AssetId, Nat> = null;
       for (i in placements.keys()) {
-        let (ordersService, (assetId, volume, price), ordersDelta, oppositeOrdersDelta) = switch (placements[i]) {
+        let (ordersService, (assetId, volume, rawPrice), ordersDelta, oppositeOrdersDelta) = switch (placements[i]) {
           case (#ask(args)) (asks, args, asksDelta, bidsDelta);
           case (#bid(args)) (bids, args, bidsDelta, asksDelta);
         };
-
         // validate asset id
         if (assetId == quoteAssetId or assetId >= assets.nAssets()) return #err(#placement({ index = i; error = #UnknownAsset }));
 
         // validate order volume and price
         let assetInfo = assets.getAsset(assetId);
+        let ?price = roundPriceDigits(rawPrice) else return #err(#placement({ index = i; error = #PriceDigitsOverflow({ maxDigits = priceMaxDigits }) }));
+
         if (ordersService.isOrderLow(assetId, assetInfo, volume, price)) return #err(#placement({ index = i; error = #TooLowOrder }));
-        if (not validatePriceDigits(price)) {
-          return #err(#placement({ index = i; error = #PriceDigitsOverflow({ maxDigits = priceMaxDigits }) }));
-        };
+
         let baseVolumeStep = getBaseVolumeStep(price);
         if (volume % baseVolumeStep != 0) return #err(#placement({ index = i; error = #VolumeStepViolated({ baseVolumeStep }) }));
 
