@@ -2,9 +2,6 @@
   "frontend": {
     "ic": "pfsv3-oiaaa-aaaao-a3mza-cai"
   },
-  "frontend_mock": {
-    "ic": "2fc6o-lqaaa-aaaao-a3pjq-cai"
-  },
   "frontend_new": {
     "ic": "scenk-2qaaa-aaaao-a3o7q-cai"
   },
@@ -16,9 +13,6 @@
   },
   "icrc1_auction_testing": {
     "ic": "pmr6h-yaaaa-aaaao-a3myq-cai"
-  },
-  "icrc1_auction_mock": {
-    "ic": "2qfpd-kyaaa-aaaao-a3pka-cai"
   },
   "icrc1_auction_new": {
     "ic": "z4s7u-byaaa-aaaao-a3paa-cai"

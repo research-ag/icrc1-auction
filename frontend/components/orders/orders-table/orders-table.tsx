@@ -1,6 +1,6 @@
 import { Box, Button, Table } from '@mui/joy';
 
-import { useCancelOrder, useListOrders, useTokenInfoMap, useQuoteLedger } from '@fe/integration';
+import { useCancelOrder, useListOrders, useQuoteLedger, useTokenInfoMap } from '@fe/integration';
 import InfoItem from '../../root/info-item';
 import { Principal } from '@dfinity/principal';
 import { displayWithDecimals } from '@fe/utils';
@@ -14,7 +14,7 @@ const OrdersTable = ({ kind }: OrdersTableProps) => {
   const { data: symbols } = useTokenInfoMap();
   const { data: quoteLedger } = useQuoteLedger();
   const getInfo = (ledger: Principal): { symbol: string, decimals: number } => {
-    const mapItem = (symbols || []).find(([p, s]) => p.toText() == ledger.toText());
+    const mapItem = (symbols || []).find(([p, _]) => p.toText() == ledger.toText());
     return mapItem ? mapItem[1] : { symbol: '-', decimals: 0 };
   };
 
@@ -36,7 +36,7 @@ const OrdersTable = ({ kind }: OrdersTableProps) => {
         </tr>
         </thead>
         <tbody>
-        {(orders ?? []).map(([orderId, order], i) => {
+        {(orders ?? []).map(([orderId, order, _], i) => {
           return (
             <tr key={i}>
               <td>

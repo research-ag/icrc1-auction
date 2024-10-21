@@ -66,25 +66,6 @@
       "source": ["dist_new/"],
       "build": "npm run build:frontend_new",
       "declarations": {}
-    },
-    "icrc1_auction_mock": {
-      "dependencies": ["icrc1_ledger_mock"],
-      "main": "src/icrc1_auction_api_mock.mo",
-      "did": "src/icrc1_auction.did",
-      "type": "motoko",
-      "init_arg": "(opt principal \"2vxsx-fae\")",
-      "declarations": {
-        "bindings": ["js", "ts"],
-        "output": "./declarations/icrc1_auction_mock"
-      },
-      "optimize": "cycles"
-    },
-    "frontend_mock": {
-      "type": "assets",
-      "dependencies": ["icrc1_auction_mock"],
-      "source": ["dist_mock/"],
-      "build": "npm run build:frontend_mock",
-      "declarations": {}
     }
   },
   "defaults": {
