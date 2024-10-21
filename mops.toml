@@ -2,7 +2,7 @@
 base = "0.12.1"
 promtracker = "0.5.4"
 vector = "0.4.0"
-token_handler_legacy = "https://github.com/research-ag/token-handler#e637a3e7be5a1dc1ac9757c2e456f0f76c1a3795"
+token_handler_legacy = "https://github.com/research-ag/token-handler#76d34228fab3d5b2dfe3246a26cf8a43510471f4"
 token_handler = "https://github.com/research-ag/token-handler#1a8dfc4007338837bcd303e68d3cdd8f6c7de02a"
 mrr = "https://github.com/research-ag/motoko-lib#main"
 auction = "https://github.com/research-ag/auction#b14f446fdc5257699d8bb80d7771b5cb66591008"

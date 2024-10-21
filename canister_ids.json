@@ -11,6 +11,9 @@
   "icrc1_auction_legacy_th": {
     "ic": "g2mgr-byaaa-aaaai-actsq-cai"
   },
+  "icrc1_auction_testing": {
+    "ic": "pmr6h-yaaaa-aaaao-a3myq-cai"
+  },
   "icrc1_auction_new": {
     "ic": "z4s7u-byaaa-aaaao-a3paa-cai"
   },
