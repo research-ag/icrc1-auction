@@ -633,10 +633,8 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   };
 
   public query func queryTokenHandlerDepositRegistry(ledger : Principal) : async (sum : Nat, size : Nat, minimum : Nat, [(Principal, { value : Nat; lock : Bool })]) {
-    let sharedData = switch (getAssetId(ledger)) {
-      case (?aid) Vec.get(assets, aid) |> _.handler.share();
-      case (_) throw Error.reject("Unknown asset");
-    };
+    let ?assetId = getAssetId(ledger) else throw Error.reject("Unknown asset");
+    let sharedData = Vec.get(assets, assetId) |> _.handler.share();
     let locks = RBTree.RBTree<Principal, { var value : Nat; var lock : Bool }>(Principal.compare);
     locks.unshare(sharedData.0.0.0);
     let iter = locks.entries();
