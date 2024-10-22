@@ -149,6 +149,7 @@ export const useListAssets = () => {
       onError: err => {
         enqueueSnackbar(`Failed to fetch credits: ${err}`, { variant: 'error' });
         queryClient.removeQueries('assets');
+        queryClient.removeQueries('assetInfos');
       },
     },
   );

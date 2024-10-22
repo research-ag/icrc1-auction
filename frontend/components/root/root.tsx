@@ -42,8 +42,12 @@ const Root = () => {
   const { data: symbols } = useTokenInfoMap();
   const { data: minimumOrder } = useMinimumOrder();
   const getInfo = (ledger: Principal): { symbol: string, decimals: number } => {
-    const mapItem = (symbols || []).find(([p, s]) => p.toText() == ledger.toText());
-    return mapItem ? mapItem[1] : { symbol: '-', decimals: 0 };
+    try {
+      const mapItem = (symbols || []).find(([p, s]) => p.toText() == ledger.toText());
+      return mapItem ? mapItem[1] : { symbol: '-', decimals: 0 };
+    } catch (err) {
+      return { symbol: '-', decimals: 0 };
+    }
   };
 
   const [auctionIdInput, setAuctionIdInput] = useState<string>(useAuctionCanisterId());
