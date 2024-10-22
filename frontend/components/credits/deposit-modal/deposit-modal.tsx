@@ -3,21 +3,27 @@ import { Controller, SubmitHandler, useForm, useFormState } from 'react-hook-for
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z as zod } from 'zod';
 import {
-    Box,
-    Button,
-    FormControl,
-    FormLabel,
-    Input,
-    Modal,
-    ModalClose,
-    ModalDialog,
-    Tab,
-    TabList,
-    Tabs,
-    Typography,
+  Box,
+  Button,
+  FormControl,
+  FormLabel,
+  Input,
+  Modal,
+  ModalClose,
+  ModalDialog,
+  Tab,
+  TabList,
+  Tabs,
+  Typography,
 } from '@mui/joy';
 import ErrorAlert from '../../error-alert';
-import { canisterId, useDeposit, useNotify, usePrincipalToSubaccount, useTokenInfoMap } from '@fe/integration';
+import {
+  useAuctionCanisterId,
+  useDeposit,
+  useNotify,
+  usePrincipalToSubaccount,
+  useTokenInfoMap,
+} from '@fe/integration';
 import { Principal } from '@dfinity/principal';
 import { useIdentity } from '@fe/integration/identity';
 import { decodeIcrcAccount } from '@dfinity/ledger-icrc';
@@ -180,6 +186,8 @@ const DepositModal = ({ isOpen, onClose }: AddModalProps) => {
     );
   };
 
+  const auctionId = useAuctionCanisterId();
+
   return (
     <Modal open={isOpen} onClose={onClose}>
       <ModalDialog sx={{ width: 'calc(100% - 50px)', maxWidth: '450px' }}>
@@ -199,7 +207,7 @@ const DepositModal = ({ isOpen, onClose }: AddModalProps) => {
               <Typography level="body-xs">
                 1. Find out ICRC1 ledger principal to be used
                 <br />
-                2. Make a transfer to account <b>{canisterId}</b>, subaccount{' '}
+                2. Make a transfer to account <b>{auctionId}</b>, subaccount{' '}
                 <b>{subaccountToText(subaccount.data)}</b> using ledger API
                 <br />
                 3. Put token symbol in the input below and click "Notify"

@@ -15,37 +15,98 @@ const bigIntReplacer = (key: string, value: any): any => {
   return value;
 };
 
-export const canisterId = cid;
+export const defaultAuctionCanisterId = cid;
+
+export const useAuctionCanisterId = () => {
+  return localStorage.getItem('auctionCanisterId') || defaultAuctionCanisterId;
+};
+
+export const updateAuctionCanisterId = (ps: string) => {
+  localStorage.setItem('auctionCanisterId', ps);
+  const queryClient = useQueryClient();
+  Promise.all([
+    queryClient.invalidateQueries('admins'),
+    queryClient.invalidateQueries('assets'),
+    queryClient.invalidateQueries('assetInfos'),
+    queryClient.invalidateQueries('myCredits'),
+    queryClient.invalidateQueries('deposit-history'),
+    queryClient.invalidateQueries('myBids'),
+    queryClient.invalidateQueries('myAsks'),
+  ]).then();
+};
 
 export const useAuction = () => {
   const { identity } = useIdentity();
-  const auction = createActor(canisterId, {
-    agentOptions: {
-      identity,
-      verifyQuerySignatures: false,
-    },
-  });
-  return { auction };
+  const canisterId = useAuctionCanisterId();
+  try {
+    const auction = createActor(canisterId, {
+      agentOptions: {
+        identity,
+        verifyQuerySignatures: false,
+      },
+    });
+    return { auction };
+  } catch (err) {
+    const { enqueueSnackbar } = useSnackbar();
+    enqueueSnackbar(`Auction ${canisterId} cannot be used. Falling back to ${cid}`, { variant: 'warning' });
+    updateAuctionCanisterId(defaultAuctionCanisterId);
+    const auction = createActor(defaultAuctionCanisterId, {
+      agentOptions: {
+        identity,
+        verifyQuerySignatures: false,
+      },
+    });
+    return { auction };
+  }
 };
 
 export const useQuoteLedger = () => {
   const { auction } = useAuction();
-  return useQuery('quoteLedger', () => auction.getQuoteLedger());
+  return useQuery(
+    'quoteLedger',
+    () => auction.getQuoteLedger(), {
+      onError: () => {
+        useQueryClient().removeQueries('quoteLedger');
+      },
+    });
 };
 
 export const useSessionsCounter = () => {
   const { auction } = useAuction();
-  return useQuery('sessionsCounter', () => auction.nextSession().then(({ counter }) => counter));
+  return useQuery(
+    'sessionsCounter',
+    () => auction.nextSession().then(({ counter }) => counter),
+    {
+      onError: () => {
+        useQueryClient().removeQueries('sessionsCounter');
+      },
+    });
 };
 
 export const useMinimumOrder = () => {
   const { auction } = useAuction();
-  return useQuery('minimumOrder', () => auction.settings().then(({ orderQuoteVolumeMinimum }) => orderQuoteVolumeMinimum));
+  return useQuery(
+    'minimumOrder',
+    () => auction.settings().then(({ orderQuoteVolumeMinimum }) => orderQuoteVolumeMinimum),
+    {
+      onError: () => {
+        useQueryClient().removeQueries('minimumOrder');
+      },
+    },
+  );
 };
 
 export const usePrincipalToSubaccount = (p: Principal) => {
   const { auction } = useAuction();
-  return useQuery('subaccount_' + p.toText(), async () => auction.principalToSubaccount(p));
+  return useQuery(
+    'subaccount_' + p.toText(),
+    async () => auction.principalToSubaccount(p),
+    {
+      onError: () => {
+        useQueryClient().removeQueries('subaccount_' + p.toText());
+      },
+    },
+  );
 };
 
 export const useAddAsset = () => {
@@ -87,6 +148,8 @@ export const useListAssets = () => {
       onSettled: _ => queryClient.invalidateQueries('assetInfos'),
       onError: err => {
         enqueueSnackbar(`Failed to fetch credits: ${err}`, { variant: 'error' });
+        queryClient.removeQueries('assets');
+        queryClient.removeQueries('assetInfos');
       },
     },
   );
@@ -126,6 +189,7 @@ export const useTokenInfoMap = () => {
     {
       onError: err => {
         enqueueSnackbar(`Failed to fetch asset info: ${err}`, { variant: 'error' });
+        queryClient.removeQueries('assetInfos');
       },
     },
   );
@@ -142,6 +206,7 @@ export const useListOrders = (kind: 'ask' | 'bid') => {
     {
       onError: err => {
         enqueueSnackbar(`Failed to fetch ${kind}s: ${err}`, { variant: 'error' });
+        useQueryClient().removeQueries('bid' ? 'myBids' : 'myAsks');
       },
     },
   );
@@ -158,6 +223,7 @@ export const useListCredits = () => {
     {
       onError: err => {
         enqueueSnackbar(`Failed to fetch credits: ${err}`, { variant: 'error' });
+        useQueryClient().removeQueries('myCredits');
       },
     },
   );
@@ -277,6 +343,7 @@ export const useDepositHistory = () => {
     {
       onError: err => {
         enqueueSnackbar(`Failed to fetch deposit history: ${err}`, { variant: 'error' });
+        useQueryClient().removeQueries('deposit-history');
       },
     },
   );
@@ -293,6 +360,7 @@ export const useTransactionHistory = () => {
     {
       onError: err => {
         enqueueSnackbar(`Failed to fetch transaction history: ${err}`, { variant: 'error' });
+        useQueryClient().removeQueries('transaction-history');
       },
     },
   );
@@ -311,6 +379,7 @@ export const usePriceHistory = (limit: number, offset: number) => {
       keepPreviousData: true,
       onError: err => {
         enqueueSnackbar(`Failed to fetch price history: ${err}`, { variant: 'error' });
+        useQueryClient().removeQueries('price-history');
       },
     },
   );
@@ -356,6 +425,7 @@ export const useGetAdmins = () => {
   return useQuery('admins', () => auction.listAdmins(), {
     onError: () => {
       enqueueSnackbar('Failed to fetch owners', { variant: 'error' });
+      useQueryClient().removeQueries('admins');
     },
   });
 };
