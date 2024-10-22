@@ -15,17 +15,49 @@ const bigIntReplacer = (key: string, value: any): any => {
   return value;
 };
 
-export const canisterId = cid;
+export const defaultAuctionCanisterId = cid;
+
+export const useAuctionCanisterId = () => {
+  return localStorage.getItem('auctionCanisterId') || defaultAuctionCanisterId;
+};
+
+export const updateAuctionCanisterId = (ps: string) => {
+  localStorage.setItem('auctionCanisterId', ps);
+  const queryClient = useQueryClient();
+  Promise.all([
+    queryClient.invalidateQueries('admins'),
+    queryClient.invalidateQueries('assets'),
+    queryClient.invalidateQueries('assetInfos'),
+    queryClient.invalidateQueries('myCredits'),
+    queryClient.invalidateQueries('deposit-history'),
+    queryClient.invalidateQueries('myBids'),
+    queryClient.invalidateQueries('myAsks'),
+  ]).then();
+};
 
 export const useAuction = () => {
   const { identity } = useIdentity();
-  const auction = createActor(canisterId, {
-    agentOptions: {
-      identity,
-      verifyQuerySignatures: false,
-    },
-  });
-  return { auction };
+  const canisterId = useAuctionCanisterId();
+  try {
+    const auction = createActor(canisterId, {
+      agentOptions: {
+        identity,
+        verifyQuerySignatures: false,
+      },
+    });
+    return { auction };
+  } catch (err) {
+    const { enqueueSnackbar } = useSnackbar();
+    enqueueSnackbar(`Auction ${canisterId} cannot be used. Falling back to ${cid}`, { variant: 'warning' });
+    updateAuctionCanisterId(defaultAuctionCanisterId);
+    const auction = createActor(defaultAuctionCanisterId, {
+      agentOptions: {
+        identity,
+        verifyQuerySignatures: false,
+      },
+    });
+    return { auction };
+  }
 };
 
 export const useQuoteLedger = () => {
