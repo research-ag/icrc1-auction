@@ -443,7 +443,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   public shared query ({ caller }) func queryBids() : async ([(Auction.OrderId, Order, Nat)]) {
     let a = U.unwrapUninit(auction);
     a.getOrders(caller, #bid, null)
-    |> Array.tabulate<(Auction.OrderId, Order, Nat)>(_.size(), func(i) = (_ [i].0, mapOrder(_ [i].1), a.getAssetSessionNumber(_ [i].0)));
+    |> Array.tabulate<(Auction.OrderId, Order, Nat)>(_.size(), func(i) = (_ [i].0, mapOrder(_ [i].1), a.getAssetSessionNumber(_ [i].1.assetId)));
   };
 
   public shared query ({ caller }) func queryTokenAsks(ledger : Principal) : async ([(Auction.OrderId, Order)], Nat) {
@@ -457,7 +457,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   public shared query ({ caller }) func queryAsks() : async ([(Auction.OrderId, Order, Nat)]) {
     let a = U.unwrapUninit(auction);
     a.getOrders(caller, #ask, null)
-    |> Array.tabulate<(Auction.OrderId, Order, Nat)>(_.size(), func(i) = (_ [i].0, mapOrder(_ [i].1), a.getAssetSessionNumber(_ [i].0)));
+    |> Array.tabulate<(Auction.OrderId, Order, Nat)>(_.size(), func(i) = (_ [i].0, mapOrder(_ [i].1), a.getAssetSessionNumber(_ [i].1.assetId)));
   };
 
   public shared query ({ caller }) func queryDepositHistory(token : ?Principal, limit : Nat, skip : Nat) : async [DepositHistoryItem] {
