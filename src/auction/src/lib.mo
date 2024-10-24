@@ -176,6 +176,8 @@ module {
   public type CancellationAction = Orders.CancellationAction;
   public type PlaceOrderAction = Orders.PlaceOrderAction;
 
+  public type CancellationResult = Orders.CancellationResult;
+
   public type IndicativeStats = {
     clearingPrice : Float;
     clearingVolume : Nat;
@@ -336,7 +338,7 @@ module {
       cancellations : ?Orders.CancellationAction,
       placements : [Orders.PlaceOrderAction],
       expectedSessionNumber : ?Nat,
-    ) : R.Result<[OrderId], ManageOrdersError> {
+    ) : R.Result<([CancellationResult], [OrderId]), ManageOrdersError> {
       let ?userInfo = users.get(p) else return #err(#UnknownPrincipal);
       orders.manageOrders(p, userInfo, cancellations, placements, expectedSessionNumber);
     };
@@ -347,7 +349,7 @@ module {
         case (#bid) #bid(assetId, volume, price);
       };
       switch (manageOrders(p, null, [placement], expectedSessionNumber)) {
-        case (#ok orderIds) #ok(orderIds[0]);
+        case (#ok(_, orderIds)) #ok(orderIds[0]);
         case (#err(#SessionNumberMismatch x)) #err(#SessionNumberMismatch(x));
         case (#err(#UnknownPrincipal)) #err(#UnknownPrincipal);
         case (#err(#placement { error })) #err(error);
@@ -365,7 +367,7 @@ module {
         case (#bid) (#bid(orderId), #bid(assetId, volume, price));
       };
       switch (manageOrders(p, ? #orders([cancellation]), [placement], expectedSessionNumber)) {
-        case (#ok orderIds) #ok(orderIds[0]);
+        case (#ok(_, orderIds)) #ok(orderIds[0]);
         case (#err(#SessionNumberMismatch x)) #err(#SessionNumberMismatch(x));
         case (#err(#UnknownPrincipal)) #err(#UnknownPrincipal);
         case (#err(#cancellation({ error }))) #err(error);
@@ -373,13 +375,13 @@ module {
       };
     };
 
-    public func cancelOrder(p : Principal, kind : { #ask; #bid }, orderId : OrderId, expectedSessionNumber : ?Nat) : R.Result<(), CancelOrderError> {
+    public func cancelOrder(p : Principal, kind : { #ask; #bid }, orderId : OrderId, expectedSessionNumber : ?Nat) : R.Result<CancellationResult, CancelOrderError> {
       let cancellation = switch (kind) {
         case (#ask) #ask(orderId);
         case (#bid) #bid(orderId);
       };
       switch (manageOrders(p, ? #orders([cancellation]), [], expectedSessionNumber)) {
-        case (#ok _) #ok();
+        case (#ok(x, _)) #ok(x[0]);
         case (#err(#SessionNumberMismatch x)) #err(#SessionNumberMismatch(x));
         case (#err(#UnknownPrincipal)) #err(#UnknownPrincipal);
         case (#err(#cancellation({ error }))) #err(error);

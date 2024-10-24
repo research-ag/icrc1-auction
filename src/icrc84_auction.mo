@@ -1,3 +1,4 @@
+import Array "mo:base/Array";
 import R "mo:base/Result";
 
 import Auction "auction/src";
@@ -18,6 +19,8 @@ module Icrc84Auction {
     #PriceDigitsOverflow : { maxDigits : Nat };
     #VolumeStepViolated : { baseVolumeStep : Nat };
   };
+
+  public type CancellationResult = (T.OrderId, assetId : Principal, volume : Nat, price : Float);
 
   public type ManageOrdersError = {
     #SessionNumberMismatch : Principal;
@@ -77,9 +80,9 @@ module Icrc84Auction {
     };
   };
 
-  public func mapCancelOrderResult(res : R.Result<(), Auction.CancelOrderError>, getToken : (T.AssetId) -> Principal) : UpperResult<(), CancelOrderError> {
+  public func mapCancelOrderResult(res : R.Result<Auction.CancellationResult, Auction.CancelOrderError>, getToken : (T.AssetId) -> Principal) : UpperResult<CancellationResult, CancelOrderError> {
     switch (res) {
-      case (#ok x) #Ok(x);
+      case (#ok(oid, aid, volume, price)) #Ok(oid, getToken(aid), volume, price);
       case (#err err) #Err(
         switch (err) {
           case (#UnknownOrder x) #UnknownOrder(x);
@@ -90,9 +93,12 @@ module Icrc84Auction {
     };
   };
 
-  public func mapManageOrdersResult(res : R.Result<[Auction.OrderId], Auction.ManageOrdersError>, getToken : (T.AssetId) -> Principal) : UpperResult<[Auction.OrderId], ManageOrdersError> {
+  public func mapManageOrdersResult(res : R.Result<([Auction.CancellationResult], [Auction.OrderId]), Auction.ManageOrdersError>, getToken : (T.AssetId) -> Principal) : UpperResult<([CancellationResult], [Auction.OrderId]), ManageOrdersError> {
     switch (res) {
-      case (#ok x) #Ok(x);
+      case (#ok(cancellations, placements)) #Ok(
+        Array.map<Auction.CancellationResult, CancellationResult>(cancellations, func(oid, aid, volume, price) = (oid, getToken(aid), volume, price)),
+        placements,
+      );
       case (#err err) #Err(
         switch (err) {
           case (#UnknownPrincipal x) #UnknownPrincipal(x);

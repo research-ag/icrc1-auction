@@ -35,6 +35,10 @@ jobs:
           npm run create
           npm run setup
 
+      - name: Run mops tests
+        run: |
+          mops test
+
       - name: Run tests
         run: |
           npm run test
