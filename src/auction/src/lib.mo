@@ -222,7 +222,11 @@ module {
     );
 
     // ============= assets interface =============
-    public func getAssetSessionNumber(assetId : AssetId) : Nat = assets.getAsset(assetId).sessionsCounter;
+    public func getAssetSessionNumber(assetId : AssetId) : Nat = if (assetId == quoteAssetId) {
+      sessionsCounter;
+    } else {
+      assets.getAsset(assetId).sessionsCounter;
+    };
 
     public func registerAssets(n : Nat) = assets.register(n, sessionsCounter);
 
