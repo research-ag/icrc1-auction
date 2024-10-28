@@ -272,7 +272,7 @@ export const useDepositHistory = () => {
   return useQuery(
     'deposit-history',
     async () => {
-      return auction.queryDepositHistoryRev([], BigInt(10000), BigInt(0));
+      return auction.queryDepositHistory([], BigInt(10000), BigInt(0));
     },
     {
       onError: err => {
@@ -288,7 +288,7 @@ export const useTransactionHistory = () => {
   return useQuery(
     'transaction-history',
     async () => {
-      return auction.queryTransactionHistoryRev([], BigInt(10000), BigInt(0));
+      return auction.queryTransactionHistory([], BigInt(10000), BigInt(0));
     },
     {
       onError: err => {
@@ -305,7 +305,7 @@ export const usePriceHistory = (limit: number, offset: number) => {
   return useQuery(
     ['price-history', offset],
     async () => {
-      return auction.queryPriceHistoryRev([], BigInt(limit), BigInt(offset));
+      return auction.queryPriceHistory([], BigInt(limit), BigInt(offset));
     },
     {
       keepPreviousData: true,

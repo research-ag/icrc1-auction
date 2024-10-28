@@ -46,7 +46,7 @@ do {
 
   auction.processAsset(ft);
 
-  let ?priceHistoryItem = auction.getPriceHistory(?ft, #desc).next() else Prim.trap("");
+  let ?priceHistoryItem = auction.getPriceHistory(?ft).next() else Prim.trap("");
   assert priceHistoryItem.3 == 4_000; // volume
   assert priceHistoryItem.4 == 0.0125;
 
@@ -102,9 +102,9 @@ do {
     case (_) assert false;
   };
   auction.processAsset(ft);
-  let ?priceHistoryItem = auction.getPriceHistory(?ft, #desc).next() else Prim.trap("");
+  let ?priceHistoryItem = auction.getPriceHistory(?ft).next() else Prim.trap("");
   assert priceHistoryItem.3 == askVolume;
-  assert Float.abs(priceHistoryItem.4 - bidPrice) < 0.000000000000001;
+  assert priceHistoryItem.4 == bidPrice;
 
   assert auction.getCredit(user, 0).locked == denominateVolumeInQuoteAsset(bidVolume - askVolume, bidPrice);
 

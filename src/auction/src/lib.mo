@@ -403,38 +403,29 @@ module {
     // ============= orders interface =============
 
     // ============ history interface =============
-    public func getDepositHistory(p : Principal, assetId : ?AssetId, order : { #asc; #desc }) : Iter.Iter<T.DepositHistoryItem> {
+    public func getDepositHistory(p : Principal, assetId : ?AssetId) : Iter.Iter<T.DepositHistoryItem> {
       let ?userInfo = users.get(p) else return { next = func() = null };
-      let iterFunc = switch (order) {
-        case (#asc) Vec.vals;
-        case (#desc) Vec.valsRev;
-      };
+      var iter = Vec.valsRev(userInfo.depositHistory);
       switch (assetId) {
-        case (?aid) Iter.filter<T.DepositHistoryItem>(iterFunc(userInfo.depositHistory), func x = x.2 == aid);
-        case (_) iterFunc(userInfo.depositHistory);
+        case (?aid) Iter.filter<T.DepositHistoryItem>(iter, func x = x.2 == aid);
+        case (_) iter;
       };
     };
 
-    public func getTransactionHistory(p : Principal, assetId : ?AssetId, order : { #asc; #desc }) : Iter.Iter<T.TransactionHistoryItem> {
+    public func getTransactionHistory(p : Principal, assetId : ?AssetId) : Iter.Iter<T.TransactionHistoryItem> {
       let ?userInfo = users.get(p) else return { next = func() = null };
-      let iterFunc = switch (order) {
-        case (#asc) Vec.vals;
-        case (#desc) Vec.valsRev;
-      };
+      var iter = Vec.valsRev(userInfo.transactionHistory);
       switch (assetId) {
-        case (?aid) Iter.filter<T.TransactionHistoryItem>(iterFunc(userInfo.transactionHistory), func x = x.3 == aid);
-        case (_) iterFunc(userInfo.transactionHistory);
+        case (?aid) Iter.filter<T.TransactionHistoryItem>(iter, func x = x.3 == aid);
+        case (_) iter;
       };
     };
 
-    public func getPriceHistory(assetId : ?AssetId, order : { #asc; #desc }) : Iter.Iter<T.PriceHistoryItem> {
-      let iterFunc = switch (order) {
-        case (#asc) Vec.vals;
-        case (#desc) Vec.valsRev;
-      };
+    public func getPriceHistory(assetId : ?AssetId) : Iter.Iter<T.PriceHistoryItem> {
+      var iter = Vec.valsRev(assets.history);
       switch (assetId) {
-        case (?aid) Iter.filter<T.PriceHistoryItem>(iterFunc(assets.history), func x = x.2 == aid);
-        case (_) iterFunc(assets.history);
+        case (?aid) Iter.filter<T.PriceHistoryItem>(iter, func x = x.2 == aid);
+        case (_) iter;
       };
     };
     // ============ history interface =============

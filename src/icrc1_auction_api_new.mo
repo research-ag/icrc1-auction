@@ -227,7 +227,10 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   public shared ({ caller }) func icrc84_deposit(args : { token : Principal; amount : Nat; from : { owner : Principal; subaccount : ?Blob }; expected_fee : ?Nat }) : async DepositResult {
     depositCounter.add(1);
     let a = U.unwrapUninit(auction);
-    let ?assetId = getAssetId(args.token) else throw Error.reject("Unknown token");
+    let assetId = switch (getAssetId(args.token)) {
+      case (?aid) aid;
+      case (_) throw Error.reject("Unknown token");
+    };
     let assetInfo = Vec.get(assets, assetId);
     let res = await* assetInfo.handler.depositFromAllowance(caller, args.from, args.amount, args.expected_fee);
     switch (res) {
@@ -461,17 +464,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       case (null) null;
       case (?aid) getAssetId(aid);
     };
-    U.unwrapUninit(auction).getDepositHistory(caller, assetId, #asc)
-    |> U.sliceIter(_, limit, skip)
-    |> Array.map<Auction.DepositHistoryItem, DepositHistoryItem>(_, func(x) = (x.0, x.1, Vec.get(assets, x.2).ledgerPrincipal, x.3));
-  };
-
-  public shared query ({ caller }) func queryDepositHistoryRev(token : ?Principal, limit : Nat, skip : Nat) : async [DepositHistoryItem] {
-    let assetId : ?Auction.AssetId = switch (token) {
-      case (null) null;
-      case (?aid) getAssetId(aid);
-    };
-    U.unwrapUninit(auction).getDepositHistory(caller, assetId, #desc)
+    U.unwrapUninit(auction).getDepositHistory(caller, assetId)
     |> U.sliceIter(_, limit, skip)
     |> Array.map<Auction.DepositHistoryItem, DepositHistoryItem>(_, func(x) = (x.0, x.1, Vec.get(assets, x.2).ledgerPrincipal, x.3));
   };
@@ -481,17 +474,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       case (null) null;
       case (?aid) getAssetId(aid);
     };
-    U.unwrapUninit(auction).getTransactionHistory(caller, assetId, #asc)
-    |> U.sliceIter(_, limit, skip)
-    |> Array.map<Auction.TransactionHistoryItem, TransactionHistoryItem>(_, func(x) = (x.0, x.1, x.2, Vec.get(assets, x.3).ledgerPrincipal, x.4, x.5));
-  };
-
-  public shared query ({ caller }) func queryTransactionHistoryRev(token : ?Principal, limit : Nat, skip : Nat) : async [TransactionHistoryItem] {
-    let assetId : ?Auction.AssetId = switch (token) {
-      case (null) null;
-      case (?aid) getAssetId(aid);
-    };
-    U.unwrapUninit(auction).getTransactionHistory(caller, assetId, #desc)
+    U.unwrapUninit(auction).getTransactionHistory(caller, assetId)
     |> U.sliceIter(_, limit, skip)
     |> Array.map<Auction.TransactionHistoryItem, TransactionHistoryItem>(_, func(x) = (x.0, x.1, x.2, Vec.get(assets, x.3).ledgerPrincipal, x.4, x.5));
   };
@@ -501,17 +484,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       case (null) null;
       case (?aid) getAssetId(aid);
     };
-    U.unwrapUninit(auction).getPriceHistory(assetId, #asc)
-    |> U.sliceIter(_, limit, skip)
-    |> Array.map<Auction.PriceHistoryItem, PriceHistoryItem>(_, func(x) = (x.0, x.1, Vec.get(assets, x.2).ledgerPrincipal, x.3, x.4));
-  };
-
-  public shared query func queryPriceHistoryRev(token : ?Principal, limit : Nat, skip : Nat) : async [PriceHistoryItem] {
-    let assetId : ?Auction.AssetId = switch (token) {
-      case (null) null;
-      case (?aid) getAssetId(aid);
-    };
-    U.unwrapUninit(auction).getPriceHistory(assetId, #desc)
+    U.unwrapUninit(auction).getPriceHistory(assetId)
     |> U.sliceIter(_, limit, skip)
     |> Array.map<Auction.PriceHistoryItem, PriceHistoryItem>(_, func(x) = (x.0, x.1, Vec.get(assets, x.2).ledgerPrincipal, x.3, x.4));
   };
@@ -751,7 +724,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     ignore metrics.addPullValue(
       "last_price",
       labels,
-      func() = U.unwrapUninit(auction).getPriceHistory(?assetId, #desc).next()
+      func() = U.unwrapUninit(auction).getPriceHistory(?assetId).next()
       |> (
         switch (_) {
           case (?item) renderPrice(item.4);
@@ -762,7 +735,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     ignore metrics.addPullValue(
       "last_volume",
       labels,
-      func() = U.unwrapUninit(auction).getPriceHistory(?assetId, #desc).next()
+      func() = U.unwrapUninit(auction).getPriceHistory(?assetId).next()
       |> (
         switch (_) {
           case (?item) item.3;
@@ -898,24 +871,24 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = (_ [i].0, mapOrder(_ [i].1)));
   };
 
-  public shared query ({ caller }) func queryUserDepositHistory(p : Principal, token : ?Principal, limit : Nat, skip : Nat, order : { #asc; #desc }) : async [DepositHistoryItem] {
+  public shared query ({ caller }) func queryUserDepositHistory(p : Principal, token : ?Principal, limit : Nat, skip : Nat) : async [DepositHistoryItem] {
     assertAdminAccessSync(caller);
     let assetId : ?Auction.AssetId = switch (token) {
       case (null) null;
       case (?aid) getAssetId(aid);
     };
-    U.unwrapUninit(auction).getDepositHistory(p, assetId, order)
+    U.unwrapUninit(auction).getDepositHistory(p, assetId)
     |> U.sliceIter(_, limit, skip)
     |> Array.map<Auction.DepositHistoryItem, DepositHistoryItem>(_, func(x) = (x.0, x.1, Vec.get(assets, x.2).ledgerPrincipal, x.3));
   };
 
-  public shared query ({ caller }) func queryUserTransactionHistory(p : Principal, token : ?Principal, limit : Nat, skip : Nat, order : { #asc; #desc }) : async [TransactionHistoryItem] {
+  public shared query ({ caller }) func queryUserTransactionHistory(p : Principal, token : ?Principal, limit : Nat, skip : Nat) : async [TransactionHistoryItem] {
     assertAdminAccessSync(caller);
     let assetId : ?Auction.AssetId = switch (token) {
       case (null) null;
       case (?aid) getAssetId(aid);
     };
-    U.unwrapUninit(auction).getTransactionHistory(p, assetId, order)
+    U.unwrapUninit(auction).getTransactionHistory(p, assetId)
     |> U.sliceIter(_, limit, skip)
     |> Array.map<Auction.TransactionHistoryItem, TransactionHistoryItem>(_, func(x) = (x.0, x.1, x.2, Vec.get(assets, x.3).ledgerPrincipal, x.4, x.5));
   };
