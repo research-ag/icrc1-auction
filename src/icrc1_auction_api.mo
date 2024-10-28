@@ -464,7 +464,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       case (null) null;
       case (?aid) getAssetId(aid);
     };
-    U.unwrapUninit(auction).getDepositHistory(caller, assetId)
+    U.unwrapUninit(auction).getDepositHistory(caller, assetId, #desc)
     |> U.sliceIter(_, limit, skip)
     |> Array.map<Auction.DepositHistoryItem, DepositHistoryItem>(_, func(x) = (x.0, x.1, Vec.get(assets, x.2).ledgerPrincipal, x.3));
   };
@@ -474,7 +474,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       case (null) null;
       case (?aid) getAssetId(aid);
     };
-    U.unwrapUninit(auction).getTransactionHistory(caller, assetId)
+    U.unwrapUninit(auction).getTransactionHistory(caller, assetId, #desc)
     |> U.sliceIter(_, limit, skip)
     |> Array.map<Auction.TransactionHistoryItem, TransactionHistoryItem>(_, func(x) = (x.0, x.1, x.2, Vec.get(assets, x.3).ledgerPrincipal, x.4, x.5));
   };
@@ -484,7 +484,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       case (null) null;
       case (?aid) getAssetId(aid);
     };
-    U.unwrapUninit(auction).getPriceHistory(assetId)
+    U.unwrapUninit(auction).getPriceHistory(assetId, #desc)
     |> U.sliceIter(_, limit, skip)
     |> Array.map<Auction.PriceHistoryItem, PriceHistoryItem>(_, func(x) = (x.0, x.1, Vec.get(assets, x.2).ledgerPrincipal, x.3, x.4));
   };
@@ -693,15 +693,21 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     ignore metrics.addPullValue(
       "clearing_price",
       labels,
-      func() = U.unwrapUninit(auction).indicativeAssetStats(assetId).clearingPrice
+      func() = U.unwrapUninit(auction).indicativeAssetStats(assetId)
+      |> (switch (_.clearing) { case (#match x) { x.price }; case (_) { 0.0 } })
       |> renderPrice(_),
     );
-    ignore metrics.addPullValue("clearing_volume", labels, func() = U.unwrapUninit(auction).indicativeAssetStats(assetId).clearingVolume);
+    ignore metrics.addPullValue(
+      "clearing_volume",
+      labels,
+      func() = U.unwrapUninit(auction).indicativeAssetStats(assetId)
+      |> (switch (_.clearing) { case (#match x) { x.volume }; case (_) { 0 } }),
+    );
 
     ignore metrics.addPullValue(
       "last_price",
       labels,
-      func() = U.unwrapUninit(auction).getPriceHistory(?assetId).next()
+      func() = U.unwrapUninit(auction).getPriceHistory(?assetId, #desc).next()
       |> (
         switch (_) {
           case (?item) renderPrice(item.4);
@@ -712,7 +718,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     ignore metrics.addPullValue(
       "last_volume",
       labels,
-      func() = U.unwrapUninit(auction).getPriceHistory(?assetId).next()
+      func() = U.unwrapUninit(auction).getPriceHistory(?assetId, #desc).next()
       |> (
         switch (_) {
           case (?item) item.3;
@@ -839,7 +845,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       case (null) null;
       case (?aid) getAssetId(aid);
     };
-    U.unwrapUninit(auction).getDepositHistory(p, assetId)
+    U.unwrapUninit(auction).getDepositHistory(p, assetId, #desc)
     |> U.sliceIter(_, limit, skip)
     |> Array.map<Auction.DepositHistoryItem, DepositHistoryItem>(_, func(x) = (x.0, x.1, Vec.get(assets, x.2).ledgerPrincipal, x.3));
   };
@@ -850,7 +856,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       case (null) null;
       case (?aid) getAssetId(aid);
     };
-    U.unwrapUninit(auction).getTransactionHistory(p, assetId)
+    U.unwrapUninit(auction).getTransactionHistory(p, assetId, #desc)
     |> U.sliceIter(_, limit, skip)
     |> Array.map<Auction.TransactionHistoryItem, TransactionHistoryItem>(_, func(x) = (x.0, x.1, x.2, Vec.get(assets, x.3).ledgerPrincipal, x.4, x.5));
   };
