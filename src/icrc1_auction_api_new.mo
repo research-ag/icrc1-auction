@@ -492,10 +492,10 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     var sessionNumber : ?Nat = null;
     var auctionInProgress : Bool = false;
     for (aid in Vec.keys(assets)) {
+      let asn = a.getAssetSessionNumber(aid);
       switch (sessionNumber) {
-        case (null) sessionNumber := ?a.getAssetSessionNumber(aid);
+        case (null) sessionNumber := ?asn;
         case (?sn) {
-          let asn = a.getAssetSessionNumber(aid);
           if (sn != asn) {
             auctionInProgress := true;
             sessionNumber := ?Nat.min(sn, asn);
