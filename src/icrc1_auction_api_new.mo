@@ -737,10 +737,16 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     ignore metrics.addPullValue(
       "clearing_price",
       labels,
-      func() = U.unwrapUninit(auction).indicativeAssetStats(assetId).clearingPrice
+      func() = U.unwrapUninit(auction).indicativeAssetStats(assetId)
+      |> (switch (_.clearing) { case (#match x) { x.price }; case (_) { 0.0 } })
       |> renderPrice(_),
     );
-    ignore metrics.addPullValue("clearing_volume", labels, func() = U.unwrapUninit(auction).indicativeAssetStats(assetId).clearingVolume);
+    ignore metrics.addPullValue(
+      "clearing_volume",
+      labels,
+      func() = U.unwrapUninit(auction).indicativeAssetStats(assetId)
+      |> (switch (_.clearing) { case (#match x) { x.volume }; case (_) { 0 } }),
+    );
 
     ignore metrics.addPullValue(
       "last_price",

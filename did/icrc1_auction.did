@@ -162,8 +162,16 @@ type CancelOrderResponse = variant {
 };
 
 type IndicativeStats = record {
-  clearingPrice : float64;
-  clearingVolume : nat;
+  clearing : variant {
+    match : record {
+      price : float64;
+      volume : nat;
+    };
+    noMatch : record {
+      minAskPrice : opt float64;
+      maxBidPrice : opt float64;
+    };
+  };
   totalAskVolume : nat;
   totalBidVolume : nat;
 };

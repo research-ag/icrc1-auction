@@ -177,8 +177,16 @@ module {
   public type PlaceOrderAction = Orders.PlaceOrderAction;
 
   public type IndicativeStats = {
-    clearingPrice : Float;
-    clearingVolume : Nat;
+    clearing : {
+      #match : {
+        price : Float;
+        volume : Nat;
+      };
+      #noMatch : {
+        minAskPrice : ?Float;
+        maxBidPrice : ?Float;
+      };
+    };
     totalBidVolume : Nat;
     totalAskVolume : Nat;
   };
@@ -252,16 +260,22 @@ module {
 
     public func indicativeAssetStats(assetId : AssetId) : IndicativeStats {
       let assetInfo = assets.getAsset(assetId);
-      let (clearingPrice, clearingVolume) = clearAuction(
-        orders.asks.createOrderBookService(assetInfo),
-        orders.bids.createOrderBookService(assetInfo),
-      )
-      |> Option.get(_, (0.0, 0));
-      {
-        clearingPrice;
-        clearingVolume;
-        totalBidVolume = assetInfo.bids.totalVolume;
-        totalAskVolume = assetInfo.asks.totalVolume;
+      let asksOrderBook = orders.asks.createOrderBookService(assetInfo);
+      let bidsOrderBook = orders.bids.createOrderBookService(assetInfo);
+      switch (clearAuction(asksOrderBook, bidsOrderBook)) {
+        case (?(price, volume)) ({
+          clearing = #match({ price; volume });
+          totalBidVolume = assetInfo.bids.totalVolume;
+          totalAskVolume = assetInfo.asks.totalVolume;
+        });
+        case (null) ({
+          clearing = #noMatch({
+            maxBidPrice = List.get(bidsOrderBook.queue(), 0) |> Option.map<(T.OrderId, T.Order), Float>(_, func(b) = b.1.price);
+            minAskPrice = List.get(asksOrderBook.queue(), 0) |> Option.map<(T.OrderId, T.Order), Float>(_, func(b) = b.1.price);
+          });
+          totalBidVolume = assetInfo.bids.totalVolume;
+          totalAskVolume = assetInfo.asks.totalVolume;
+        });
       };
     };
     // ============= assets interface =============
