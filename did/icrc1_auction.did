@@ -212,10 +212,13 @@ service : (opt principal, opt principal) -> {
 
   // return values are: timestamp in nanoseconds; type; ICRC1 ledger principal; operation volume;
   queryDepositHistory : (opt Token, nat, nat) -> (vec record { nat64; variant { deposit; withdrawal; withdrawalRollback }; Token; nat }) query;
+  queryDepositHistoryRev : (opt Token, nat, nat) -> (vec record { nat64; variant { deposit; withdrawal; withdrawalRollback }; Token; nat }) query;
   // return values are: timestamp in nanoseconds; number of auction session; transaction type; ICRC1 ledger principal; transaction volume; transaction price
   queryTransactionHistory : (opt Token, nat, nat) -> (vec record { nat64; nat; variant { ask; bid }; Token; nat; float64 }) query;
+  queryTransactionHistoryRev : (opt Token, nat, nat) -> (vec record { nat64; nat; variant { ask; bid }; Token; nat; float64 }) query;
   // return values are: timestamp in nanoseconds; number of auction session; ICRC1 ledger principal; volume sold; price
   queryPriceHistory : (opt Token, nat, nat) -> (vec record { nat64; nat; Token; nat; float64 }) query;
+  queryPriceHistoryRev : (opt Token, nat, nat) -> (vec record { nat64; nat; Token; nat; float64 }) query;
 
   // update
   manageOrders : (opt CancellationArg, PlaceArg, opt nat) -> (ManageOrdersResponse);
