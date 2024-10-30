@@ -433,8 +433,8 @@ module {
       };
     };
 
-    public func getPriceHistory(assetId : ?AssetId, order : { #asc; #desc }) : Iter.Iter<T.PriceHistoryItem> {
-      let iter = assets.history
+    public func getPriceHistory(assetId : ?AssetId, order : { #asc; #desc }, skipEmpty : Bool) : Iter.Iter<T.PriceHistoryItem> {
+      var iter = assets.history
       |> (
         switch (order) {
           case (#asc) Vec.vals(_);
@@ -442,9 +442,13 @@ module {
         }
       );
       switch (assetId) {
-        case (?aid) Iter.filter<T.PriceHistoryItem>(iter, func x = x.2 == aid);
-        case (_) iter;
+        case (?aid) iter := Iter.filter<T.PriceHistoryItem>(iter, func x = x.2 == aid);
+        case (_) {};
       };
+      if (skipEmpty) {
+        iter := Iter.filter<T.PriceHistoryItem>(iter, func x = x.3 > 0);
+      };
+      iter;
     };
     // ============ history interface =============
 

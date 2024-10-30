@@ -373,7 +373,7 @@ export const usePriceHistory = (limit: number, offset: number) => {
   return useQuery(
     ['price-history', offset],
     async () => {
-      return auction.queryPriceHistory([], BigInt(limit), BigInt(offset));
+      return auction.queryPriceHistory([], BigInt(limit), BigInt(offset), false);
     },
     {
       keepPreviousData: true,
