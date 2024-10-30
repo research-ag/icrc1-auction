@@ -7,14 +7,16 @@ import { useIdentity } from '@fe/integration/identity';
 
 import InfoItem from './info-item';
 import {
-  canisterId,
+  defaultAuctionCanisterId,
+  updateAuctionCanisterId,
+  useAuctionCanisterId,
   useIsAdmin,
   useMinimumOrder,
+  useQuoteLedger,
   useSessionsCounter,
   useTokenInfoMap,
-  useQuoteLedger,
 } from '@fe/integration';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Credits from '../credits';
 import TransactionsHistory from '@fe/components/transactions-history';
 import Assets from '../assets';
@@ -40,9 +42,31 @@ const Root = () => {
   const { data: symbols } = useTokenInfoMap();
   const { data: minimumOrder } = useMinimumOrder();
   const getInfo = (ledger: Principal): { symbol: string, decimals: number } => {
-    const mapItem = (symbols || []).find(([p, s]) => p.toText() == ledger.toText());
-    return mapItem ? mapItem[1] : { symbol: '-', decimals: 0 };
+    try {
+      const mapItem = (symbols || []).find(([p, s]) => p.toText() == ledger.toText());
+      return mapItem ? mapItem[1] : { symbol: '-', decimals: 0 };
+    } catch (err) {
+      return { symbol: '-', decimals: 0 };
+    }
   };
+
+  const [auctionIdInput, setAuctionIdInput] = useState<string>(useAuctionCanisterId());
+  const [auctionId, setAuctionId] = useState<string>(useAuctionCanisterId());
+
+  useEffect(() => {
+    try {
+      Principal.fromText(auctionIdInput);
+      updateAuctionCanisterId(auctionIdInput);
+    } catch (err) {
+    }
+  }, [auctionIdInput]);
+
+  useEffect(() => {
+    // refresh UI
+    let id = useAuctionCanisterId();
+    setAuctionIdInput(id);
+    setAuctionId(id);
+  }, [useAuctionCanisterId()]);
 
   const onSeedInput = async (seed: string) => {
     const seedToIdentity: (seed: string) => Identity | null = seed => {
@@ -88,6 +112,12 @@ const Root = () => {
               gap: 0.5,
               marginBottom: 1,
             }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Typography sx={{ fontWeight: 700 }} level="body-xs">Auction backend:</Typography>
+              <input type="text" value={auctionIdInput}
+                     onChange={e => setAuctionIdInput(e.target.value)}></input>
+              <button onClick={e => setAuctionIdInput(defaultAuctionCanisterId)}>Reset</button>
+            </Box>
             <InfoItem label="Sessions counter" content={String(useSessionsCounter().data)} />
             <InfoItem label="Your principal" content={userPrincipal} withCopy />
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -95,7 +125,7 @@ const Root = () => {
               <input type="text" onChange={e => onSeedInput(e.target.value)}></input>
             </Box>
             <InfoItem label="Quote currency ledger" content={quoteLedger?.toText() || ''} withCopy />
-            <InfoItem label="Auction principal" content={canisterId} withCopy />
+            <InfoItem label="Auction principal" content={auctionId} withCopy />
             <InfoItem label="Minimum order size"
                       content={displayWithDecimals(minimumOrder || 0, getInfo(quoteLedger!).decimals, 6)} />
           </Box>
