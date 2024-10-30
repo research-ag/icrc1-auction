@@ -56,6 +56,8 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   stable var tokenHandlersJournal : Vec.Vector<(ledger : Principal, p : Principal, logEvent : TokenHandler.LogEvent)> = Vec.new();
 
+  stable var consolidationTimerEnabled : Bool = true;
+
   type AssetInfo = {
     ledgerPrincipal : Principal;
     minAskVolume : Nat;
@@ -622,6 +624,9 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   };
 
   public query func queryTokenHandlerState(ledger : Principal) : async {
+    ledger : {
+      fee : Nat;
+    };
     balance : {
       deposited : Nat;
       underway : Nat;
@@ -654,7 +659,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     Vec.get(assets, assetId) |> _.handler.notificationsOnPause();
   };
 
-  public query func queryTokenHandlerNotificationLocks(ledger : Principal) : async (Nat, [(Principal, { value : Nat; lock : Bool })]) {
+  public query func queryTokenHandlerDepositRegistry(ledger : Principal) : async (sum : Nat, size : Nat, minimum : Nat, [(Principal, { value : Nat; lock : Bool })]) {
     let ?assetId = getAssetId(ledger) else throw Error.reject("Unknown asset");
     let sharedData = Vec.get(assets, assetId) |> _.handler.share();
     let locks = RBTree.RBTree<Principal, { var value : Nat; var lock : Bool }>(Principal.compare);
@@ -667,7 +672,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
         case (null) break l;
       };
     };
-    (sharedData.0.0.2, Vec.toArray(items));
+    (sharedData.0.0.1, sharedData.0.0.2, sharedData.0.0.3, Vec.toArray(items));
   };
 
   public query func queryTokenHandlerNotificationLock(ledger : Principal, user : Principal) : async ?{
@@ -1024,14 +1029,40 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   };
 
   // A timer for consolidating backlog subaccounts
-  ignore Timer.recurringTimer<system>(
-    #seconds 60,
-    func() : async () {
-      for (asset in Vec.vals(assets)) {
-        await* asset.handler.trigger(10);
-      };
-    },
-  );
+  var cTimer : ?Nat = null;
+  func startConsolidationTimer_<system>() = switch (cTimer) {
+    case (null) {
+      cTimer := ?Timer.recurringTimer<system>(
+        #seconds 60,
+        func() : async () {
+          for (asset in Vec.vals(assets)) {
+            await* asset.handler.trigger(10);
+          };
+        },
+      );
+    };
+    case (?_) {};
+  };
+  func stopConsolidationTimer_<system>() = switch (cTimer) {
+    case (null) {};
+    case (?t) {
+      cTimer := null;
+      Timer.cancelTimer(t);
+    };
+  };
+
+  if (consolidationTimerEnabled) {
+    startConsolidationTimer_<system>();
+  };
+
+  public func setConsolidationTimerEnabled(enabled : Bool) : async () {
+    consolidationTimerEnabled := enabled;
+    if (enabled) {
+      startConsolidationTimer_<system>();
+    } else {
+      stopConsolidationTimer_<system>();
+    };
+  };
 
   // each 2 minutes
   let AUCTION_INTERVAL_SECONDS : Nat64 = 120;
