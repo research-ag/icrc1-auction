@@ -479,12 +479,12 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     |> Array.map<Auction.TransactionHistoryItem, TransactionHistoryItem>(_, func(x) = (x.0, x.1, x.2, Vec.get(assets, x.3).ledgerPrincipal, x.4, x.5));
   };
 
-  public shared query func queryPriceHistory(token : ?Principal, limit : Nat, skip : Nat) : async [PriceHistoryItem] {
+  public shared query func queryPriceHistory(token : ?Principal, limit : Nat, skip : Nat, skipEmpty : Bool) : async [PriceHistoryItem] {
     let assetId : ?Auction.AssetId = switch (token) {
       case (null) null;
       case (?aid) getAssetId(aid);
     };
-    U.unwrapUninit(auction).getPriceHistory(assetId, #desc)
+    U.unwrapUninit(auction).getPriceHistory(assetId, #desc, skipEmpty)
     |> U.sliceIter(_, limit, skip)
     |> Array.map<Auction.PriceHistoryItem, PriceHistoryItem>(_, func(x) = (x.0, x.1, Vec.get(assets, x.2).ledgerPrincipal, x.3, x.4));
   };
@@ -707,7 +707,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     ignore metrics.addPullValue(
       "last_price",
       labels,
-      func() = U.unwrapUninit(auction).getPriceHistory(?assetId, #desc).next()
+      func() = U.unwrapUninit(auction).getPriceHistory(?assetId, #desc, false).next()
       |> (
         switch (_) {
           case (?item) renderPrice(item.4);
@@ -718,7 +718,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     ignore metrics.addPullValue(
       "last_volume",
       labels,
-      func() = U.unwrapUninit(auction).getPriceHistory(?assetId, #desc).next()
+      func() = U.unwrapUninit(auction).getPriceHistory(?assetId, #desc, false).next()
       |> (
         switch (_) {
           case (?item) item.3;
