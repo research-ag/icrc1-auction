@@ -45,17 +45,51 @@ module {
     };
   };
   public type StableDataV7 = T.StableDataV7;
-  public func migrateStableDataV7(data : StableDataV6) : StableDataV7 = {
-    data with
-    assets = Vec.map<T.StableAssetInfoV2, T.StableAssetInfoV3>(
-      data.assets,
-      func x = {
-        x with
-        totalExecutedVolumeBase = 0;
-        totalExecutedVolumeQuote = 0;
-        totalExecutedOrders = 0;
-      },
-    );
+  public func migrateStableDataV7(data : StableDataV6) : StableDataV7 {
+    let usersTree : RBTree.RBTree<Principal, T.StableUserInfoV5> = RBTree.RBTree(Principal.compare);
+    for ((p, x) in RBTree.iter(data.users.registry.tree, #bwd)) {
+      var filteredHistory : List.List<T.DepositHistoryItem> = null;
+      var removeNextWithdrawals : Nat = 0;
+      for ((x, i) in Vec.itemsRev(x.depositHistory)) {
+        switch (x.1) {
+          case (#withdrawalRollback) {
+            removeNextWithdrawals += 1;
+          };
+          case (#withdrawal) {
+            if (removeNextWithdrawals > 0) {
+              removeNextWithdrawals -= 1;
+            } else {
+              filteredHistory := List.push<T.DepositHistoryItem>((x.0, #withdrawal, x.2, x.3), filteredHistory);
+            };
+          };
+          case (#deposit) {
+            filteredHistory := List.push<T.DepositHistoryItem>((x.0, #deposit, x.2, x.3), filteredHistory);
+          };
+        };
+      };
+      let depositHistory = Vec.new<T.DepositHistoryItem>();
+      for (x in List.toIter(filteredHistory)) {
+        Vec.add(depositHistory, x);
+      };
+      usersTree.put(p, { x with depositHistory });
+    };
+    {
+      data with
+      users = {
+        data.users with registry = {
+          data.users.registry with tree = usersTree.share()
+        }
+      };
+      assets = Vec.map<T.StableAssetInfoV2, T.StableAssetInfoV3>(
+        data.assets,
+        func x = {
+          x with
+          totalExecutedVolumeBase = 0;
+          totalExecutedVolumeQuote = 0;
+          totalExecutedOrders = 0;
+        },
+      );
+    };
   };
 
   public func defaultStableDataV6() : T.StableDataV6 = {
@@ -79,7 +113,7 @@ module {
   public func migrateStableDataV6(data : StableDataV5) : StableDataV6 {
     let usersTree : RBTree.RBTree<Principal, T.StableUserInfoV4> = RBTree.RBTree(Principal.compare);
     for ((p, x) in RBTree.iter(data.users.registry.tree, #bwd)) {
-      usersTree.put(p, { x with transactionHistory = x.history; depositHistory = Vec.new<T.DepositHistoryItem>() });
+      usersTree.put(p, { x with transactionHistory = x.history; depositHistory = Vec.new<(timestamp : Nat64, kind : { #deposit; #withdrawal; #withdrawalRollback }, assetId : AssetId, volume : Nat)>() });
     };
     {
       data with
@@ -329,27 +363,22 @@ module {
       credits.appendCredit(acc, amount);
     };
 
-    public func deductCredit(p : Principal, assetId : AssetId, amount : Nat) : R.Result<(Nat, rollback : () -> ()), { #NoCredit }> {
+    public func deductCredit(p : Principal, assetId : AssetId, amount : Nat) : R.Result<(Nat, rollback : () -> (), doneCallback : () -> ()), { #NoCredit }> {
       let ?user = users.get(p) else return #err(#NoCredit);
       let ?creditAcc = credits.getAccount(user, assetId) else return #err(#NoCredit);
       switch (credits.deductCredit(creditAcc, amount)) {
         case (true, balance) {
-          Vec.add<T.DepositHistoryItem>(user.depositHistory, (Prim.time(), #withdrawal, assetId, amount));
           if (balance == 0 and credits.deleteIfEmpty(user, assetId)) {
             #ok(
               0,
-              func() {
-                ignore credits.getOrCreate(user, assetId) |> credits.appendCredit(_, amount);
-                Vec.add<T.DepositHistoryItem>(user.depositHistory, (Prim.time(), #withdrawalRollback, assetId, amount));
-              },
+              func() = ignore credits.getOrCreate(user, assetId) |> credits.appendCredit(_, amount),
+              func() = Vec.add<T.DepositHistoryItem>(user.depositHistory, (Prim.time(), #withdrawal, assetId, amount)),
             );
           } else {
             #ok(
               balance,
-              func() {
-                ignore credits.appendCredit(creditAcc, amount);
-                Vec.add<T.DepositHistoryItem>(user.depositHistory, (Prim.time(), #withdrawalRollback, assetId, amount));
-              },
+              func() = ignore credits.appendCredit(creditAcc, amount),
+              func() = Vec.add<T.DepositHistoryItem>(user.depositHistory, (Prim.time(), #withdrawal, assetId, amount)),
             );
           };
         };
@@ -505,8 +534,8 @@ module {
       users = {
         registry = {
           tree = (
-            func() : RBTree.Tree<Principal, T.StableUserInfoV4> {
-              let stableUsers = RBTree.RBTree<Principal, T.StableUserInfoV4>(Principal.compare);
+            func() : RBTree.Tree<Principal, T.StableUserInfoV5> {
+              let stableUsers = RBTree.RBTree<Principal, T.StableUserInfoV5>(Principal.compare);
               for ((p, u) in users.users.entries()) {
                 stableUsers.put(
                   p,
@@ -559,7 +588,7 @@ module {
       assets.history := data.sessions.history;
 
       users.usersAmount := data.users.registry.size;
-      let ud = RBTree.RBTree<Principal, T.StableUserInfoV4>(Principal.compare);
+      let ud = RBTree.RBTree<Principal, T.StableUserInfoV5>(Principal.compare);
       ud.unshare(data.users.registry.tree);
       for ((p, u) in ud.entries()) {
         let userData : UserInfo = {

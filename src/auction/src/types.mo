@@ -58,11 +58,11 @@ module {
   };
 
   public type PriceHistoryItem = (timestamp : Nat64, sessionNumber : Nat, assetId : AssetId, volume : Nat, price : Float);
-  public type DepositHistoryItem = (timestamp : Nat64, kind : { #deposit; #withdrawal; #withdrawalRollback }, assetId : AssetId, volume : Nat);
+  public type DepositHistoryItem = (timestamp : Nat64, kind : { #deposit; #withdrawal }, assetId : AssetId, volume : Nat);
   public type TransactionHistoryItem = (timestamp : Nat64, sessionNumber : Nat, kind : { #ask; #bid }, assetId : AssetId, volume : Nat, price : Float);
 
   // stable data types
-  public type StableDataV7 = StableDataV5_6_7<StableAssetInfoV3, StableUserInfoV4, { globalCounter : Nat }, { surplus : Nat }>;
+  public type StableDataV7 = StableDataV5_6_7<StableAssetInfoV3, StableUserInfoV5, { globalCounter : Nat }, { surplus : Nat }>;
 
   // old stable data types
   public type StableDataV6 = StableDataV5_6_7<StableAssetInfoV2, StableUserInfoV4, { globalCounter : Nat; fulfilledCounter : Nat }, { totalProcessedVolume : Nat; surplus : Nat }>;
@@ -139,11 +139,18 @@ module {
     lastRate : Float;
     lastProcessingInstructions : Nat;
   };
-  public type StableUserInfoV4 = {
+  public type StableUserInfoV5 = {
     asks : UserOrderBook_<StableOrderDataV2>;
     bids : UserOrderBook_<StableOrderDataV2>;
     credits : AssocList.AssocList<AssetId, Account>;
     depositHistory : Vec.Vector<DepositHistoryItem>;
+    transactionHistory : Vec.Vector<TransactionHistoryItem>;
+  };
+  public type StableUserInfoV4 = {
+    asks : UserOrderBook_<StableOrderDataV2>;
+    bids : UserOrderBook_<StableOrderDataV2>;
+    credits : AssocList.AssocList<AssetId, Account>;
+    depositHistory : Vec.Vector<(timestamp : Nat64, kind : { #deposit; #withdrawal; #withdrawalRollback }, assetId : AssetId, volume : Nat)>;
     transactionHistory : Vec.Vector<TransactionHistoryItem>;
   };
   public type StableUserInfoV3 = {
