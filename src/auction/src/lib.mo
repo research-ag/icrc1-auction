@@ -27,6 +27,37 @@ import T "./types";
 
 module {
 
+  public func defaultStableDataV7() : T.StableDataV7 = {
+    assets = Vec.new();
+    orders = { globalCounter = 0 };
+    quoteToken = { surplus = 0 };
+    sessions = { counter = 0; history = Vec.new<T.PriceHistoryItem>() };
+    users = {
+      registry = {
+        tree = #leaf;
+        size = 0;
+      };
+      participantsArchive = {
+        tree = #leaf;
+        size = 0;
+      };
+      accountsAmount = 0;
+    };
+  };
+  public type StableDataV7 = T.StableDataV7;
+  public func migrateStableDataV7(data : StableDataV6) : StableDataV7 = {
+    data with
+    assets = Vec.map<T.StableAssetInfoV2, T.StableAssetInfoV3>(
+      data.assets,
+      func x = {
+        x with
+        totalExecutedVolumeBase = 0;
+        totalExecutedVolumeQuote = 0;
+        totalExecutedOrders = 0;
+      },
+    );
+  };
+
   public func defaultStableDataV6() : T.StableDataV6 = {
     assets = Vec.new();
     orders = { globalCounter = 0; fulfilledCounter = 0 };
@@ -453,20 +484,21 @@ module {
     // ============ history interface =============
 
     // ============= system interface =============
-    public func share() : T.StableDataV6 = {
-      assets = Vec.map<T.AssetInfo, T.StableAssetInfoV2>(
+    public func share() : T.StableDataV7 = {
+      assets = Vec.map<T.AssetInfo, T.StableAssetInfoV3>(
         assets.assets,
         func(x) = {
           lastRate = x.lastRate;
           lastProcessingInstructions = x.lastProcessingInstructions;
+          totalExecutedVolumeBase = x.totalExecutedVolumeBase;
+          totalExecutedVolumeQuote = x.totalExecutedVolumeQuote;
+          totalExecutedOrders = x.totalExecutedOrders;
         },
       );
       orders = {
         globalCounter = orders.ordersCounter;
-        fulfilledCounter = orders.fulfilledCounter;
       };
       quoteToken = {
-        totalProcessedVolume = orders.totalQuoteVolumeProcessed;
         surplus = credits.quoteSurplus;
       };
       sessions = { counter = sessionsCounter; history = assets.history };
@@ -504,22 +536,23 @@ module {
       };
     };
 
-    public func unshare(data : T.StableDataV6) {
-      assets.assets := Vec.map<T.StableAssetInfoV2, T.AssetInfo>(
+    public func unshare(data : T.StableDataV7) {
+      assets.assets := Vec.map<T.StableAssetInfoV3, T.AssetInfo>(
         data.assets,
         func(x) = {
           asks = { var queue = null; var size = 0; var totalVolume = 0 };
           bids = { var queue = null; var size = 0; var totalVolume = 0 };
           var lastRate = x.lastRate;
           var lastProcessingInstructions = x.lastProcessingInstructions;
+          var totalExecutedVolumeBase = x.totalExecutedVolumeBase;
+          var totalExecutedVolumeQuote = x.totalExecutedVolumeQuote;
+          var totalExecutedOrders = x.totalExecutedOrders;
           var sessionsCounter = data.sessions.counter;
         },
       );
 
       orders.ordersCounter := data.orders.globalCounter;
-      orders.fulfilledCounter := data.orders.fulfilledCounter;
 
-      orders.totalQuoteVolumeProcessed := data.quoteToken.totalProcessedVolume;
       credits.quoteSurplus := data.quoteToken.surplus;
 
       sessionsCounter := data.sessions.counter;
