@@ -229,6 +229,23 @@ export const useListCredits = () => {
   );
 };
 
+export const useLoyaltyCredit = () => {
+  const { auction } = useAuction();
+  const { enqueueSnackbar } = useSnackbar();
+  return useQuery(
+    'loyaltyCredit',
+    async () => {
+      return auction.queryLoyaltyCredit();
+    },
+    {
+      onError: err => {
+        enqueueSnackbar(`Failed to fetch loyalty credit: ${err}`, { variant: 'error' });
+        useQueryClient().removeQueries('loyaltyCredit');
+      },
+    },
+  );
+};
+
 export const useNotify = () => {
   const { auction } = useAuction();
   const queryClient = useQueryClient();

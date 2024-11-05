@@ -72,7 +72,7 @@ module {
     minQuoteVolume : Nat,
     minAskVolume : (T.AssetId, T.AssetInfo) -> Int,
     kind_ : { #ask; #bid },
-    fulfilOrderCallback : (assetInfo : T.AssetInfo, kind : { #ask; #bid }, quoteVolume : Nat, baseVolume : Nat, isPartial : Bool) -> (),
+    fulfilOrderCallback : (assetInfo : T.AssetInfo, userInfo : T.UserInfo, kind : { #ask; #bid }, quoteVolume : Nat, baseVolume : Nat, isPartial : Bool) -> (),
   ) = self {
 
     public func createOrderBookService(assetInfo : T.AssetInfo) : OrderBookService = OrderBookService(self, assetInfo);
@@ -185,7 +185,7 @@ module {
         case (#bid) srcVol;
       };
 
-      fulfilOrderCallback(assetInfo, kind, quoteVolume, baseVolume, isPartial);
+      fulfilOrderCallback(assetInfo, order.userInfoRef, kind, quoteVolume, baseVolume, isPartial);
 
       (baseVolume, quoteVolume);
     };
@@ -244,9 +244,10 @@ module {
     // a counter of ever added order
     public var ordersCounter = 0;
 
-    let fulfilCB = func(assetInfo : T.AssetInfo, kind : { #ask; #bid }, quoteVolume : Nat, baseVolume : Nat, isPartial : Bool) {
+    let fulfilCB = func(assetInfo : T.AssetInfo, userInfo : T.UserInfo, kind : { #ask; #bid }, quoteVolume : Nat, baseVolume : Nat, isPartial : Bool) {
       if (not isPartial) {
         assetInfo.totalExecutedOrders += 1;
+        userInfo.loyaltyPoints += 1;
       };
       switch (kind) {
         case (#ask) assetInfo.totalExecutedVolumeQuote += quoteVolume;

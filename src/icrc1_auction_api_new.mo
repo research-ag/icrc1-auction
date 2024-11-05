@@ -425,6 +425,10 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     |> Array.tabulate<(Principal, Auction.CreditInfo, Nat)>(_.size(), func(i) = (getIcrc1Ledger(_ [i].0), _ [i].1, a.getAssetSessionNumber(_ [i].0)));
   };
 
+  public shared query ({ caller }) func queryLoyaltyCredit() : async Nat {
+    U.unwrapUninit(auction).getLoyaltyCredit(caller);
+  };
+
   private func getIcrc1Ledger(assetId : Nat) : Principal = Vec.get(assets, assetId).ledgerPrincipal;
   private func getAssetId(icrc1Ledger : Principal) : ?Nat {
     for ((assetInfo, i) in Vec.items(assets)) {

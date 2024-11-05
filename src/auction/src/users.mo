@@ -48,6 +48,7 @@ module {
           asks = { var map = null };
           bids = { var map = null };
           var credits = null;
+          var loyaltyPoints = 0;
           var depositHistory = Vec.new<T.DepositHistoryItem>();
           var transactionHistory = Vec.new<T.TransactionHistoryItem>();
         };

@@ -71,7 +71,7 @@ module {
       for (x in List.toIter(filteredHistory)) {
         Vec.add(depositHistory, x);
       };
-      usersTree.put(p, { x with depositHistory });
+      usersTree.put(p, { x with depositHistory; loyaltyPoints = 0 });
     };
     {
       data with
@@ -356,6 +356,11 @@ module {
       case (?ui) credits.infoAll(ui);
     };
 
+    public func getLoyaltyCredit(p : Principal) : Nat = switch (users.get(p)) {
+      case (null) 0;
+      case (?ui) ui.loyaltyPoints;
+    };
+
     public func appendCredit(p : Principal, assetId : AssetId, amount : Nat) : Nat {
       let userInfo = users.getOrCreate(p);
       let acc = credits.getOrCreate(userInfo, assetId);
@@ -547,6 +552,7 @@ module {
                       var map = List.map<(T.OrderId, T.Order), (T.OrderId, T.StableOrderDataV2)>(u.bids.map, func(oid, o) = (oid, { assetId = o.assetId; price = o.price; user = o.user; volume = o.volume }));
                     };
                     credits = u.credits;
+                    loyaltyPoints = u.loyaltyPoints;
                     depositHistory = u.depositHistory;
                     transactionHistory = u.transactionHistory;
                   },
@@ -599,6 +605,7 @@ module {
             var map = null;
           };
           var credits = u.credits;
+          var loyaltyPoints = u.loyaltyPoints;
           var depositHistory = u.depositHistory;
           var transactionHistory = u.transactionHistory;
         };
