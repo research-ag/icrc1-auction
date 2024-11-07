@@ -43,6 +43,9 @@ module {
     bids : AssetOrderBook;
     var lastRate : Float;
     var lastProcessingInstructions : Nat;
+    var totalExecutedVolumeBase : Nat;
+    var totalExecutedVolumeQuote : Nat;
+    var totalExecutedOrders : Nat;
     var sessionsCounter : Nat;
   };
 
@@ -50,6 +53,7 @@ module {
     asks : UserOrderBook;
     bids : UserOrderBook;
     var credits : AssocList.AssocList<AssetId, Account>;
+    var loyaltyPoints : Nat;
     var depositHistory : Vec.Vector<DepositHistoryItem>;
     var transactionHistory : Vec.Vector<TransactionHistoryItem>;
   };
@@ -59,20 +63,15 @@ module {
   public type TransactionHistoryItem = (timestamp : Nat64, sessionNumber : Nat, kind : { #ask; #bid }, assetId : AssetId, volume : Nat, price : Float);
 
   // stable data types
-  public type StableDataV6 = StableDataV5_6<StableUserInfoV4>;
+  public type StableDataV7 = StableDataV5_6_7<StableAssetInfoV3, StableUserInfoV5, { globalCounter : Nat }, { surplus : Nat }>;
 
   // old stable data types
-  public type StableDataV5 = StableDataV5_6<StableUserInfoV3>;
-  public type StableDataV5_6<SUI> = {
-    assets : Vec.Vector<StableAssetInfoV2>;
-    orders : {
-      globalCounter : Nat;
-      fulfilledCounter : Nat;
-    };
-    quoteToken : {
-      totalProcessedVolume : Nat;
-      surplus : Nat;
-    };
+  public type StableDataV6 = StableDataV5_6_7<StableAssetInfoV2, StableUserInfoV4, { globalCounter : Nat; fulfilledCounter : Nat }, { totalProcessedVolume : Nat; surplus : Nat }>;
+  public type StableDataV5 = StableDataV5_6_7<StableAssetInfoV2, StableUserInfoV3, { globalCounter : Nat; fulfilledCounter : Nat }, { totalProcessedVolume : Nat; surplus : Nat }>;
+  public type StableDataV5_6_7<SAI, SUI, O, Q> = {
+    assets : Vec.Vector<SAI>;
+    orders : O;
+    quoteToken : Q;
     sessions : {
       counter : Nat;
       history : Vec.Vector<PriceHistoryItem>;
@@ -130,9 +129,24 @@ module {
     price : Float;
     volume : Nat;
   };
+  public type StableAssetInfoV3 = {
+    lastRate : Float;
+    lastProcessingInstructions : Nat;
+    totalExecutedVolumeBase : Nat;
+    totalExecutedVolumeQuote : Nat;
+    totalExecutedOrders : Nat;
+  };
   public type StableAssetInfoV2 = {
     lastRate : Float;
     lastProcessingInstructions : Nat;
+  };
+  public type StableUserInfoV5 = {
+    asks : UserOrderBook_<StableOrderDataV2>;
+    bids : UserOrderBook_<StableOrderDataV2>;
+    credits : AssocList.AssocList<AssetId, Account>;
+    loyaltyPoints : Nat;
+    depositHistory : Vec.Vector<DepositHistoryItem>;
+    transactionHistory : Vec.Vector<TransactionHistoryItem>;
   };
   public type StableUserInfoV4 = {
     asks : UserOrderBook_<StableOrderDataV2>;

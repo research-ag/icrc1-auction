@@ -11,6 +11,7 @@ import {
   updateAuctionCanisterId,
   useAuctionCanisterId,
   useIsAdmin,
+  usePoints,
   useMinimumOrder,
   useQuoteLedger,
   useSessionsCounter,
@@ -41,6 +42,7 @@ const Root = () => {
   const { data: quoteLedger } = useQuoteLedger();
   const { data: symbols } = useTokenInfoMap();
   const { data: minimumOrder } = useMinimumOrder();
+  const { data: points } = usePoints();
   const getInfo = (ledger: Principal): { symbol: string, decimals: number } => {
     try {
       const mapItem = (symbols || []).find(([p, s]) => p.toText() == ledger.toText());
@@ -128,6 +130,8 @@ const Root = () => {
             <InfoItem label="Auction principal" content={auctionId} withCopy />
             <InfoItem label="Minimum order size"
                       content={displayWithDecimals(minimumOrder || 0, getInfo(quoteLedger!).decimals, 6)} />
+            <InfoItem label="Points"
+                      content={'' + Number(points)} />
           </Box>
         </Box>
         <Box

@@ -27,6 +27,48 @@ import T "./types";
 
 module {
 
+  public func defaultStableDataV7() : T.StableDataV7 = {
+    assets = Vec.new();
+    orders = { globalCounter = 0 };
+    quoteToken = { surplus = 0 };
+    sessions = { counter = 0; history = Vec.new<T.PriceHistoryItem>() };
+    users = {
+      registry = {
+        tree = #leaf;
+        size = 0;
+      };
+      participantsArchive = {
+        tree = #leaf;
+        size = 0;
+      };
+      accountsAmount = 0;
+    };
+  };
+  public type StableDataV7 = T.StableDataV7;
+  public func migrateStableDataV7(data : StableDataV6) : StableDataV7 {
+    let usersTree : RBTree.RBTree<Principal, T.StableUserInfoV5> = RBTree.RBTree(Principal.compare);
+    for ((p, x) in RBTree.iter(data.users.registry.tree, #bwd)) {
+      usersTree.put(p, { x with loyaltyPoints = 0 });
+    };
+    {
+      data with
+      users = {
+        data.users with registry = {
+          data.users.registry with tree = usersTree.share()
+        }
+      };
+      assets = Vec.map<T.StableAssetInfoV2, T.StableAssetInfoV3>(
+        data.assets,
+        func x = {
+          x with
+          totalExecutedVolumeBase = 0;
+          totalExecutedVolumeQuote = 0;
+          totalExecutedOrders = 0;
+        },
+      );
+    };
+  };
+
   public func defaultStableDataV6() : T.StableDataV6 = {
     assets = Vec.new();
     orders = { globalCounter = 0; fulfilledCounter = 0 };
@@ -291,6 +333,11 @@ module {
       case (?ui) credits.infoAll(ui);
     };
 
+    public func getLoyaltyPoints(p : Principal) : Nat = switch (users.get(p)) {
+      case (null) 0;
+      case (?ui) ui.loyaltyPoints;
+    };
+
     public func appendCredit(p : Principal, assetId : AssetId, amount : Nat) : Nat {
       let userInfo = users.getOrCreate(p);
       let acc = credits.getOrCreate(userInfo, assetId);
@@ -298,27 +345,22 @@ module {
       credits.appendCredit(acc, amount);
     };
 
-    public func deductCredit(p : Principal, assetId : AssetId, amount : Nat) : R.Result<(Nat, rollback : () -> ()), { #NoCredit }> {
+    public func deductCredit(p : Principal, assetId : AssetId, amount : Nat) : R.Result<(Nat, rollback : () -> (), doneCallback : () -> ()), { #NoCredit }> {
       let ?user = users.get(p) else return #err(#NoCredit);
       let ?creditAcc = credits.getAccount(user, assetId) else return #err(#NoCredit);
       switch (credits.deductCredit(creditAcc, amount)) {
         case (true, balance) {
-          Vec.add<T.DepositHistoryItem>(user.depositHistory, (Prim.time(), #withdrawal, assetId, amount));
           if (balance == 0 and credits.deleteIfEmpty(user, assetId)) {
             #ok(
               0,
-              func() {
-                ignore credits.getOrCreate(user, assetId) |> credits.appendCredit(_, amount);
-                Vec.add<T.DepositHistoryItem>(user.depositHistory, (Prim.time(), #withdrawalRollback, assetId, amount));
-              },
+              func() = ignore credits.getOrCreate(user, assetId) |> credits.appendCredit(_, amount),
+              func() = Vec.add<T.DepositHistoryItem>(user.depositHistory, (Prim.time(), #withdrawal, assetId, amount)),
             );
           } else {
             #ok(
               balance,
-              func() {
-                ignore credits.appendCredit(creditAcc, amount);
-                Vec.add<T.DepositHistoryItem>(user.depositHistory, (Prim.time(), #withdrawalRollback, assetId, amount));
-              },
+              func() = ignore credits.appendCredit(creditAcc, amount),
+              func() = Vec.add<T.DepositHistoryItem>(user.depositHistory, (Prim.time(), #withdrawal, assetId, amount)),
             );
           };
         };
@@ -453,28 +495,29 @@ module {
     // ============ history interface =============
 
     // ============= system interface =============
-    public func share() : T.StableDataV6 = {
-      assets = Vec.map<T.AssetInfo, T.StableAssetInfoV2>(
+    public func share() : T.StableDataV7 = {
+      assets = Vec.map<T.AssetInfo, T.StableAssetInfoV3>(
         assets.assets,
         func(x) = {
           lastRate = x.lastRate;
           lastProcessingInstructions = x.lastProcessingInstructions;
+          totalExecutedVolumeBase = x.totalExecutedVolumeBase;
+          totalExecutedVolumeQuote = x.totalExecutedVolumeQuote;
+          totalExecutedOrders = x.totalExecutedOrders;
         },
       );
       orders = {
         globalCounter = orders.ordersCounter;
-        fulfilledCounter = orders.fulfilledCounter;
       };
       quoteToken = {
-        totalProcessedVolume = orders.totalQuoteVolumeProcessed;
         surplus = credits.quoteSurplus;
       };
       sessions = { counter = sessionsCounter; history = assets.history };
       users = {
         registry = {
           tree = (
-            func() : RBTree.Tree<Principal, T.StableUserInfoV4> {
-              let stableUsers = RBTree.RBTree<Principal, T.StableUserInfoV4>(Principal.compare);
+            func() : RBTree.Tree<Principal, T.StableUserInfoV5> {
+              let stableUsers = RBTree.RBTree<Principal, T.StableUserInfoV5>(Principal.compare);
               for ((p, u) in users.users.entries()) {
                 stableUsers.put(
                   p,
@@ -486,6 +529,7 @@ module {
                       var map = List.map<(T.OrderId, T.Order), (T.OrderId, T.StableOrderDataV2)>(u.bids.map, func(oid, o) = (oid, { assetId = o.assetId; price = o.price; user = o.user; volume = o.volume }));
                     };
                     credits = u.credits;
+                    loyaltyPoints = u.loyaltyPoints;
                     depositHistory = u.depositHistory;
                     transactionHistory = u.transactionHistory;
                   },
@@ -504,29 +548,30 @@ module {
       };
     };
 
-    public func unshare(data : T.StableDataV6) {
-      assets.assets := Vec.map<T.StableAssetInfoV2, T.AssetInfo>(
+    public func unshare(data : T.StableDataV7) {
+      assets.assets := Vec.map<T.StableAssetInfoV3, T.AssetInfo>(
         data.assets,
         func(x) = {
           asks = { var queue = null; var size = 0; var totalVolume = 0 };
           bids = { var queue = null; var size = 0; var totalVolume = 0 };
           var lastRate = x.lastRate;
           var lastProcessingInstructions = x.lastProcessingInstructions;
+          var totalExecutedVolumeBase = x.totalExecutedVolumeBase;
+          var totalExecutedVolumeQuote = x.totalExecutedVolumeQuote;
+          var totalExecutedOrders = x.totalExecutedOrders;
           var sessionsCounter = data.sessions.counter;
         },
       );
 
       orders.ordersCounter := data.orders.globalCounter;
-      orders.fulfilledCounter := data.orders.fulfilledCounter;
 
-      orders.totalQuoteVolumeProcessed := data.quoteToken.totalProcessedVolume;
       credits.quoteSurplus := data.quoteToken.surplus;
 
       sessionsCounter := data.sessions.counter;
       assets.history := data.sessions.history;
 
       users.usersAmount := data.users.registry.size;
-      let ud = RBTree.RBTree<Principal, T.StableUserInfoV4>(Principal.compare);
+      let ud = RBTree.RBTree<Principal, T.StableUserInfoV5>(Principal.compare);
       ud.unshare(data.users.registry.tree);
       for ((p, u) in ud.entries()) {
         let userData : UserInfo = {
@@ -537,6 +582,7 @@ module {
             var map = null;
           };
           var credits = u.credits;
+          var loyaltyPoints = u.loyaltyPoints;
           var depositHistory = u.depositHistory;
           var transactionHistory = u.transactionHistory;
         };

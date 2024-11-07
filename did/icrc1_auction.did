@@ -215,6 +215,7 @@ service : (opt principal, opt principal) -> {
   queryAsks : () -> (vec record { OrderId; Order; nat }) query;
   queryCredit : (Token) -> (record { total : nat; available : nat; locked : nat }, nat) query;
   queryCredits : () -> (vec record { principal; record { total : nat; available : nat; locked : nat }; nat }) query;
+  queryPoints : () -> (nat) query;
 
   // Providing token in the arguments to history queries will filter results by token
 

@@ -60,6 +60,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   stable var auctionDataV4 : Auction.StableDataV4 = Auction.migrateStableDataV4(auctionDataV3);
   stable var auctionDataV5 : Auction.StableDataV5 = Auction.migrateStableDataV5(auctionDataV4);
   stable var auctionDataV6 : Auction.StableDataV6 = Auction.migrateStableDataV6(auctionDataV5);
+  stable var auctionDataV7 : Auction.StableDataV7 = Auction.migrateStableDataV7(auctionDataV6);
 
   stable var ptData : PT.StableData = null;
 
@@ -277,13 +278,16 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     withdrawCounter.add(1);
     let ?assetId = getAssetId(args.token) else throw Error.reject("Unknown token");
     let handler = Vec.get(assets, assetId).handler;
-    let rollbackCredit = switch (U.unwrapUninit(auction).deductCredit(caller, assetId, args.amount)) {
+    let (rollbackCredit, doneCallback) = switch (U.unwrapUninit(auction).deductCredit(caller, assetId, args.amount)) {
       case (#err _) return #Err(#InsufficientCredit({}));
-      case (#ok(_, r)) r;
+      case (#ok(_, r, d)) (r, d);
     };
     let res = await* handler.withdrawFromPool(args.to, args.amount, args.expected_fee);
     switch (res) {
-      case (#ok(txid, amount)) #Ok({ txid; amount });
+      case (#ok(txid, amount)) {
+        doneCallback();
+        #Ok({ txid; amount });
+      };
       case (#err err) {
         rollbackCredit();
         switch (err) {
@@ -336,7 +340,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
         performanceCounter = Prim.performanceCounter;
       },
     );
-    a.unshare(auctionDataV6);
+    a.unshare(auctionDataV7);
     auction := ?a;
     nextSessionTimestamp := Nat64.toNat(AUCTION_INTERVAL_SECONDS * (1 + Prim.time() / (AUCTION_INTERVAL_SECONDS * 1_000_000_000)));
 
@@ -351,7 +355,6 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     ignore metrics.addPullValue("accounts_count", "", func() = a.credits.nAccounts());
     ignore metrics.addPullValue("quote_surplus", "", func() = a.credits.quoteSurplus);
     ignore metrics.addPullValue("next_session_timestamp", "", func() = nextSessionTimestamp);
-    ignore metrics.addPullValue("total_executed_volume", "", func() = a.orders.totalQuoteVolumeProcessed);
     ignore metrics.addPullValue("total_unique_participants", "", func() = a.users.participantsArchiveSize);
     ignore metrics.addPullValue("active_unique_participants", "", func() = a.users.nUsersWithActiveOrders());
     ignore metrics.addPullValue(
@@ -369,7 +372,6 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       },
     );
     ignore metrics.addPullValue("total_orders", "", func() = a.orders.ordersCounter);
-    ignore metrics.addPullValue("fulfilled_orders", "", func() = a.orders.fulfilledCounter);
     ignore metrics.addPullValue("auctions_run_count", "", func() = a.assets.historyLength());
     ignore metrics.addPullValue("trading_pairs_count", "", func() = a.assets.nAssets() - 1);
 
@@ -419,6 +421,10 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     let a = U.unwrapUninit(auction);
     a.getCredits(caller)
     |> Array.tabulate<(Principal, Auction.CreditInfo, Nat)>(_.size(), func(i) = (getIcrc1Ledger(_ [i].0), _ [i].1, a.getAssetSessionNumber(_ [i].0)));
+  };
+
+  public shared query ({ caller }) func queryPoints() : async Nat {
+    U.unwrapUninit(auction).getLoyaltyPoints(caller);
   };
 
   private func getIcrc1Ledger(assetId : Nat) : Principal = Vec.get(assets, assetId).ledgerPrincipal;
@@ -689,6 +695,9 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     ignore metrics.addPullValue("bids_count", labels, func() = asset.bids.size);
     ignore metrics.addPullValue("bids_volume", labels, func() = asset.bids.totalVolume);
     ignore metrics.addPullValue("processing_instructions", labels, func() = asset.lastProcessingInstructions);
+    ignore metrics.addPullValue("total_executed_volume_base", labels, func() = asset.totalExecutedVolumeBase);
+    ignore metrics.addPullValue("total_executed_volume_quote", labels, func() = asset.totalExecutedVolumeQuote);
+    ignore metrics.addPullValue("total_executed_orders", labels, func() = asset.totalExecutedOrders);
 
     ignore metrics.addPullValue(
       "clearing_price",
@@ -951,7 +960,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
             symbol = x.symbol;
           },
         );
-        auctionDataV6 := a.share();
+        auctionDataV7 := a.share();
         ptData := metrics.share();
       };
       case (null) {};

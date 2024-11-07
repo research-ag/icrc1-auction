@@ -229,6 +229,23 @@ export const useListCredits = () => {
   );
 };
 
+export const usePoints = () => {
+  const { auction } = useAuction();
+  const { enqueueSnackbar } = useSnackbar();
+  return useQuery(
+    'points',
+    async () => {
+      return auction.queryPoints();
+    },
+    {
+      onError: err => {
+        enqueueSnackbar(`Failed to fetch points: ${err}`, { variant: 'error' });
+        useQueryClient().removeQueries('points');
+      },
+    },
+  );
+};
+
 export const useNotify = () => {
   const { auction } = useAuction();
   const queryClient = useQueryClient();
