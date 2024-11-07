@@ -229,18 +229,18 @@ export const useListCredits = () => {
   );
 };
 
-export const useLoyaltyCredit = () => {
+export const usePoints = () => {
   const { auction } = useAuction();
   const { enqueueSnackbar } = useSnackbar();
   return useQuery(
-    'loyaltyCredit',
+    'points',
     async () => {
-      return auction.queryLoyaltyCredit();
+      return auction.queryPoints();
     },
     {
       onError: err => {
-        enqueueSnackbar(`Failed to fetch loyalty credit: ${err}`, { variant: 'error' });
-        useQueryClient().removeQueries('loyaltyCredit');
+        enqueueSnackbar(`Failed to fetch points: ${err}`, { variant: 'error' });
+        useQueryClient().removeQueries('points');
       },
     },
   );

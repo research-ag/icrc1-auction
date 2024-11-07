@@ -356,7 +356,7 @@ module {
       case (?ui) credits.infoAll(ui);
     };
 
-    public func getLoyaltyCredit(p : Principal) : Nat = switch (users.get(p)) {
+    public func getLoyaltyPoints(p : Principal) : Nat = switch (users.get(p)) {
       case (null) 0;
       case (?ui) ui.loyaltyPoints;
     };
