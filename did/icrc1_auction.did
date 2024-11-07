@@ -220,7 +220,7 @@ service : (opt principal, opt principal) -> {
   // Providing token in the arguments to history queries will filter results by token
 
   // return values are: timestamp in nanoseconds; type; ICRC1 ledger principal; operation volume;
-  queryDepositHistory : (opt Token, nat, nat) -> (vec record { nat64; variant { deposit; withdrawal }; Token; nat }) query;
+  queryDepositHistory : (opt Token, nat, nat) -> (vec record { nat64; variant { deposit; withdrawal; withdrawalRollback }; Token; nat }) query;
   // return values are: timestamp in nanoseconds; number of auction session; transaction type; ICRC1 ledger principal; transaction volume; transaction price
   queryTransactionHistory : (opt Token, nat, nat) -> (vec record { nat64; nat; variant { ask; bid }; Token; nat; float64 }) query;
   // return values are: timestamp in nanoseconds; number of auction session; ICRC1 ledger principal; volume sold; price

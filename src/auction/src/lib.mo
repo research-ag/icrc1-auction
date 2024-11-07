@@ -48,30 +48,7 @@ module {
   public func migrateStableDataV7(data : StableDataV6) : StableDataV7 {
     let usersTree : RBTree.RBTree<Principal, T.StableUserInfoV5> = RBTree.RBTree(Principal.compare);
     for ((p, x) in RBTree.iter(data.users.registry.tree, #bwd)) {
-      var filteredHistory : List.List<T.DepositHistoryItem> = null;
-      var removeNextWithdrawals : Nat = 0;
-      for ((x, i) in Vec.itemsRev(x.depositHistory)) {
-        switch (x.1) {
-          case (#withdrawalRollback) {
-            removeNextWithdrawals += 1;
-          };
-          case (#withdrawal) {
-            if (removeNextWithdrawals > 0) {
-              removeNextWithdrawals -= 1;
-            } else {
-              filteredHistory := List.push<T.DepositHistoryItem>((x.0, #withdrawal, x.2, x.3), filteredHistory);
-            };
-          };
-          case (#deposit) {
-            filteredHistory := List.push<T.DepositHistoryItem>((x.0, #deposit, x.2, x.3), filteredHistory);
-          };
-        };
-      };
-      let depositHistory = Vec.new<T.DepositHistoryItem>();
-      for (x in List.toIter(filteredHistory)) {
-        Vec.add(depositHistory, x);
-      };
-      usersTree.put(p, { x with depositHistory; loyaltyPoints = 0 });
+      usersTree.put(p, { x with loyaltyPoints = 0 });
     };
     {
       data with
@@ -113,7 +90,7 @@ module {
   public func migrateStableDataV6(data : StableDataV5) : StableDataV6 {
     let usersTree : RBTree.RBTree<Principal, T.StableUserInfoV4> = RBTree.RBTree(Principal.compare);
     for ((p, x) in RBTree.iter(data.users.registry.tree, #bwd)) {
-      usersTree.put(p, { x with transactionHistory = x.history; depositHistory = Vec.new<(timestamp : Nat64, kind : { #deposit; #withdrawal; #withdrawalRollback }, assetId : AssetId, volume : Nat)>() });
+      usersTree.put(p, { x with transactionHistory = x.history; depositHistory = Vec.new<T.DepositHistoryItem>() });
     };
     {
       data with
