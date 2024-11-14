@@ -177,7 +177,7 @@ type IndicativeStats = record {
 };
 
 service : (opt principal, opt principal) -> {
-  // ICRC-84 API
+  // =========================================================== ICRC-84 API ===========================================================
   // helper function
   principalToSubaccount : (principal) -> (opt blob) query;
 
@@ -195,53 +195,129 @@ service : (opt principal, opt principal) -> {
   icrc84_deposit : (DepositArgs) -> (DepositResponse);
   icrc84_withdraw : (WithdrawArgs) -> (WithdrawResponse);
 
-  // auction API
+  // =========================================================== AUCTION API ===========================================================
 
-  // system queries
+  // ============================================================ SYSTEM API ===========================================================
+  // returns principal of the quote token ICRC1 ledger canister
   getQuoteLedger : () -> (principal) query;
+
+  // returns timestamp and number of next auction session
   nextSession : () -> (
     record {
       timestamp : nat;
       counter : nat;
     }
   ) query;
+
+  // returns auction settings
+  // `orderQuoteVolumeMinimum` is the minimum quote token volume that should be set by user when placing order.
+  // `orderQuoteVolumeStep` is the required step of quote token volume, so `quoteVolume % orderQuoteVolumeStep` has to be 0.
+  // `orderPriceDigitsLimit` is the maximum amount of significant digits in provided by user price in the order
+  //
+  // Note: when placing orders, volume is set in base token units. It is a responsibility of client to calculate min volume and volume step
+  // in base tokens according to the price in the order.
+  //
+  // Example:
+  // func calculateBaseVolumeStep(price : Float) : Nat {
+  //   let p = price / Float.fromInt(orderQuoteVolumeStep);
+  //   if (p >= 1) return 1;
+  //   let zf = - Float.log(p) / 2.302_585_092_994_045;
+  //   Int.abs(10 ** Float.toInt(zf));
+  // };
   settings : () -> (record { orderQuoteVolumeMinimum : nat; orderQuoteVolumeStep : nat; orderPriceDigitsLimit : nat }) query;
+
+  // returns information about auction results if acution session happened now
   indicativeStats : (principal) -> (IndicativeStats) query;
 
-  // user queries
+  // ========================================================= USER API ==========================================================
+  // returns caller's bids, set for given base token and current session number
   queryTokenBids : (Token) -> (vec record { OrderId; Order }, nat) query;
+
+  // returns all caller's bids and current session number
   queryBids : () -> (vec record { OrderId; Order; nat }) query;
+
+  // returns caller's asks, set for given base token and current session number
   queryTokenAsks : (Token) -> (vec record { OrderId; Order }, nat) query;
+
+  // returns all caller's asks and current session number
   queryAsks : () -> (vec record { OrderId; Order; nat }) query;
+
+  // returns caller's wallet information for given token and current session number
+  //
+  // `total` is the total caller balance in the wallet
+  // `available` is the balance, available for placing orders and withdrawal
+  // `locked` is the balance, which is locked by currently placed orders
+  //
+  // Note: `total` is always equal to `available + locked`
   queryCredit : (Token) -> (record { total : nat; available : nat; locked : nat }, nat) query;
+
+  // returns caller's wallet information for all tokens with non-zero `total` and current session number
   queryCredits : () -> (vec record { principal; record { total : nat; available : nat; locked : nat }; nat }) query;
+
+  // returns amount of caller's loyalty points
   queryPoints : () -> (nat) query;
 
-  // Providing token in the arguments to history queries will filter results by token
-
+  // returns history of deposit events. Providing token in the arguments to history queries will filter results by token
   // return values are: timestamp in nanoseconds; type; ICRC1 ledger principal; operation volume;
   queryDepositHistory : (opt Token, nat, nat) -> (vec record { nat64; variant { deposit; withdrawal; withdrawalRollback }; Token; nat }) query;
+
+  // returns history of transactions caused by order fulfillments. Providing token in the arguments to history queries will filter results by token
   // return values are: timestamp in nanoseconds; number of auction session; transaction type; ICRC1 ledger principal; transaction volume; transaction price
   queryTransactionHistory : (opt Token, nat, nat) -> (vec record { nat64; nat; variant { ask; bid }; Token; nat; float64 }) query;
+
+  // returns history of clearing price per token / auction session. Providing token in the arguments to history queries will filter results by token
   // return values are: timestamp in nanoseconds; number of auction session; ICRC1 ledger principal; volume sold; price
   queryPriceHistory : (opt Token, nat, nat, bool) -> (vec record { nat64; nat; Token; nat; float64 }) query;
 
-  // update
+  // An atomic function to manage caller's orders. In case of failure no changes will be applied
+  // arguments are:
+  // - cancellation: the rules which active orders should be cancelled
+  // - placements: an array of orders to be placed
+  // - session number: optionally set expected current session number. If set and it does not match the actual session number, the function will return an error
+  // returns array of placed order id-s in case of success
   manageOrders : (opt CancellationArg, PlaceArg, opt nat) -> (ManageOrdersResponse);
 
+  // A shortcut for `manageOrders` which only places asks
+  // arguments are: array of orders and session number (optional).
+  // If session number set and it does not match the actual session number, the function will return an error
   placeAsks : (vec record { Token; nat; float64 }, opt nat) -> (vec PlaceOrderResponse);
+
+  // A shortcut for `manageOrders` which replaces single ask
+  // arguments are: order id, new order info and session number (optional).
+  // If session number set and it does not match the actual session number, the function will return an error
   replaceAsk : (OrderId, nat, float64, opt nat) -> (ReplaceOrderResponse);
+
+  // A shortcut for `manageOrders` which cancels asks by given order ids
+  // arguments are: order ids and session number (optional).
+  // If session number set and it does not match the actual session number, the function will return an error
   cancelAsks : (vec OrderId, opt nat) -> (vec CancelOrderResponse);
 
+  // A shortcut for `manageOrders` which only places bids
+  // arguments are: array of orders and session number (optional).
+  // If session number set and it does not match the actual session number, the function will return an error
   placeBids : (vec record { Token; nat; float64 }, opt nat) -> (vec PlaceOrderResponse);
+
+  // A shortcut for `manageOrders` which replaces single bid
+  // arguments are: order id, new order info and session number (optional).
+  // If session number set and it does not match the actual session number, the function will return an error
   replaceBid : (OrderId, nat, float64, opt nat) -> (ReplaceOrderResponse);
+
+  // A shortcut for `manageOrders` which cancels bids by given order ids
+  // arguments are: order ids and session number (optional).
+  // If session number set and it does not match the actual session number, the function will return an error
   cancelBids : (vec OrderId, opt nat) -> (vec CancelOrderResponse);
 
-  // ADMIN API
-  // query
+  // =========================================================== ADMIN API ===========================================================
+
+  // returns list of auction admins
   listAdmins : () -> (vec principal) query;
-  // update
+
+  // registers a new admin to the auction
   addAdmin : (principal) -> ();
+
+  // deregister an existing admin from the auction. Note: caller cannot deregister themselves
   removeAdmin : (principal) -> ();
+
+  // register new base token
   registerAsset : (principal, nat) -> (variant { Ok : nat; Err : variant { AlreadyRegistered : nat } });
 };
