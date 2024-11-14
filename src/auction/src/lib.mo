@@ -19,6 +19,7 @@ import RBTree "mo:base/RBTree";
 import Vec "mo:vector";
 
 import Assets "./assets";
+import C "./constants";
 import Credits "./credits";
 import Orders "./orders";
 import Users "./users";
@@ -366,6 +367,15 @@ module {
         };
         case (false, _) #err(#NoCredit);
       };
+    };
+
+    public func appendLoyaltyPoints(p : Principal, kind : { #wallet }) : Bool {
+      let amount = switch (kind) {
+        case (#wallet) C.LOAYLTY_REWARD.WALLET_OPERATION;
+      };
+      let ?userInfo = users.get(p) else return false;
+      userInfo.loyaltyPoints += amount;
+      true;
     };
     // ============= credits interface ============
 

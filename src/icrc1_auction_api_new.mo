@@ -214,6 +214,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
           let inc = Int.abs(userCredit);
           assert assetInfo.handler.debitUser(caller, inc);
           ignore a.appendCredit(caller, assetId, inc);
+          assert a.appendLoyaltyPoints(caller, #wallet);
           #Ok({
             deposit_inc = depositInc;
             credit_inc = creditInc;
@@ -243,6 +244,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
           let credited = Int.abs(userCredit);
           assert assetInfo.handler.debitUser(caller, credited);
           ignore a.appendCredit(caller, assetId, credited);
+          assert a.appendLoyaltyPoints(caller, #wallet);
           #Ok({
             credit_inc = creditInc;
             txid = txid;
@@ -282,6 +284,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     switch (res) {
       case (#ok(txid, amount)) {
         doneCallback();
+        assert U.unwrapUninit(auction).appendLoyaltyPoints(caller, #wallet);
         #Ok({ txid; amount });
       };
       case (#err err) {
