@@ -379,6 +379,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     ignore metrics.addPullValue("total_orders", "", func() = a.orders.ordersCounter);
     ignore metrics.addPullValue("auctions_run_count", "", func() = a.assets.historyLength());
     ignore metrics.addPullValue("trading_pairs_count", "", func() = a.assets.nAssets() - 1);
+    ignore metrics.addPullValue("total_points_supply", "", func() = a.getTotalLoyaltyPointsSupply());
 
     if (Vec.size(assets) == 0) {
       ignore U.requireOk(await* registerAsset_(quoteLedgerPrincipal, 0));
@@ -415,6 +416,8 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     let ?assetId = getAssetId(icrc1Ledger) else throw Error.reject("Unknown asset");
     U.unwrapUninit(auction).indicativeAssetStats(assetId);
   };
+
+  public shared query func totalPointsSupply() : async Nat = async U.unwrapUninit(auction).getTotalLoyaltyPointsSupply();
 
   public shared query ({ caller }) func queryCredit(icrc1Ledger : Principal) : async (Auction.CreditInfo, Nat) {
     let ?assetId = getAssetId(icrc1Ledger) else throw Error.reject("Unknown asset");

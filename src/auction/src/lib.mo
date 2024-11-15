@@ -339,6 +339,14 @@ module {
       case (?ui) ui.loyaltyPoints;
     };
 
+    public func getTotalLoyaltyPointsSupply() : Nat {
+      var res = 0;
+      for ((_, ui) in users.users.entries()) {
+        res += ui.loyaltyPoints;
+      };
+      res;
+    };
+
     public func appendCredit(p : Principal, assetId : AssetId, amount : Nat) : Nat {
       let userInfo = users.getOrCreate(p);
       let acc = credits.getOrCreate(userInfo, assetId);
