@@ -191,9 +191,9 @@ module {
 
       if (not isPartial) {
         assetInfo.totalExecutedOrders += 1;
-        order.userInfoRef.loyaltyPoints += C.LOAYLTY_REWARD.ORDER_FULFILLMENT_APPENDIX;
       };
-      order.userInfoRef.loyaltyPoints += quoteVolume * C.LOAYLTY_REWARD.ORDER_FULFILLMENT_COEFFICIENT;
+      let loayltyVolumeReward = Float.fromInt(quoteVolume) * C.LOAYLTY_REWARD.ORDER_VOLUME |> Int.abs(Float.toInt(_));
+      order.userInfoRef.loyaltyPoints += C.LOAYLTY_REWARD.ORDER_EXECUTION + loayltyVolumeReward;
       switch (kind) {
         case (#ask) assetInfo.totalExecutedVolumeQuote += quoteVolume;
         case (#bid) assetInfo.totalExecutedVolumeBase += baseVolume;
