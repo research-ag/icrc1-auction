@@ -191,7 +191,7 @@ module {
 
       if (not isPartial) {
         assetInfo.totalExecutedOrders += 1;
-        order.userInfoRef.loyaltyPoints += C.LOAYLTY_REWARD.ORDER_FULFILLMENT_APPENDINX;
+        order.userInfoRef.loyaltyPoints += C.LOAYLTY_REWARD.ORDER_FULFILLMENT_APPENDIX;
       };
       order.userInfoRef.loyaltyPoints += quoteVolume * C.LOAYLTY_REWARD.ORDER_FULFILLMENT_COEFFICIENT;
       switch (kind) {
