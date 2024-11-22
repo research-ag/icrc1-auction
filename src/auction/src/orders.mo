@@ -364,7 +364,7 @@ module {
           switch (expectedSessionNumber) {
             case (?sn) {
               for ((asset, aid) in Vec.items(assets.assets)) {
-                if (asset.sessionsCounter != sn) {
+                if (aid != quoteAssetId and asset.sessionsCounter != sn) {
                   return #err(#SessionNumberMismatch(aid));
                 };
               };
