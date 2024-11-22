@@ -4,6 +4,7 @@
 /// Main author: Andy Gura
 /// Contributors: Timo Hanke
 
+import Array "mo:base/Array";
 import Float "mo:base/Float";
 import Int "mo:base/Int";
 import Iter "mo:base/Iter";
@@ -403,6 +404,18 @@ module {
         };
         List.toArray(list);
       };
+    };
+
+    public func getOrderBook(assetId : AssetId, kind : { #ask; #bid }) : [(OrderId, T.Order)] {
+      let orderBook = assets.getAsset(assetId) |> assets.getOrderBook(_, kind);
+      let queueIter = List.toIter(orderBook.queue);
+      Array.tabulate<(OrderId, T.Order)>(
+        orderBook.size,
+        func(_) {
+          let ?item = queueIter.next() else Prim.trap("Order book consistency failed");
+          item;
+        },
+      );
     };
 
     public func manageOrders(

@@ -89,6 +89,17 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     volume = order.volume;
   });
 
+  type UserOrder = {
+    user : Principal;
+    price : Float;
+    volume : Nat;
+  };
+  func mapUserOrder(order : Auction.Order) : UserOrder = ({
+    user = order.user;
+    price = order.price;
+    volume = order.volume;
+  });
+
   type UpperResult<Ok, Err> = { #Ok : Ok; #Err : Err };
 
   type PriceHistoryItem = (timestamp : Nat64, sessionNumber : Nat, ledgerPrincipal : Principal, volume : Nat, price : Float);
@@ -917,6 +928,20 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     assertAdminAccessSync(caller);
     U.unwrapUninit(auction).getOrders(p, #ask, null)
     |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = (_ [i].0, mapOrder(_ [i].1)));
+  };
+
+  public shared query ({ caller }) func queryOrderBook(icrc1Ledger : Principal) : async {
+    asks : [(Auction.OrderId, UserOrder)];
+    bids : [(Auction.OrderId, UserOrder)];
+  } {
+    assertAdminAccessSync(caller);
+    let ?assetId = getAssetId(icrc1Ledger) else throw Error.reject("Unknown asset");
+    {
+      asks = U.unwrapUninit(auction).getOrderBook(assetId, #ask)
+      |> Array.tabulate<(Auction.OrderId, UserOrder)>(_.size(), func(i) = (_ [i].0, mapUserOrder(_ [i].1)));
+      bids = U.unwrapUninit(auction).getOrderBook(assetId, #bid)
+      |> Array.tabulate<(Auction.OrderId, UserOrder)>(_.size(), func(i) = (_ [i].0, mapUserOrder(_ [i].1)));
+    };
   };
 
   public shared query ({ caller }) func queryUserDepositHistory(p : Principal, token : ?Principal, limit : Nat, skip : Nat) : async [DepositHistoryItem] {
