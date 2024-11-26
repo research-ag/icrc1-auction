@@ -35,16 +35,11 @@ npm run create
 npm run setup
 ```
 
-6) Call function `init` on auction canister:
-```
-dfx canister call icrc1_auction init
-```
-
-7) Now you can use auction locally. Mocked ICRC1 ledger allows to create tokens out of thin air using `issueTokens` 
+6) Now you can use auction locally. Mocked ICRC1 ledger allows to create tokens out of thin air using `issueTokens` 
 function. You should create at least one additional ICRC1 ledger in order to be able to place any bid/ask. This repo 
 provides additional canister `icrc1_ledger_mock_2`, which you can register as another ICRC1 ledger in auction for testing
 
-8) To start frontend in development mode, run: 
+7) To start frontend in development mode, run: 
 ```
 CANISTER_ID_ICRC1_AUCTION=<canister_id> npm run dev:frontend
 ```
