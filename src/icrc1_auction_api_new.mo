@@ -167,32 +167,63 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     throw Error.reject("Unknown token");
   };
 
-  public shared query ({ caller }) func icrc84_credit(token : Principal) : async Int = async switch (getAssetId(token)) {
-    case (?aid) U.unwrapUninit(auction).getCredit(caller, aid).available;
-    case (_) 0;
-  };
-
-  public shared query ({ caller }) func icrc84_all_credits() : async [(Principal, Int)] {
-    U.unwrapUninit(auction).getCredits(caller) |> Array.tabulate<(Principal, Int)>(
-      _.size(),
-      func(i) = (getIcrc1Ledger(_ [i].0), _ [i].1.available),
-    );
-  };
-
-  public shared query ({ caller }) func icrc84_trackedDeposit(token : Principal) : async {
-    #Ok : Nat;
-    #Err : { #NotAvailable : { message : Text } };
-  } {
-    (
-      switch (getAssetId(token)) {
-        case (?aid) aid;
-        case (_) return #Err(#NotAvailable({ message = "Unknown token" }));
-      }
-    )
-    |> Vec.get(assets, _)
-    |> _.handler.trackedDeposit(caller)
-    |> #Ok(Option.get<Nat>(_, 0));
-  };
+  public shared query ({ caller }) func icrc84_query(
+    arg : {
+      credits : ?[Principal];
+      tracked_deposits : ?[Principal];
+    }
+  ) : async {
+    credits : ?[(Principal, Int)];
+    tracked_deposits : ?[(
+      Principal,
+      {
+        #Ok : Nat;
+        #Err : { #NotAvailable : { message : Text } };
+      },
+    )];
+  } = async ({
+    credits = switch (arg.credits) {
+      case (null) null;
+      case (?credits) switch (credits.size()) {
+        case (0) U.unwrapUninit(auction).getCredits(caller)
+        |> ?Array.tabulate<(Principal, Int)>(_.size(), func(i) = (getIcrc1Ledger(_ [i].0), _ [i].1.available));
+        case (_) ?Array.tabulate<(Principal, Int)>(
+          credits.size(),
+          func(i) = (
+            credits[i],
+            switch (getAssetId(credits[i])) {
+              case (?aid) U.unwrapUninit(auction).getCredit(caller, aid).available;
+              case (_) 0;
+            },
+          ),
+        );
+      };
+    };
+    tracked_deposits = switch (arg.tracked_deposits) {
+      case (null) null;
+      case (?tracked_deposits) switch (tracked_deposits.size()) {
+        case (0) Vec.vals(assets)
+        |> Iter.map<AssetInfo, (Principal, Nat)>(_, func(a) = (a.ledgerPrincipal, Option.get(a.handler.trackedDeposit(caller), 0)))
+        |> Iter.filter<(Principal, Nat)>(_, func(_, d) = d > 0)
+        |> Iter.map<(Principal, Nat), (Principal, { #Ok : Nat })>(_, func(p, d) = (p, #Ok(d)))
+        |> ?Iter.toArray(_);
+        case (_) ?Array.tabulate<(Principal, { #Ok : Nat; #Err : { #NotAvailable : { message : Text } } })>(
+          tracked_deposits.size(),
+          func(i) = (
+            tracked_deposits[i],
+            switch (getAssetId(tracked_deposits[i])) {
+              case (?aid) {
+                Vec.get(assets, aid)
+                |> _.handler.trackedDeposit(caller)
+                |> #Ok(Option.get<Nat>(_, 0));
+              };
+              case (_) #Err(#NotAvailable({ message = "Unknown token" }));
+            },
+          ),
+        );
+      };
+    };
+  });
 
   public shared ({ caller }) func icrc84_notify(args : { token : Principal }) : async NotifyResult {
     notifyCounter.add(1);
