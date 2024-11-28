@@ -75,7 +75,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   };
 
   type RegisterAssetError = {
-    #AlreadyRegistered : Nat;
+    #AlreadyRegistered;
   };
 
   type Order = {
@@ -130,32 +130,37 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   let quoteAssetId : Auction.AssetId = 0;
 
+  func createAssetInfo_(ledgerPrincipal : Principal, minAskVolume : Nat, decimals : Nat, symbol : Text, tokenHandlerStableData : ?TokenHandler.StableData) : AssetInfo {
+    let ai = (actor (Principal.toText(ledgerPrincipal)) : ICRC1.ICRC1Ledger)
+    |> {
+      balance_of = _.icrc1_balance_of;
+      fee = _.icrc1_fee;
+      transfer = _.icrc1_transfer;
+      transfer_from = _.icrc2_transfer_from;
+    }
+    |> {
+      ledgerPrincipal = ledgerPrincipal;
+      minAskVolume = minAskVolume;
+      handler = TokenHandler.TokenHandler({
+        ledgerApi = _;
+        ownPrincipal = Principal.fromActor(self);
+        initialFee = 0;
+        triggerOnNotifications = true;
+        log = func(p : Principal, logEvent : TokenHandler.LogEvent) = Vec.add(tokenHandlersJournal, (ledgerPrincipal, p, logEvent));
+      });
+      decimals;
+      symbol;
+    };
+    switch (tokenHandlerStableData) {
+      case (?d) ai.handler.unshare(d);
+      case (null) {};
+    };
+    ai;
+  };
+
   let assets : Vec.Vector<AssetInfo> = Vec.map<StableAssetInfo, AssetInfo>(
     assetsDataV3,
-    func(x) {
-      let r = (actor (Principal.toText(x.ledgerPrincipal)) : ICRC1.ICRC1Ledger)
-      |> {
-        balance_of = _.icrc1_balance_of;
-        fee = _.icrc1_fee;
-        transfer = _.icrc1_transfer;
-        transfer_from = _.icrc2_transfer_from;
-      }
-      |> {
-        ledgerPrincipal = x.ledgerPrincipal;
-        minAskVolume = x.minAskVolume;
-        handler = TokenHandler.TokenHandler({
-          ledgerApi = _;
-          ownPrincipal = Principal.fromActor(self);
-          initialFee = 0;
-          triggerOnNotifications = true;
-          log = func(p : Principal, logEvent : TokenHandler.LogEvent) = Vec.add(tokenHandlersJournal, (x.ledgerPrincipal, p, logEvent));
-        });
-        decimals = x.decimals;
-        symbol = x.symbol;
-      };
-      r.handler.unshare(x.handler);
-      r;
-    },
+    func(x) = createAssetInfo_(x.ledgerPrincipal, x.minAskVolume, x.decimals, x.symbol, ?x.handler),
   );
   let auction : Auction.Auction = Auction.Auction(
     0,
@@ -175,42 +180,17 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   private func registerAsset_(ledgerPrincipal : Principal, minAskVolume : Nat) : async* R.Result<Nat, RegisterAssetError> {
     let canister = actor (Principal.toText(ledgerPrincipal)) : (actor { icrc1_decimals : () -> async Nat8; icrc1_symbol : () -> async Text });
-    let decimals = try {
-      Nat8.toNat(await canister.icrc1_decimals());
-    } catch (err) {
-      throw err;
-    };
-    let symbol = try {
-      await canister.icrc1_symbol();
-    } catch (err) {
-      throw err;
-    };
-    for ((assetInfo, i) in Vec.items(assets)) {
-      if (Principal.equal(ledgerPrincipal, assetInfo.ledgerPrincipal)) return #err(#AlreadyRegistered(i));
+    let decimalsCall = canister.icrc1_decimals();
+    let symbolCall = canister.icrc1_symbol();
+    let decimals = try { Nat8.toNat(await decimalsCall) } catch (e) throw e;
+    let symbol = try { await symbolCall } catch (e) throw e;
+
+    if (Vec.forSome<AssetInfo>(assets, func(a) = Principal.equal(ledgerPrincipal, a.ledgerPrincipal))) {
+      return #err(#AlreadyRegistered);
     };
     let id = Vec.size(assets);
     assert id == auction.assets.nAssets();
-    (actor (Principal.toText(ledgerPrincipal)) : ICRC1.ICRC1Ledger)
-    |> {
-      balance_of = _.icrc1_balance_of;
-      fee = _.icrc1_fee;
-      transfer = _.icrc1_transfer;
-      transfer_from = _.icrc2_transfer_from;
-    }
-    |> {
-      ledgerPrincipal;
-      minAskVolume;
-      handler = TokenHandler.TokenHandler({
-        ledgerApi = _;
-        ownPrincipal = Principal.fromActor(self);
-        initialFee = 0;
-        triggerOnNotifications = true;
-        log = func(p : Principal, logEvent : TokenHandler.LogEvent) = Vec.add(tokenHandlersJournal, (ledgerPrincipal, p, logEvent));
-      });
-      symbol;
-      decimals;
-    }
-    |> Vec.add<AssetInfo>(assets, _);
+    createAssetInfo_(ledgerPrincipal, minAskVolume, decimals, symbol, null) |> Vec.add<AssetInfo>(assets, _);
     auction.registerAssets(1);
     registerAssetMetrics_(id);
     #ok(id);
