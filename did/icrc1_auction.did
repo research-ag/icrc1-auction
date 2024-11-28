@@ -191,7 +191,7 @@ service : (opt principal, opt principal) -> {
       credits : opt vec Token;
       tracked_deposits : opt vec Token;
     }
-  ) = > (
+  ) -> (
     record {
       credits : opt vec record { Token; int };
       tracked_deposits : opt vec record { Token; BalanceResponse };
