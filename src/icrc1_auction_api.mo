@@ -183,8 +183,8 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     let canister = actor (Principal.toText(ledgerPrincipal)) : (actor { icrc1_decimals : () -> async Nat8; icrc1_symbol : () -> async Text });
     let decimalsCall = canister.icrc1_decimals();
     let symbolCall = canister.icrc1_symbol();
-    let decimals = try { Nat8.toNat(await decimalsCall) } catch (e) throw e;
-    let symbol = try { await symbolCall } catch (e) throw e;
+    let decimals = Nat8.toNat(await decimalsCall);
+    let symbol = await symbolCall;
 
     if (Vec.forSome<AssetInfo>(assets, func(a) = Principal.equal(ledgerPrincipal, a.ledgerPrincipal))) {
       return #err(#AlreadyRegistered);
