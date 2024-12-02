@@ -380,7 +380,7 @@ module {
 
     public func appendLoyaltyPoints(p : Principal, kind : { #wallet }) : Bool {
       let amount = switch (kind) {
-        case (#wallet) C.LOAYLTY_REWARD.WALLET_OPERATION;
+        case (#wallet) C.LOYALTY_REWARD.WALLET_OPERATION;
       };
       let ?userInfo = users.get(p) else return false;
       userInfo.loyaltyPoints += amount;

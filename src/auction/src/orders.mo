@@ -131,7 +131,7 @@ module {
       users.putOrder(userInfo, kind, orderId, order);
       assets.putOrder(assetInfo, kind, orderId, order);
       // add rewards
-      userInfo.loyaltyPoints += C.LOAYLTY_REWARD.ORDER_MODIFICATION;
+      userInfo.loyaltyPoints += C.LOYALTY_REWARD.ORDER_MODIFICATION;
     };
 
     public func cancel(userInfo : T.UserInfo, orderId : T.OrderId) : ?T.Order {
@@ -143,7 +143,7 @@ module {
       let (success, _) = credits.unlockCredit(sourceAcc, srcVolume(existingOrder.volume, existingOrder.price));
       assert success;
       // add rewards
-      userInfo.loyaltyPoints += C.LOAYLTY_REWARD.ORDER_MODIFICATION;
+      userInfo.loyaltyPoints += C.LOYALTY_REWARD.ORDER_MODIFICATION;
 
       ?existingOrder;
     };
@@ -192,8 +192,7 @@ module {
       if (not isPartial) {
         assetInfo.totalExecutedOrders += 1;
       };
-      let loayltyVolumeReward = Float.fromInt(quoteVolume) * C.LOAYLTY_REWARD.ORDER_VOLUME |> Int.abs(Float.toInt(_));
-      order.userInfoRef.loyaltyPoints += C.LOAYLTY_REWARD.ORDER_EXECUTION + loayltyVolumeReward;
+      order.userInfoRef.loyaltyPoints += C.LOYALTY_REWARD.ORDER_EXECUTION + quoteVolume / C.LOYALTY_REWARD.ORDER_VOLUME_DIVISOR;
       switch (kind) {
         case (#ask) assetInfo.totalExecutedVolumeQuote += quoteVolume;
         case (#bid) assetInfo.totalExecutedVolumeBase += baseVolume;

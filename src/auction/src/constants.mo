@@ -1,8 +1,8 @@
 module {
-  public let LOAYLTY_REWARD = {
+  public let LOYALTY_REWARD = {
     WALLET_OPERATION = 10;
     ORDER_MODIFICATION = 1;
     ORDER_EXECUTION = 10;
-    ORDER_VOLUME = 0.00_001;
+    ORDER_VOLUME_DIVISOR = 100_000;
   };
 };
