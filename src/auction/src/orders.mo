@@ -74,7 +74,7 @@ module {
     minQuoteVolume : Nat,
     minAskVolume : (T.AssetId, T.AssetInfo) -> Int,
     kind_ : { #ask; #bid },
-    fulfilOrderCallback : (quoteVolume : Nat, isPartial : Bool) -> (),
+    fulfilOrderCallback : (assetInfo : T.AssetInfo, userInfo : T.UserInfo, kind : { #ask; #bid }, quoteVolume : Nat, baseVolume : Nat, isPartial : Bool) -> (),
   ) = self {
 
     public func createOrderBookService(assetInfo : T.AssetInfo) : OrderBookService = OrderBookService(self, assetInfo);
@@ -187,7 +187,7 @@ module {
         case (#bid) srcVol;
       };
 
-      fulfilOrderCallback(quoteVolume, isPartial);
+      fulfilOrderCallback(assetInfo, order.userInfoRef, kind, quoteVolume, baseVolume, isPartial);
 
       (baseVolume, quoteVolume);
     };
@@ -245,14 +245,15 @@ module {
 
     // a counter of ever added order
     public var ordersCounter = 0;
-    public var fulfilledCounter = 0;
 
-    public var totalQuoteVolumeProcessed = 0;
-
-    let fulfilCB = func(quoteVolume : Nat, isPartial : Bool) {
-      totalQuoteVolumeProcessed += quoteVolume;
+    let fulfilCB = func(assetInfo : T.AssetInfo, userInfo : T.UserInfo, kind : { #ask; #bid }, quoteVolume : Nat, baseVolume : Nat, isPartial : Bool) {
       if (not isPartial) {
-        fulfilledCounter += 1;
+        assetInfo.totalExecutedOrders += 1;
+        userInfo.loyaltyPoints += 1;
+      };
+      switch (kind) {
+        case (#ask) assetInfo.totalExecutedVolumeQuote += quoteVolume;
+        case (#bid) assetInfo.totalExecutedVolumeBase += baseVolume;
       };
     };
     public let asks : OrdersService = OrdersService(
@@ -373,7 +374,7 @@ module {
           switch (expectedSessionNumber) {
             case (?sn) {
               for ((asset, aid) in Vec.items(assets.assets)) {
-                if (asset.sessionsCounter != sn) {
+                if (aid != quoteAssetId and asset.sessionsCounter != sn) {
                   return #err(#SessionNumberMismatch(aid));
                 };
               };

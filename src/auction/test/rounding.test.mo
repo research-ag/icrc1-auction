@@ -46,10 +46,9 @@ do {
 
   auction.processAsset(ft);
 
-  let ?priceHistoryItem = auction.getPriceHistory(?ft).next() else Prim.trap("");
+  let ?priceHistoryItem = auction.getPriceHistory(?ft, #desc, false).next() else Prim.trap("");
   assert priceHistoryItem.3 == 4_000; // volume
-  // FIXME commented out because price is actually 0.012_500_000_000_000_001
-  // assert priceHistoryItem.4 == 0.0125; 
+  assert priceHistoryItem.4 == 0.0125;
 
   // rounding problem: bidder spends volume without rounding, 4_000 * 0.0125 = 50,
   // but selers get 12.5 each, so we need to make sure we won't round it up to 13, because in total we will issue 13 * 4 = 52
@@ -103,10 +102,9 @@ do {
     case (_) assert false;
   };
   auction.processAsset(ft);
-  let ?priceHistoryItem = auction.getPriceHistory(?ft).next() else Prim.trap("");
+  let ?priceHistoryItem = auction.getPriceHistory(?ft, #desc, false).next() else Prim.trap("");
   assert priceHistoryItem.3 == askVolume;
-  // FIXME commented out because price is actually 2.479_000_000_000_000_2e-09
-  // assert priceHistoryItem.4 == bidPrice;
+  assert Float.abs(priceHistoryItem.4 - bidPrice) < 0.000000000000001;
 
   assert auction.getCredit(user, 0).locked == denominateVolumeInQuoteAsset(bidVolume - askVolume, bidPrice);
 

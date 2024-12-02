@@ -175,8 +175,16 @@ type CancelOrderResponse = variant {
 };
 
 type IndicativeStats = record {
-  clearingPrice : float64;
-  clearingVolume : nat;
+  clearing : variant {
+    match : record {
+      price : float64;
+      volume : nat;
+    };
+    noMatch : record {
+      minAskPrice : opt float64;
+      maxBidPrice : opt float64;
+    };
+  };
   totalAskVolume : nat;
   totalBidVolume : nat;
 };
@@ -220,6 +228,7 @@ service : (opt principal, opt principal) -> {
   queryAsks : () -> (vec record { OrderId; Order; nat }) query;
   queryCredit : (Token) -> (record { total : nat; available : nat; locked : nat }, nat) query;
   queryCredits : () -> (vec record { principal; record { total : nat; available : nat; locked : nat }; nat }) query;
+  queryPoints : () -> (nat) query;
 
   // Providing token in the arguments to history queries will filter results by token
 
@@ -228,7 +237,7 @@ service : (opt principal, opt principal) -> {
   // return values are: timestamp in nanoseconds; number of auction session; transaction type; ICRC1 ledger principal; transaction volume; transaction price
   queryTransactionHistory : (opt Token, nat, nat) -> (vec record { nat64; nat; variant { ask; bid }; Token; nat; float64 }) query;
   // return values are: timestamp in nanoseconds; number of auction session; ICRC1 ledger principal; volume sold; price
-  queryPriceHistory : (opt Token, nat, nat) -> (vec record { nat64; nat; Token; nat; float64 }) query;
+  queryPriceHistory : (opt Token, nat, nat, bool) -> (vec record { nat64; nat; Token; nat; float64 }) query;
 
   // update
   manageOrders : (opt CancellationArg, PlaceArg, opt nat) -> (ManageOrdersResponse);

@@ -39,7 +39,7 @@ do {
 
   auction.processAsset(ft);
 
-  let ?priceHistoryItem = auction.getPriceHistory(?ft).next() else Prim.trap("");
+  let ?priceHistoryItem = auction.getPriceHistory(?ft, #desc, false).next() else Prim.trap("");
   assert priceHistoryItem.3 == 5_000_000; // volume
   assert priceHistoryItem.4 == 0.8; // ask 0.8, bid 1
 };
@@ -77,7 +77,7 @@ do {
 
   auction.processAsset(ft);
 
-  let ?priceHistoryItem = auction.getPriceHistory(?ft).next() else Prim.trap("");
+  let ?priceHistoryItem = auction.getPriceHistory(?ft, #desc, false).next() else Prim.trap("");
   assert priceHistoryItem.3 == 5_000_000; // volume
   assert priceHistoryItem.4 == 1.0; // ask 0.8, bid 1
 };
@@ -115,7 +115,7 @@ do {
 
   auction.processAsset(ft);
 
-  let ?priceHistoryItem = auction.getPriceHistory(?ft).next() else Prim.trap("");
+  let ?priceHistoryItem = auction.getPriceHistory(?ft, #desc, false).next() else Prim.trap("");
   assert priceHistoryItem.3 == 5_010_000; // volume
   assert priceHistoryItem.4 == 0.8; // ask 0.8, bid 1
 };
@@ -184,7 +184,7 @@ do {
   // note user2 [1] balance not changed: whole volume was locked and then charged
   user2ExpectedCredits[0] += 98_000; // credited from sold token (980_000 * 0.1)
 
-  let ?priceHistoryItem = auction.getPriceHistory(?ft).next() else Prim.trap("");
+  let ?priceHistoryItem = auction.getPriceHistory(?ft, #desc, false).next() else Prim.trap("");
   assert priceHistoryItem.3 == 980_000;
   assert priceHistoryItem.4 == 0.1;
 
