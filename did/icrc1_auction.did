@@ -186,15 +186,13 @@ service : (opt principal, opt principal) -> {
   icrc84_token_info : (Token) -> (TokenInfo) query;
 
   // private queries
-  icrc84_query : (
-    record {
-      credits : opt vec Token;
-      tracked_deposits : opt vec Token;
-    }
-  ) -> (
-    record {
-      credits : opt vec record { Token; int };
-      tracked_deposits : opt vec record { Token; BalanceResponse };
+  icrc84_query : (vec Token) -> (
+    vec record {
+      Token;
+      record {
+        credit : int;
+        tracked_deposit : BalanceResponse;
+      };
     }
   ) query;
 
