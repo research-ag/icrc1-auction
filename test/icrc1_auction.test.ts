@@ -71,7 +71,7 @@ describe('ICRC1 Auction', () => {
   };
 
   const queryCredit = async (token: Principal) => {
-    return (await auction.icrc84_query({ credits: [[token]], tracked_deposits: [] })).credits[0]![0][1];
+    return (await auction.icrc84_query([token]))[0][1].credit;
   }
 
   beforeEach(async () => {
@@ -167,7 +167,7 @@ describe('ICRC1 Auction', () => {
         sender: controller.getPrincipal(),
       });
       await auction.init();
-      expect(await queryCredit(quoteLedgerPrincipal)).toEqual(0n);
+      expect(await auction.settings()).toBeTruthy();
     });
 
     test('should ignore arguments on upgrade', async () => {
@@ -239,13 +239,10 @@ describe('ICRC1 Auction', () => {
   });
 
   describe('deposit', () => {
-    test('should be able to query deposit when not registered', async () => {
-      expect(await queryCredit(quoteLedgerPrincipal)).toEqual(0n);
-    });
 
     test('should accept deposit on notify', async () => {
       await mintDeposit(user, 10_000);
-      expect(await queryCredit(quoteLedgerPrincipal)).toEqual(0n);
+      expect((await auction.icrc84_query([quoteLedgerPrincipal]))).toHaveLength(0);
       await auction.icrc84_notify({ token: quoteLedgerPrincipal });
       expect(await queryCredit(quoteLedgerPrincipal)).toEqual(10_000n);
     });
@@ -392,10 +389,6 @@ describe('ICRC1 Auction', () => {
 
   describe('credit', () => {
 
-    test('should be able to query credit when not registered', async () => {
-      expect(await queryCredit(ledger1Principal)).toEqual(0n);
-    });
-
     test('should return #InsufficientCredit if not registered', async () => {
       const res = await auction.icrc84_withdraw({
         to: { owner: user.getPrincipal(), subaccount: [] },
@@ -428,7 +421,7 @@ describe('ICRC1 Auction', () => {
       });
       expect(res).toHaveProperty('Ok');
       expect(await ledger1.icrc1_balance_of({ owner: user.getPrincipal(), subaccount: [] })).toEqual(1_200n);
-      expect(await queryCredit(ledger1Principal)).toEqual(0n);
+      expect((await auction.icrc84_query([ledger1Principal]))).toHaveLength(0);
     });
 
     test('should affect metrics', async () => {
