@@ -24,7 +24,7 @@ module {
 
     public func historyLength() : Nat = Vec.size(history);
 
-    public func register(n : Nat) {
+    public func register(n : Nat, sessionsCounter : Nat) {
       for (i in Iter.range(1, n)) {
         (
           {
@@ -40,6 +40,10 @@ module {
             };
             var lastRate = 0;
             var lastProcessingInstructions = 0;
+            var totalExecutedVolumeBase = 0;
+            var totalExecutedVolumeQuote = 0;
+            var totalExecutedOrders = 0;
+            var sessionsCounter = sessionsCounter;
           } : T.AssetInfo
         )
         |> Vec.add(assets, _);
