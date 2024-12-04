@@ -254,7 +254,7 @@ do {
       null,
     )
   ) {
-    case (#ok ids) ids;
+    case (#ok (_, ids)) ids;
     case (_) {
       assert false;
       [];
