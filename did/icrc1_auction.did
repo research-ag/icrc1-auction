@@ -214,9 +214,7 @@ service : (opt principal, opt principal) -> {
   icrc84_deposit : (DepositArgs) -> (DepositResponse);
   icrc84_withdraw : (WithdrawArgs) -> (WithdrawResponse);
 
-  // =========================================================== AUCTION API ===========================================================
-
-  // ============================================================ SYSTEM API ===========================================================
+  // ============================================================ SYSTEM API =========================================================== 
   // returns principal of the quote token ICRC1 ledger canister
   getQuoteLedger : () -> (principal) query;
 
@@ -327,7 +325,6 @@ service : (opt principal, opt principal) -> {
   cancelBids : (vec OrderId, opt nat) -> (vec CancelOrderResponse);
 
   // =========================================================== ADMIN API ===========================================================
-
   // returns list of auction admins
   listAdmins : () -> (vec principal) query;
 
