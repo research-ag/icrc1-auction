@@ -368,7 +368,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     let ret : Vec.Vector<(Principal, { credit : Int; tracked_deposit : { #Ok : Nat; #Err : { #NotAvailable : { message : Text } } } })> = Vec.new();
     for (token in tokens.vals()) {
       let ?aid = getAssetId(token) else throw Error.reject("Unknown token " # Principal.toText(token));
-      let credit = U.unwrapUninit(auction).getCredit(caller, aid).available;
+      let credit = auction.getCredit(caller, aid).available;
       if (credit > 0) {
         let tracked_deposit = switch (Vec.get(assets, aid).handler.trackedDeposit(caller)) {
           case (?d) #Ok(d);
