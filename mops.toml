@@ -6,7 +6,7 @@ token_handler_legacy = "https://github.com/research-ag/token-handler#76d34228fab
 token_handler = "https://github.com/research-ag/token-handler#1a8dfc4007338837bcd303e68d3cdd8f6c7de02a"
 mrr = "https://github.com/research-ag/motoko-lib#main"
 auction = "https://github.com/research-ag/auction#b14f446fdc5257699d8bb80d7771b5cb66591008"
-icrc84 = "https://github.com/research-ag/icrc-84#750573596a0f31780bf0caaab1cd247832a0b0f5"
+icrc84 = "https://github.com/research-ag/icrc-84#6475b4987a9eddbb362ee16698106c2a3007ba1c"
 
 [toolchain]
 moc = "0.13.3"
