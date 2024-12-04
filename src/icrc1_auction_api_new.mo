@@ -89,6 +89,17 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     volume = order.volume;
   });
 
+  type UserOrder = {
+    user : Principal;
+    price : Float;
+    volume : Nat;
+  };
+  func mapUserOrder(order : Auction.Order) : UserOrder = ({
+    user = order.user;
+    price = order.price;
+    volume = order.volume;
+  });
+
   type UpperResult<Ok, Err> = { #Ok : Ok; #Err : Err };
 
   type PriceHistoryItem = (timestamp : Nat64, sessionNumber : Nat, ledgerPrincipal : Principal, volume : Nat, price : Float);
@@ -214,6 +225,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
           let inc = Int.abs(userCredit);
           assert assetInfo.handler.debitUser(caller, inc);
           ignore a.appendCredit(caller, assetId, inc);
+          assert a.appendLoyaltyPoints(caller, #wallet);
           #Ok({
             deposit_inc = depositInc;
             credit_inc = creditInc;
@@ -243,6 +255,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
           let credited = Int.abs(userCredit);
           assert assetInfo.handler.debitUser(caller, credited);
           ignore a.appendCredit(caller, assetId, credited);
+          assert a.appendLoyaltyPoints(caller, #wallet);
           #Ok({
             credit_inc = creditInc;
             txid = txid;
@@ -282,6 +295,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     switch (res) {
       case (#ok(txid, amount)) {
         doneCallback();
+        assert U.unwrapUninit(auction).appendLoyaltyPoints(caller, #wallet);
         #Ok({ txid; amount });
       };
       case (#err err) {
@@ -376,6 +390,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     ignore metrics.addPullValue("total_orders", "", func() = a.orders.ordersCounter);
     ignore metrics.addPullValue("auctions_run_count", "", func() = a.assets.historyLength());
     ignore metrics.addPullValue("trading_pairs_count", "", func() = a.assets.nAssets() - 1);
+    ignore metrics.addPullValue("total_points_supply", "", func() = a.getTotalLoyaltyPointsSupply());
 
     if (Vec.size(assets) == 0) {
       ignore U.requireOk(await* registerAsset_(quoteLedgerPrincipal, 0));
@@ -412,6 +427,8 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     let ?assetId = getAssetId(icrc1Ledger) else throw Error.reject("Unknown asset");
     U.unwrapUninit(auction).indicativeAssetStats(assetId);
   };
+
+  public shared query func totalPointsSupply() : async Nat = async U.unwrapUninit(auction).getTotalLoyaltyPointsSupply();
 
   public shared query ({ caller }) func queryCredit(icrc1Ledger : Principal) : async (Auction.CreditInfo, Nat) {
     let ?assetId = getAssetId(icrc1Ledger) else throw Error.reject("Unknown asset");
@@ -911,6 +928,20 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     assertAdminAccessSync(caller);
     U.unwrapUninit(auction).getOrders(p, #ask, null)
     |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = (_ [i].0, mapOrder(_ [i].1)));
+  };
+
+  public shared query ({ caller }) func queryOrderBook(icrc1Ledger : Principal) : async {
+    asks : [(Auction.OrderId, UserOrder)];
+    bids : [(Auction.OrderId, UserOrder)];
+  } {
+    assertAdminAccessSync(caller);
+    let ?assetId = getAssetId(icrc1Ledger) else throw Error.reject("Unknown asset");
+    {
+      asks = U.unwrapUninit(auction).getOrderBook(assetId, #ask)
+      |> Array.tabulate<(Auction.OrderId, UserOrder)>(_.size(), func(i) = (_ [i].0, mapUserOrder(_ [i].1)));
+      bids = U.unwrapUninit(auction).getOrderBook(assetId, #bid)
+      |> Array.tabulate<(Auction.OrderId, UserOrder)>(_.size(), func(i) = (_ [i].0, mapUserOrder(_ [i].1)));
+    };
   };
 
   public shared query ({ caller }) func queryUserDepositHistory(p : Principal, token : ?Principal, limit : Nat, skip : Nat) : async [DepositHistoryItem] {

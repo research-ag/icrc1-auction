@@ -13,6 +13,7 @@ import RBTree "mo:base/RBTree";
 import Vec "mo:vector";
 
 import Assets "./assets";
+import C "./constants";
 import Credits "./credits";
 import Users "./users";
 
@@ -72,7 +73,6 @@ module {
     minQuoteVolume : Nat,
     minAskVolume : (T.AssetId, T.AssetInfo) -> Int,
     kind_ : { #ask; #bid },
-    fulfilOrderCallback : (assetInfo : T.AssetInfo, userInfo : T.UserInfo, kind : { #ask; #bid }, quoteVolume : Nat, baseVolume : Nat, isPartial : Bool) -> (),
   ) = self {
 
     public func createOrderBookService(assetInfo : T.AssetInfo) : OrderBookService = OrderBookService(self, assetInfo);
@@ -130,6 +130,8 @@ module {
       // insert into order lists
       users.putOrder(userInfo, kind, orderId, order);
       assets.putOrder(assetInfo, kind, orderId, order);
+      // add rewards
+      userInfo.loyaltyPoints += C.LOYALTY_REWARD.ORDER_MODIFICATION;
     };
 
     public func cancel(userInfo : T.UserInfo, orderId : T.OrderId) : ?T.Order {
@@ -140,6 +142,8 @@ module {
       let ?sourceAcc = credits.getAccount(userInfo, srcAssetId(existingOrder.assetId)) else Prim.trap("Can never happen");
       let (success, _) = credits.unlockCredit(sourceAcc, srcVolume(existingOrder.volume, existingOrder.price));
       assert success;
+      // add rewards
+      userInfo.loyaltyPoints += C.LOYALTY_REWARD.ORDER_MODIFICATION;
 
       ?existingOrder;
     };
@@ -185,7 +189,14 @@ module {
         case (#bid) srcVol;
       };
 
-      fulfilOrderCallback(assetInfo, order.userInfoRef, kind, quoteVolume, baseVolume, isPartial);
+      if (not isPartial) {
+        assetInfo.totalExecutedOrders += 1;
+      };
+      order.userInfoRef.loyaltyPoints += C.LOYALTY_REWARD.ORDER_EXECUTION + quoteVolume / C.LOYALTY_REWARD.ORDER_VOLUME_DIVISOR;
+      switch (kind) {
+        case (#ask) assetInfo.totalExecutedVolumeQuote += quoteVolume;
+        case (#bid) assetInfo.totalExecutedVolumeBase += baseVolume;
+      };
 
       (baseVolume, quoteVolume);
     };
@@ -244,16 +255,6 @@ module {
     // a counter of ever added order
     public var ordersCounter = 0;
 
-    let fulfilCB = func(assetInfo : T.AssetInfo, userInfo : T.UserInfo, kind : { #ask; #bid }, quoteVolume : Nat, baseVolume : Nat, isPartial : Bool) {
-      if (not isPartial) {
-        assetInfo.totalExecutedOrders += 1;
-        userInfo.loyaltyPoints += 1;
-      };
-      switch (kind) {
-        case (#ask) assetInfo.totalExecutedVolumeQuote += quoteVolume;
-        case (#bid) assetInfo.totalExecutedVolumeBase += baseVolume;
-      };
-    };
     public let asks : OrdersService = OrdersService(
       assets,
       credits,
@@ -262,7 +263,6 @@ module {
       minQuoteVolume,
       settings.minAskVolume,
       #ask,
-      fulfilCB,
     );
     public let bids : OrdersService = OrdersService(
       assets,
@@ -272,7 +272,6 @@ module {
       minQuoteVolume,
       settings.minAskVolume,
       #bid,
-      fulfilCB,
     );
 
     public func manageOrders(
