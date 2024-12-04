@@ -31,6 +31,8 @@ module {
     #bid : (assetId : T.AssetId, volume : Nat, price : Float);
   };
 
+  public type CancellationResult = (T.OrderId, assetId : T.AssetId, volume : Nat, price : Float);
+
   public type InternalCancelOrderError = {
     #UnknownOrder;
   };
@@ -280,7 +282,7 @@ module {
       cancellations : ?CancellationAction,
       placements : [PlaceOrderAction],
       expectedSessionNumber : ?Nat,
-    ) : R.Result<[T.OrderId], OrderManagementError> {
+    ) : R.Result<([CancellationResult], [T.OrderId]), OrderManagementError> {
 
       // temporary list of new balances for all affected user credit accounts
       var newBalances : AssocList.AssocList<T.AssetId, Nat> = null;
@@ -299,7 +301,7 @@ module {
       };
 
       // array of functions which will write all changes to the state
-      var cancellationCommitActions : List.List<() -> ()> = null;
+      var cancellationCommitActions : List.List<() -> [CancellationResult]> = null;
       let placementCommitActions : [var () -> T.OrderId] = Array.init<() -> T.OrderId>(placements.size(), func() = 0);
 
       // update temporary balances: add unlocked credits for each cancelled order
@@ -323,14 +325,19 @@ module {
         for ((orderId, order) in List.toIter(userOrderBook.map)) {
           affectNewBalancesWithCancellation(ordersService, order);
         };
-        cancellationCommitActions := List.push(
+        cancellationCommitActions := List.push<() -> [CancellationResult]>(
           func() {
+            let ret : Vec.Vector<CancellationResult> = Vec.new();
             label l while (true) {
               switch (userOrderBook.map) {
-                case (?((orderId, _), _)) ignore ordersService.cancel(userInfo, orderId);
+                case (?((orderId, _), _)) {
+                  let ?order = ordersService.cancel(userInfo, orderId) else Prim.trap("Can never happen");
+                  Vec.add(ret, (orderId, order.assetId, order.volume, order.price));
+                };
                 case (_) break l;
               };
             };
+            Vec.toArray(ret);
           },
           cancellationCommitActions,
         );
@@ -347,11 +354,14 @@ module {
             Vec.add(orderIds, orderId);
           };
         };
-        cancellationCommitActions := List.push(
+        cancellationCommitActions := List.push<() -> [CancellationResult]>(
           func() {
+            let ret : Vec.Vector<CancellationResult> = Vec.new();
             for (orderId in Vec.vals(orderIds)) {
-              ignore ordersService.cancel(userInfo, orderId);
+              let ?order = ordersService.cancel(userInfo, orderId) else Prim.trap("Can never happen");
+              Vec.add(ret, (orderId, order.assetId, order.volume, order.price));
             };
+            Vec.toArray(ret);
           },
           cancellationCommitActions,
         );
@@ -407,8 +417,11 @@ module {
             let ?oldOrder = users.findOrder(userInfo, ordersService.kind, orderId) else return #err(#cancellation({ index = i; error = #UnknownOrder }));
             affectNewBalancesWithCancellation(ordersService, oldOrder);
             cancelledTree.put(orderId, ());
-            cancellationCommitActions := List.push(
-              func() = ignore ordersService.cancel(userInfo, orderId),
+            cancellationCommitActions := List.push<() -> [CancellationResult]>(
+              func() {
+                let ?order = ordersService.cancel(userInfo, orderId) else return [];
+                [(orderId, order.assetId, order.volume, order.price)];
+              },
               cancellationCommitActions,
             );
             AssocList.replace<T.AssetId, Nat>(assetIdSet, oldOrder.assetId, Nat.equal, ?i) |> (assetIdSet := _.0);
@@ -525,10 +538,13 @@ module {
       };
 
       // commit changes, return results
+      let retCancellations : Vec.Vector<CancellationResult> = Vec.new();
       for (cancel in List.toIter(cancellationCommitActions)) {
-        cancel();
+        for (c in cancel().vals()) {
+          Vec.add(retCancellations, c);
+        };
       };
-      let ret = Array.tabulate<T.OrderId>(placementCommitActions.size(), func(i) = placementCommitActions[i]());
+      let retPlacements = Array.tabulate<T.OrderId>(placementCommitActions.size(), func(i) = placementCommitActions[i]());
 
       if (placements.size() > 0) {
         let oldRecord = users.participantsArchive.replace(p, { lastOrderPlacement = Prim.time() });
@@ -538,7 +554,7 @@ module {
         };
       };
 
-      #ok(ret);
+      #ok(Vec.toArray(retCancellations), retPlacements);
     };
   };
 

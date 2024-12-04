@@ -100,7 +100,15 @@ type PlaceArg = vec variant {
 };
 
 type ManageOrdersResponse = variant {
-  Ok : vec OrderId;
+  Ok : record {
+    vec record {
+      OrderId;
+      Token;
+      nat;
+      float64;
+    };
+    vec OrderId;
+  };
   Err : variant {
     SessionNumberMismatch : Token;
     UnknownPrincipal;
@@ -153,7 +161,12 @@ type ReplaceOrderResponse = variant {
   };
 };
 type CancelOrderResponse = variant {
-  Ok;
+  Ok : record {
+    OrderId;
+    Token;
+    nat;
+    float64;
+  };
   Err : variant {
     UnknownOrder;
     UnknownPrincipal;
