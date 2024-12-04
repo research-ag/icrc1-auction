@@ -249,5 +249,5 @@ service : (opt principal, opt principal) -> {
   // update
   addAdmin : (principal) -> ();
   removeAdmin : (principal) -> ();
-  registerAsset : (principal, nat) -> (variant { Ok : nat; Err : variant { AlreadyRegistered : nat } });
+  registerAsset : (principal, nat) -> (variant { Ok : nat; Err : variant { AlreadyRegistered } });
 };

@@ -109,7 +109,6 @@ describe('ICRC1 Auction', () => {
     auctionPrincipal = f.canisterId;
     auction = f.actor as any;
     auction.setIdentity(admin);
-    await auction.init();
 
     let res = (await auction.registerAsset(ledger1Principal, 1_000n) as any).Ok;
     expect(res).toEqual(1n); // 0n is quote asset id
@@ -152,22 +151,10 @@ describe('ICRC1 Auction', () => {
         arg: IDL.encode(aInit({ IDL }), [[], []]),
         sender: controller.getPrincipal(),
       });
-      await auction.init();
       expect((await auction.getQuoteLedger()).toText()).toBe(quoteLedgerPrincipal.toText());
       let ledgers = await auction.icrc84_supported_tokens();
       expect(ledgers[0].toText()).toBe(quoteLedgerPrincipal.toText());
       expect(ledgers[1].toText()).toBe(ledger1Principal.toText());
-    });
-
-    test('should be automatically initialized after upgrade', async () => {
-      await pic.upgradeCanister({
-        canisterId: auctionPrincipal,
-        wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction/icrc1_auction.wasm'),
-        arg: IDL.encode(aInit({ IDL }), [[], []]),
-        sender: controller.getPrincipal(),
-      });
-      await auction.init();
-      expect(await auction.settings()).toBeTruthy();
     });
 
     test('should ignore arguments on upgrade', async () => {
@@ -212,7 +199,6 @@ describe('ICRC1 Auction', () => {
         arg: IDL.encode(aInit({ IDL }), [[], []]),
         sender: controller.getPrincipal(),
       });
-      await auction.init();
 
       // check info after upgrade
       expect(await auction.nextSession().then(({ counter }) => counter)).toEqual(3n);

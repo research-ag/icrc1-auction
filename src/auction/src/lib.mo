@@ -4,6 +4,7 @@
 /// Main author: Andy Gura
 /// Contributors: Timo Hanke
 
+import Array "mo:base/Array";
 import Float "mo:base/Float";
 import Int "mo:base/Int";
 import Iter "mo:base/Iter";
@@ -19,6 +20,7 @@ import RBTree "mo:base/RBTree";
 import Vec "mo:vector";
 
 import Assets "./assets";
+import C "./constants";
 import Credits "./credits";
 import Orders "./orders";
 import Users "./users";
@@ -338,6 +340,14 @@ module {
       case (?ui) ui.loyaltyPoints;
     };
 
+    public func getTotalLoyaltyPointsSupply() : Nat {
+      var res = 0;
+      for ((_, ui) in users.users.entries()) {
+        res += ui.loyaltyPoints;
+      };
+      res;
+    };
+
     public func appendCredit(p : Principal, assetId : AssetId, amount : Nat) : Nat {
       let userInfo = users.getOrCreate(p);
       let acc = credits.getOrCreate(userInfo, assetId);
@@ -367,6 +377,15 @@ module {
         case (false, _) #err(#NoCredit);
       };
     };
+
+    public func appendLoyaltyPoints(p : Principal, kind : { #wallet }) : Bool {
+      let amount = switch (kind) {
+        case (#wallet) C.LOYALTY_REWARD.WALLET_OPERATION;
+      };
+      let ?userInfo = users.get(p) else return false;
+      userInfo.loyaltyPoints += amount;
+      true;
+    };
     // ============= credits interface ============
 
     // ============= orders interface =============
@@ -385,6 +404,18 @@ module {
         };
         List.toArray(list);
       };
+    };
+
+    public func getOrderBook(assetId : AssetId, kind : { #ask; #bid }) : [(OrderId, T.Order)] {
+      let orderBook = assets.getAsset(assetId) |> assets.getOrderBook(_, kind);
+      let queueIter = List.toIter(orderBook.queue);
+      Array.tabulate<(OrderId, T.Order)>(
+        orderBook.size,
+        func(_) {
+          let ?item = queueIter.next() else Prim.trap("Order book consistency failed");
+          item;
+        },
+      );
     };
 
     public func manageOrders(
