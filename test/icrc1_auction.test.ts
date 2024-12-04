@@ -70,6 +70,10 @@ describe('ICRC1 Auction', () => {
     await auction.icrc84_notify({ token });
   };
 
+  const queryCredit = async (token: Principal) => {
+    return (await auction.icrc84_query([token]))[0][1].credit;
+  }
+
   beforeEach(async () => {
     pic = await PocketIc.create();
     await pic.setTime(1711029457000); // mock time to be 21.03.2024 13:57:37.000 UTC
@@ -180,8 +184,8 @@ describe('ICRC1 Auction', () => {
       // check info before upgrade
       auction.setIdentity(user);
       expect(await auction.nextSession().then(({ counter }) => counter)).toEqual(3n);
-      expect(await auction.icrc84_credit(quoteLedgerPrincipal)).toEqual(340_000_000n); // 500m - 150m paid - 10m locked
-      expect(await auction.icrc84_credit(ledger1Principal)).toEqual(1_500n);
+      expect(await queryCredit(quoteLedgerPrincipal)).toEqual(340_000_000n); // 500m - 150m paid - 10m locked
+      expect(await queryCredit(ledger1Principal)).toEqual(1_500n);
       expect((await auction.queryTokenBids(ledger2Principal))[0]).toHaveLength(1);
       let metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
@@ -198,8 +202,8 @@ describe('ICRC1 Auction', () => {
 
       // check info after upgrade
       expect(await auction.nextSession().then(({ counter }) => counter)).toEqual(3n);
-      expect(await auction.icrc84_credit(quoteLedgerPrincipal)).toEqual(340_000_000n);
-      expect(await auction.icrc84_credit(ledger1Principal)).toEqual(1_500n);
+      expect(await queryCredit(quoteLedgerPrincipal)).toEqual(340_000_000n);
+      expect(await queryCredit(ledger1Principal)).toEqual(1_500n);
       expect((await auction.queryTokenBids(ledger2Principal))[0]).toHaveLength(1);
       metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
@@ -221,15 +225,12 @@ describe('ICRC1 Auction', () => {
   });
 
   describe('deposit', () => {
-    test('should be able to query deposit when not registered', async () => {
-      expect(await auction.icrc84_credit(quoteLedgerPrincipal)).toEqual(0n);
-    });
 
     test('should accept deposit on notify', async () => {
       await mintDeposit(user, 10_000);
-      expect(await auction.icrc84_credit(quoteLedgerPrincipal)).toEqual(0n);
+      expect((await auction.icrc84_query([quoteLedgerPrincipal]))).toHaveLength(0);
       await auction.icrc84_notify({ token: quoteLedgerPrincipal });
-      expect(await auction.icrc84_credit(quoteLedgerPrincipal)).toEqual(10_000n);
+      expect(await queryCredit(quoteLedgerPrincipal)).toEqual(10_000n);
     });
 
     test('should return total deposit', async () => {
@@ -246,7 +247,7 @@ describe('ICRC1 Auction', () => {
           deposit_inc: 15000n,
         },
       });
-      expect(await auction.icrc84_credit(quoteLedgerPrincipal)).toEqual(15_000n);
+      expect(await queryCredit(quoteLedgerPrincipal)).toEqual(15_000n);
     });
 
     test('should return error if not enough balance', async () => {
@@ -262,7 +263,7 @@ describe('ICRC1 Auction', () => {
     test('should be able to withdraw deposit', async () => {
       await mintDeposit(user, 999, quoteLedgerPrincipal);
       await auction.icrc84_notify({ token: quoteLedgerPrincipal });
-      expect(await auction.icrc84_credit(quoteLedgerPrincipal)).toEqual(999n);
+      expect(await queryCredit(quoteLedgerPrincipal)).toEqual(999n);
       expect(await quoteLedger.icrc1_balance_of({ owner: user.getPrincipal(), subaccount: [] })).toEqual(0n);
 
       const res = await auction.icrc84_withdraw({
@@ -272,7 +273,7 @@ describe('ICRC1 Auction', () => {
         expected_fee: [],
       });
       expect(res).toHaveProperty('Ok');
-      expect(await auction.icrc84_credit(quoteLedgerPrincipal)).toEqual(500n);
+      expect(await queryCredit(quoteLedgerPrincipal)).toEqual(500n);
       expect(await quoteLedger.icrc1_balance_of({ owner: user.getPrincipal(), subaccount: [] })).toEqual(499n);
     });
 
@@ -284,7 +285,7 @@ describe('ICRC1 Auction', () => {
         token: quoteLedgerPrincipal,
         expected_fee: [],
       });
-      expect(await auction.icrc84_credit(quoteLedgerPrincipal)).toEqual(500_000_000n);
+      expect(await queryCredit(quoteLedgerPrincipal)).toEqual(500_000_000n);
     });
   });
 
@@ -374,10 +375,6 @@ describe('ICRC1 Auction', () => {
 
   describe('credit', () => {
 
-    test('should be able to query credit when not registered', async () => {
-      expect(await auction.icrc84_credit(ledger1Principal)).toEqual(0n);
-    });
-
     test('should return #InsufficientCredit if not registered', async () => {
       const res = await auction.icrc84_withdraw({
         to: { owner: user.getPrincipal(), subaccount: [] },
@@ -397,7 +394,7 @@ describe('ICRC1 Auction', () => {
         expected_fee: [],
       });
       expect(res).toEqual({ Err: { InsufficientCredit: {} } });
-      expect(await auction.icrc84_credit(ledger1Principal)).toEqual(800n);
+      expect(await queryCredit(ledger1Principal)).toEqual(800n);
     });
 
     test('should withdraw credit successfully', async () => {
@@ -410,7 +407,7 @@ describe('ICRC1 Auction', () => {
       });
       expect(res).toHaveProperty('Ok');
       expect(await ledger1.icrc1_balance_of({ owner: user.getPrincipal(), subaccount: [] })).toEqual(1_200n);
-      expect(await auction.icrc84_credit(ledger1Principal)).toEqual(0n);
+      expect((await auction.icrc84_query([ledger1Principal]))).toHaveLength(0);
     });
 
     test('should affect metrics', async () => {
@@ -445,7 +442,7 @@ describe('ICRC1 Auction', () => {
     test.skip('should return #BadFee if provided fee is wrong', async () => {
       await ledger1.updateFee(BigInt(3));
       await prepareDeposit(user, ledger1Principal, 1_200);
-      expect(await auction.icrc84_credit(ledger1Principal)).toEqual(1197n);
+      expect(await queryCredit(ledger1Principal)).toEqual(1197n);
       const res = await auction.icrc84_withdraw({
         to: { owner: user.getPrincipal(), subaccount: [] },
         amount: 1_197n,
@@ -453,13 +450,13 @@ describe('ICRC1 Auction', () => {
         expected_fee: [50n],
       });
       expect(res).toEqual({ Err: { BadFee: { expected_fee: 3n } } });
-      expect(await auction.icrc84_credit(ledger1Principal)).toEqual(1_197n);
+      expect(await queryCredit(ledger1Principal)).toEqual(1_197n);
     });
 
     test.skip('should withdraw credit successfully with ICRC1 fee', async () => {
       await ledger1.updateFee(BigInt(3));
       await prepareDeposit(user, ledger1Principal, 1_200);
-      expect(await auction.icrc84_credit(ledger1Principal)).toEqual(1197n);
+      expect(await queryCredit(ledger1Principal)).toEqual(1197n);
       const res = await auction.icrc84_withdraw({
         to: { owner: user.getPrincipal(), subaccount: [] },
         amount: 1_197n,
@@ -468,7 +465,7 @@ describe('ICRC1 Auction', () => {
       });
       expect(res).toHaveProperty('Ok');
       expect(await ledger1.icrc1_balance_of({ owner: user.getPrincipal(), subaccount: [] })).toEqual(1_194n);
-      expect(await auction.icrc84_credit(ledger1Principal)).toEqual(0n);
+      expect(await queryCredit(ledger1Principal)).toEqual(0n);
     });
 
     test.skip('should withdraw credit successfully when provided correct expected fee', async () => {
@@ -482,7 +479,7 @@ describe('ICRC1 Auction', () => {
       });
       expect(res).toHaveProperty('Ok');
       expect(await ledger1.icrc1_balance_of({ owner: user.getPrincipal(), subaccount: [] })).toEqual(1_194n);
-      expect(await auction.icrc84_credit(ledger1Principal)).toEqual(0n);
+      expect(await queryCredit(ledger1Principal)).toEqual(0n);
     });
   });
 });

@@ -7,7 +7,6 @@ import List "mo:base/List";
 import Nat "mo:base/Nat";
 import Nat8 "mo:base/Nat8";
 import Nat64 "mo:base/Nat64";
-import Option "mo:base/Option";
 import Prim "mo:prim";
 import Principal "mo:base/Principal";
 import R "mo:base/Result";
@@ -343,31 +342,33 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     throw Error.reject("Unknown token");
   };
 
-  public shared query ({ caller }) func icrc84_credit(token : Principal) : async Int = async switch (getAssetId(token)) {
-    case (?aid) auction.getCredit(caller, aid).available;
-    case (_) 0;
-  };
-
-  public shared query ({ caller }) func icrc84_all_credits() : async [(Principal, Int)] {
-    auction.getCredits(caller) |> Array.tabulate<(Principal, Int)>(
-      _.size(),
-      func(i) = (getIcrc1Ledger(_ [i].0), _ [i].1.available),
-    );
-  };
-
-  public shared query ({ caller }) func icrc84_trackedDeposit(token : Principal) : async {
-    #Ok : Nat;
-    #Err : { #NotAvailable : { message : Text } };
-  } {
-    (
-      switch (getAssetId(token)) {
-        case (?aid) aid;
-        case (_) return #Err(#NotAvailable({ message = "Unknown token" }));
-      }
-    )
-    |> Vec.get(assets, _)
-    |> _.handler.trackedDeposit(caller)
-    |> #Ok(Option.get<Nat>(_, 0));
+  public shared query ({ caller }) func icrc84_query(arg : [Principal]) : async [(
+    Principal,
+    {
+      credit : Int;
+      tracked_deposit : {
+        #Ok : Nat;
+        #Err : { #NotAvailable : { message : Text } };
+      };
+    },
+  )] {
+    let tokens : [Principal] = switch (arg.size()) {
+      case (0) Vec.map<AssetInfo, Principal>(assets, func({ ledgerPrincipal }) = ledgerPrincipal) |> Vec.toArray(_);
+      case (_) arg;
+    };
+    let ret : Vec.Vector<(Principal, { credit : Int; tracked_deposit : { #Ok : Nat; #Err : { #NotAvailable : { message : Text } } } })> = Vec.new();
+    for (token in tokens.vals()) {
+      let ?aid = getAssetId(token) else throw Error.reject("Unknown token " # Principal.toText(token));
+      let credit = auction.getCredit(caller, aid).available;
+      if (credit > 0) {
+        let tracked_deposit = switch (Vec.get(assets, aid).handler.trackedDeposit(caller)) {
+          case (?d) #Ok(d);
+          case (null) #Err(#NotAvailable({ message = "Tracked deposit is not known" }));
+        };
+        Vec.add(ret, (token, { credit; tracked_deposit }));
+      };
+    };
+    Vec.toArray(ret);
   };
 
   public shared ({ caller }) func icrc84_notify(args : { token : Principal }) : async NotifyResult {
