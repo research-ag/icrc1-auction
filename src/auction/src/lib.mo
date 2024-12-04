@@ -4,6 +4,7 @@
 /// Main author: Andy Gura
 /// Contributors: Timo Hanke
 
+import Array "mo:base/Array";
 import Float "mo:base/Float";
 import Int "mo:base/Int";
 import Iter "mo:base/Iter";
@@ -19,6 +20,7 @@ import RBTree "mo:base/RBTree";
 import Vec "mo:vector";
 
 import Assets "./assets";
+import C "./constants";
 import Credits "./credits";
 import Orders "./orders";
 import Users "./users";
@@ -218,6 +220,8 @@ module {
   public type CancellationAction = Orders.CancellationAction;
   public type PlaceOrderAction = Orders.PlaceOrderAction;
 
+  public type CancellationResult = Orders.CancellationResult;
+
   public type IndicativeStats = {
     clearing : {
       #match : {
@@ -338,6 +342,14 @@ module {
       case (?ui) ui.loyaltyPoints;
     };
 
+    public func getTotalLoyaltyPointsSupply() : Nat {
+      var res = 0;
+      for ((_, ui) in users.users.entries()) {
+        res += ui.loyaltyPoints;
+      };
+      res;
+    };
+
     public func appendCredit(p : Principal, assetId : AssetId, amount : Nat) : Nat {
       let userInfo = users.getOrCreate(p);
       let acc = credits.getOrCreate(userInfo, assetId);
@@ -367,6 +379,15 @@ module {
         case (false, _) #err(#NoCredit);
       };
     };
+
+    public func appendLoyaltyPoints(p : Principal, kind : { #wallet }) : Bool {
+      let amount = switch (kind) {
+        case (#wallet) C.LOYALTY_REWARD.WALLET_OPERATION;
+      };
+      let ?userInfo = users.get(p) else return false;
+      userInfo.loyaltyPoints += amount;
+      true;
+    };
     // ============= credits interface ============
 
     // ============= orders interface =============
@@ -387,12 +408,24 @@ module {
       };
     };
 
+    public func getOrderBook(assetId : AssetId, kind : { #ask; #bid }) : [(OrderId, T.Order)] {
+      let orderBook = assets.getAsset(assetId) |> assets.getOrderBook(_, kind);
+      let queueIter = List.toIter(orderBook.queue);
+      Array.tabulate<(OrderId, T.Order)>(
+        orderBook.size,
+        func(_) {
+          let ?item = queueIter.next() else Prim.trap("Order book consistency failed");
+          item;
+        },
+      );
+    };
+
     public func manageOrders(
       p : Principal,
       cancellations : ?Orders.CancellationAction,
       placements : [Orders.PlaceOrderAction],
       expectedSessionNumber : ?Nat,
-    ) : R.Result<[OrderId], ManageOrdersError> {
+    ) : R.Result<([CancellationResult], [OrderId]), ManageOrdersError> {
       let ?userInfo = users.get(p) else return #err(#UnknownPrincipal);
       orders.manageOrders(p, userInfo, cancellations, placements, expectedSessionNumber);
     };
@@ -403,7 +436,7 @@ module {
         case (#bid) #bid(assetId, volume, price);
       };
       switch (manageOrders(p, null, [placement], expectedSessionNumber)) {
-        case (#ok orderIds) #ok(orderIds[0]);
+        case (#ok(_, orderIds)) #ok(orderIds[0]);
         case (#err(#SessionNumberMismatch x)) #err(#SessionNumberMismatch(x));
         case (#err(#UnknownPrincipal)) #err(#UnknownPrincipal);
         case (#err(#placement { error })) #err(error);
@@ -421,7 +454,7 @@ module {
         case (#bid) (#bid(orderId), #bid(assetId, volume, price));
       };
       switch (manageOrders(p, ? #orders([cancellation]), [placement], expectedSessionNumber)) {
-        case (#ok orderIds) #ok(orderIds[0]);
+        case (#ok(_, orderIds)) #ok(orderIds[0]);
         case (#err(#SessionNumberMismatch x)) #err(#SessionNumberMismatch(x));
         case (#err(#UnknownPrincipal)) #err(#UnknownPrincipal);
         case (#err(#cancellation({ error }))) #err(error);
@@ -429,13 +462,13 @@ module {
       };
     };
 
-    public func cancelOrder(p : Principal, kind : { #ask; #bid }, orderId : OrderId, expectedSessionNumber : ?Nat) : R.Result<(), CancelOrderError> {
+    public func cancelOrder(p : Principal, kind : { #ask; #bid }, orderId : OrderId, expectedSessionNumber : ?Nat) : R.Result<CancellationResult, CancelOrderError> {
       let cancellation = switch (kind) {
         case (#ask) #ask(orderId);
         case (#bid) #bid(orderId);
       };
       switch (manageOrders(p, ? #orders([cancellation]), [], expectedSessionNumber)) {
-        case (#ok _) #ok();
+        case (#ok(x, _)) #ok(x[0]);
         case (#err(#SessionNumberMismatch x)) #err(#SessionNumberMismatch(x));
         case (#err(#UnknownPrincipal)) #err(#UnknownPrincipal);
         case (#err(#cancellation({ error }))) #err(error);

@@ -100,7 +100,15 @@ type PlaceArg = vec variant {
 };
 
 type ManageOrdersResponse = variant {
-  Ok : vec OrderId;
+  Ok : record {
+    vec record {
+      OrderId;
+      Token;
+      nat;
+      float64;
+    };
+    vec OrderId;
+  };
   Err : variant {
     SessionNumberMismatch : Token;
     UnknownPrincipal;
@@ -153,7 +161,12 @@ type ReplaceOrderResponse = variant {
   };
 };
 type CancelOrderResponse = variant {
-  Ok;
+  Ok : record {
+    OrderId;
+    Token;
+    nat;
+    float64;
+  };
   Err : variant {
     UnknownOrder;
     UnknownPrincipal;
@@ -186,9 +199,15 @@ service : (opt principal, opt principal) -> {
   icrc84_token_info : (Token) -> (TokenInfo) query;
 
   // private queries
-  icrc84_credit : (Token) -> (int) query;
-  icrc84_all_credits : () -> (vec record { Token; int }) query;
-  icrc84_trackedDeposit : (Token) -> (BalanceResponse) query;
+  icrc84_query : (vec Token) -> (
+    vec record {
+      Token;
+      record {
+        credit : int;
+        tracked_deposit : BalanceResponse;
+      };
+    }
+  ) query;
 
   // updates
   icrc84_notify : (NotifyArg) -> (NotifyResponse);
@@ -319,5 +338,5 @@ service : (opt principal, opt principal) -> {
   removeAdmin : (principal) -> ();
 
   // register new base token
-  registerAsset : (principal, nat) -> (variant { Ok : nat; Err : variant { AlreadyRegistered : nat } });
+  registerAsset : (principal, nat) -> (variant { Ok : nat; Err : variant { AlreadyRegistered } });
 };
