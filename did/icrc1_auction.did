@@ -27,13 +27,6 @@ type NotifyResponse = variant {
   };
 };
 
-type BalanceResponse = variant {
-  Ok : Amount;
-  Err : variant {
-    NotAvailable : record { message : text };
-  };
-};
-
 type WithdrawArgs = record {
   to : Account;
   amount : Amount;
@@ -204,7 +197,7 @@ service : (opt principal, opt principal) -> {
       Token;
       record {
         credit : int;
-        tracked_deposit : BalanceResponse;
+        tracked_deposit : opt Amount;
       };
     }
   ) query;

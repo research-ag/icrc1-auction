@@ -346,25 +346,19 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     Principal,
     {
       credit : Int;
-      tracked_deposit : {
-        #Ok : Nat;
-        #Err : { #NotAvailable : { message : Text } };
-      };
+      tracked_deposit : ?Nat;
     },
   )] {
     let tokens : [Principal] = switch (arg.size()) {
       case (0) Vec.map<AssetInfo, Principal>(assets, func({ ledgerPrincipal }) = ledgerPrincipal) |> Vec.toArray(_);
       case (_) arg;
     };
-    let ret : Vec.Vector<(Principal, { credit : Int; tracked_deposit : { #Ok : Nat; #Err : { #NotAvailable : { message : Text } } } })> = Vec.new();
+    let ret : Vec.Vector<(Principal, { credit : Int; tracked_deposit : ?Nat })> = Vec.new();
     for (token in tokens.vals()) {
       let ?aid = getAssetId(token) else throw Error.reject("Unknown token " # Principal.toText(token));
       let credit = auction.getCredit(caller, aid).available;
       if (credit > 0) {
-        let tracked_deposit = switch (Vec.get(assets, aid).handler.trackedDeposit(caller)) {
-          case (?d) #Ok(d);
-          case (null) #Err(#NotAvailable({ message = "Tracked deposit is not known" }));
-        };
+        let tracked_deposit = Vec.get(assets, aid).handler.trackedDeposit(caller);
         Vec.add(ret, (token, { credit; tracked_deposit }));
       };
     };
