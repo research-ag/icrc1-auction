@@ -76,6 +76,7 @@ type DepositResponse = variant {
 };
 
 type OrderId = nat;
+type SessionNumber = nat;
 
 type Order = record {
   icrc1Ledger : Token;
@@ -221,13 +222,24 @@ service : (opt principal, opt principal) -> {
   indicativeStats : (principal) -> (IndicativeStats) query;
 
   // user queries
-  queryTokenBids : (Token) -> (vec record { OrderId; Order }, nat) query;
-  queryBids : () -> (vec record { OrderId; Order; nat }) query;
-  queryTokenAsks : (Token) -> (vec record { OrderId; Order }, nat) query;
-  queryAsks : () -> (vec record { OrderId; Order; nat }) query;
-  queryCredit : (Token) -> (record { total : nat; available : nat; locked : nat }, nat) query;
-  queryCredits : () -> (vec record { principal; record { total : nat; available : nat; locked : nat }; nat }) query;
-  queryPoints : () -> (nat) query;
+  auction_query : (
+    record {
+      asks : opt vec Token;
+      bids : opt vec Token;
+      credits : opt vec Token;
+    }
+  ) -> (
+    record {
+      asks : vec record { OrderId; Order; SessionNumber };
+      bids : vec record { OrderId; Order; SessionNumber };
+      credits : vec record {
+        Token;
+        record { total : nat; available : nat; locked : nat };
+        SessionNumber;
+      };
+      points : nat;
+    }
+  ) query;
 
   // Providing token in the arguments to history queries will filter results by token
 
@@ -239,15 +251,15 @@ service : (opt principal, opt principal) -> {
   queryPriceHistory : (opt Token, nat, nat, bool) -> (vec record { nat64; nat; Token; nat; float64 }) query;
 
   // update
-  manageOrders : (opt CancellationArg, PlaceArg, opt nat) -> (ManageOrdersResponse);
+  manageOrders : (opt CancellationArg, PlaceArg, opt SessionNumber) -> (ManageOrdersResponse);
 
-  placeAsks : (vec record { Token; nat; float64 }, opt nat) -> (vec PlaceOrderResponse);
-  replaceAsk : (OrderId, nat, float64, opt nat) -> (ReplaceOrderResponse);
-  cancelAsks : (vec OrderId, opt nat) -> (vec CancelOrderResponse);
+  placeAsks : (vec record { Token; nat; float64 }, opt SessionNumber) -> (vec PlaceOrderResponse);
+  replaceAsk : (OrderId, nat, float64, opt SessionNumber) -> (ReplaceOrderResponse);
+  cancelAsks : (vec OrderId, opt SessionNumber) -> (vec CancelOrderResponse);
 
-  placeBids : (vec record { Token; nat; float64 }, opt nat) -> (vec PlaceOrderResponse);
-  replaceBid : (OrderId, nat, float64, opt nat) -> (ReplaceOrderResponse);
-  cancelBids : (vec OrderId, opt nat) -> (vec CancelOrderResponse);
+  placeBids : (vec record { Token; nat; float64 }, opt SessionNumber) -> (vec PlaceOrderResponse);
+  replaceBid : (OrderId, nat, float64, opt SessionNumber) -> (ReplaceOrderResponse);
+  cancelBids : (vec OrderId, opt SessionNumber) -> (vec CancelOrderResponse);
 
   // ADMIN API
   // query

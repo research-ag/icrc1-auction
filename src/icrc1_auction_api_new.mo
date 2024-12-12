@@ -102,6 +102,13 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   type UpperResult<Ok, Err> = { #Ok : Ok; #Err : Err };
 
+  type AuctionQueryResponse = {
+    asks : [(Auction.OrderId, Order, Nat)];
+    bids : [(Auction.OrderId, Order, Nat)];
+    credits : [(Principal, Auction.CreditInfo, Nat)];
+    points : Nat;
+  };
+
   type PriceHistoryItem = (timestamp : Nat64, sessionNumber : Nat, ledgerPrincipal : Principal, volume : Nat, price : Float);
   type DepositHistoryItem = (timestamp : Nat64, kind : { #deposit; #withdrawal; #withdrawalRollback }, ledgerPrincipal : Principal, volume : Nat);
   type TransactionHistoryItem = (timestamp : Nat64, sessionNumber : Nat, kind : { #ask; #bid }, ledgerPrincipal : Principal, volume : Nat, price : Float);
@@ -506,20 +513,6 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   public shared query func totalPointsSupply() : async Nat = async auction.getTotalLoyaltyPointsSupply();
 
-  public shared query ({ caller }) func queryCredit(icrc1Ledger : Principal) : async (Auction.CreditInfo, Nat) {
-    let ?assetId = getAssetId(icrc1Ledger) else throw Error.reject("Unknown asset");
-    (auction.getCredit(caller, assetId), auction.getAssetSessionNumber(assetId));
-  };
-
-  public shared query ({ caller }) func queryCredits() : async [(Principal, Auction.CreditInfo, Nat)] {
-    auction.getCredits(caller)
-    |> Array.tabulate<(Principal, Auction.CreditInfo, Nat)>(_.size(), func(i) = (getIcrc1Ledger(_ [i].0), _ [i].1, auction.getAssetSessionNumber(_ [i].0)));
-  };
-
-  public shared query ({ caller }) func queryPoints() : async Nat {
-    auction.getLoyaltyPoints(caller);
-  };
-
   private func getIcrc1Ledger(assetId : Nat) : Principal = Vec.get(assets, assetId).ledgerPrincipal;
   private func getAssetId(icrc1Ledger : Principal) : ?Nat {
     for ((assetInfo, i) in Vec.items(assets)) {
@@ -530,30 +523,43 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     return null;
   };
 
-  public shared query ({ caller }) func queryTokenBids(ledger : Principal) : async ([(Auction.OrderId, Order)], Nat) {
-    let ?assetId = getAssetId(ledger) else return ([], auction.sessionsCounter);
-
-    auction.getOrders(caller, #bid, ?assetId)
-    |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = (_ [i].0, mapOrder(_ [i].1)))
-    |> (_, auction.getAssetSessionNumber(assetId));
-  };
-
-  public shared query ({ caller }) func queryBids() : async ([(Auction.OrderId, Order, Nat)]) {
-    auction.getOrders(caller, #bid, null)
-    |> Array.tabulate<(Auction.OrderId, Order, Nat)>(_.size(), func(i) = (_ [i].0, mapOrder(_ [i].1), auction.getAssetSessionNumber(_ [i].1.assetId)));
-  };
-
-  public shared query ({ caller }) func queryTokenAsks(ledger : Principal) : async ([(Auction.OrderId, Order)], Nat) {
-    let ?assetId = getAssetId(ledger) else return ([], auction.sessionsCounter);
-
-    auction.getOrders(caller, #ask, ?assetId)
-    |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = (_ [i].0, mapOrder(_ [i].1)))
-    |> (_, auction.getAssetSessionNumber(assetId));
-  };
-
-  public shared query ({ caller }) func queryAsks() : async ([(Auction.OrderId, Order, Nat)]) {
-    auction.getOrders(caller, #ask, null)
-    |> Array.tabulate<(Auction.OrderId, Order, Nat)>(_.size(), func(i) = (_ [i].0, mapOrder(_ [i].1), auction.getAssetSessionNumber(_ [i].1.assetId)));
+  public shared query ({ caller }) func auction_query(arg : { asks : ?[Principal]; bids : ?[Principal]; credits : ?[Principal] }) : async AuctionQueryResponse {
+    func retrieveElements<T>(selection : ?[Principal], getFunc : (?Auction.AssetId) -> [T]) : R.Result<[T], Principal> {
+      switch (selection) {
+        case (?tokens) switch (tokens.size()) {
+          case (0) #ok(getFunc(null));
+          case (_) {
+            let v : Vec.Vector<T> = Vec.new();
+            for (p in tokens.vals()) {
+              let ?assetId = getAssetId(p) else return #err(p);
+              Vec.addFromIter(v, getFunc(?assetId).vals());
+            };
+            #ok(Vec.toArray(v));
+          };
+        };
+        case (null) #ok([]);
+      };
+    };
+    let (asks, bids, credits) = switch (
+      retrieveElements<(Auction.OrderId, Auction.Order)>(arg.asks, func(assetId) = auction.getOrders(caller, #ask, assetId)),
+      retrieveElements<(Auction.OrderId, Auction.Order)>(arg.bids, func(assetId) = auction.getOrders(caller, #bid, assetId)),
+      retrieveElements<(Auction.AssetId, Auction.CreditInfo)>(
+        arg.credits,
+        func(assetId) = switch (assetId) {
+          case (null) auction.getCredits(caller);
+          case (?aid) [(aid, auction.getCredit(caller, aid))];
+        },
+      ),
+    ) {
+      case (#ok a, #ok b, #ok c) (a, b, c);
+      case ((#err p, _, _) or (_, #err p, _) or (_, _, #err p)) throw Error.reject("Unknown token " # Principal.toText(p));
+    };
+    {
+      asks = asks |> Array.tabulate<(Auction.OrderId, Order, Nat)>(_.size(), func(i) = (_ [i].0, mapOrder(_ [i].1), auction.getAssetSessionNumber(_ [i].1.assetId)));
+      bids = bids |> Array.tabulate<(Auction.OrderId, Order, Nat)>(_.size(), func(i) = (_ [i].0, mapOrder(_ [i].1), auction.getAssetSessionNumber(_ [i].1.assetId)));
+      credits = credits |> Array.tabulate<(Principal, Auction.CreditInfo, Nat)>(_.size(), func(i) = (getIcrc1Ledger(_ [i].0), _ [i].1, auction.getAssetSessionNumber(_ [i].0)));
+      points = auction.getLoyaltyPoints(caller);
+    };
   };
 
   public shared query ({ caller }) func queryDepositHistory(token : ?Principal, limit : Nat, skip : Nat) : async [DepositHistoryItem] {

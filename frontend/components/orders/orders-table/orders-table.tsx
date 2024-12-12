@@ -1,6 +1,6 @@
 import { Box, Button, Table } from '@mui/joy';
 
-import { useCancelOrder, useListOrders, useQuoteLedger, useTokenInfoMap } from '@fe/integration';
+import {useAuctionQuery, useCancelOrder, useListOrders, useQuoteLedger, useTokenInfoMap} from '@fe/integration';
 import InfoItem from '../../root/info-item';
 import { Principal } from '@dfinity/principal';
 import { displayWithDecimals } from '@fe/utils';
@@ -8,7 +8,8 @@ import { displayWithDecimals } from '@fe/utils';
 export type OrdersTableProps = { kind: 'ask' | 'bid' };
 
 const OrdersTable = ({ kind }: OrdersTableProps) => {
-  const { data: orders } = useListOrders(kind);
+  const { data: auctionQuery } = useAuctionQuery();
+  const { data: orders } = useListOrders(auctionQuery, kind);
   const { mutate: cancelOrder } = useCancelOrder(kind);
 
   const { data: symbols } = useTokenInfoMap();
