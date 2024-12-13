@@ -1,4 +1,5 @@
 import Array "mo:base/Array";
+import Debug "mo:base/Debug";
 import Error "mo:base/Error";
 import Float "mo:base/Float";
 import Int "mo:base/Int";
@@ -416,10 +417,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   public shared ({ caller }) func icrc84_deposit(args : { token : Principal; amount : Nat; from : { owner : Principal; subaccount : ?Blob }; expected_fee : ?Nat }) : async DepositResult {
     depositCounter.add(1);
-    let assetId = switch (getAssetId(args.token)) {
-      case (?aid) aid;
-      case (_) throw Error.reject("Unknown token");
-    };
+    let ?assetId = getAssetId(args.token) else throw Error.reject("Unknown token");
     let assetInfo = Vec.get(assets, assetId);
     let res = await* assetInfo.handler.depositFromAllowance(caller, args.from, args.amount, args.expected_fee);
     switch (res) {
@@ -824,6 +822,9 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   public shared ({ caller }) func registerAsset(ledger : Principal, minAskVolume : Nat) : async UpperResult<Nat, RegisterAssetError> {
     await* assertAdminAccess(caller);
+    if (Vec.size(assets) == 0) {
+      Prim.trap("Cannot register asset: quote asset is not registered");
+    };
     let res = await* registerAsset_(ledger, minAskVolume);
     R.toUpper(res);
   };
@@ -1055,7 +1056,11 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     ignore Timer.setTimer<system>(
       #seconds(0),
       func() : async () {
-        ignore await* registerAsset_(quoteLedgerPrincipal, 0);
+        try {
+          ignore await* registerAsset_(quoteLedgerPrincipal, 0);
+        } catch (err) {
+          Debug.print("Error while registering quote token ledger: " # Error.message(err));
+        };
       },
     );
   };

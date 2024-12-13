@@ -1,4 +1,5 @@
 import Array "mo:base/Array";
+import Debug "mo:base/Debug";
 import Error "mo:base/Error";
 import Float "mo:base/Float";
 import Int "mo:base/Int";
@@ -166,8 +167,8 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
         triggerOnNotifications = true;
         log = func(p : Principal, logEvent : TokenHandler.LogEvent) = Vec.add(tokenHandlersJournal, (ledgerPrincipal, p, logEvent));
       });
-      decimals = decimals;
-      symbol = symbol;
+      decimals;
+      symbol;
     };
     switch (tokenHandlerStableData) {
       case (?d) ai.handler.unshare(d);
@@ -765,6 +766,9 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   public shared ({ caller }) func registerAsset(ledger : Principal, minAskVolume : Nat) : async UpperResult<Nat, RegisterAssetError> {
     await* assertAdminAccess(caller);
+    if (Vec.size(assets) == 0) {
+      Prim.trap("Cannot register asset: quote asset is not registered");
+    };
     let res = await* registerAsset_(ledger, minAskVolume);
     R.toUpper(res);
   };
@@ -970,7 +974,11 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     ignore Timer.setTimer<system>(
       #seconds(0),
       func() : async () {
-        ignore await* registerAsset_(quoteLedgerPrincipal, 0);
+        try {
+          ignore await* registerAsset_(quoteLedgerPrincipal, 0);
+        } catch (err) {
+          Debug.print("Error while registering quote token ledger: " # Error.message(err));
+        };
       },
     );
   };
