@@ -46,7 +46,7 @@ do {
 
   auction.processAsset(ft);
 
-  let ?priceHistoryItem = auction.getPriceHistory(?ft, #desc, false).next() else Prim.trap("");
+  let ?priceHistoryItem = auction.getPriceHistory([ft], #desc, false).next() else Prim.trap("");
   assert priceHistoryItem.3 == 4_000; // volume
   assert priceHistoryItem.4 == 0.0125;
 
@@ -102,7 +102,7 @@ do {
     case (_) assert false;
   };
   auction.processAsset(ft);
-  let ?priceHistoryItem = auction.getPriceHistory(?ft, #desc, false).next() else Prim.trap("");
+  let ?priceHistoryItem = auction.getPriceHistory([ft], #desc, false).next() else Prim.trap("");
   assert priceHistoryItem.3 == askVolume;
   assert Float.equalWithin(priceHistoryItem.4, bidPrice, 0.000000000000001);
 

@@ -213,12 +213,15 @@ export const useAuctionQuery = () => {
     return useQuery(
         'auctionQuery',
         async () => {
-            const res = await auction.auction_query({asks: [[]], bids: [[]], credits: [[]]});
-            console.log('####');
-            console.log(res);
-            const ret = replaceBigInts(res);
-            console.log(ret);
-            return ret;
+            return replaceBigInts(await auction.auction_query({
+                asks: [[]],
+                bids: [[]],
+                credits: [[]],
+                session_numbers: [],
+                deposit_history: [[[], BigInt(10000), BigInt(0)]],
+                transaction_history: [[[], BigInt(10000), BigInt(0)]],
+                price_history: []
+            }));
         },
         {
             onError: err => {
@@ -356,37 +359,19 @@ export const useCancelOrder = (kind: 'ask' | 'bid') => {
     );
 };
 
-export const useDepositHistory = () => {
-    const {auction} = useAuction();
-    const {enqueueSnackbar} = useSnackbar();
+export const useDepositHistory = (auctionQueryData: AuctionQueryResponse | undefined) => {
     return useQuery(
-        'deposit-history',
-        async () => {
-            return auction.queryDepositHistory([], BigInt(10000), BigInt(0));
-        },
-        {
-            onError: err => {
-                enqueueSnackbar(`Failed to fetch deposit history: ${err}`, {variant: 'error'});
-                useQueryClient().removeQueries('deposit-history');
-            },
-        },
+        ['deposit-history', auctionQueryData],
+        async () => auctionQueryData?.deposit_history || [],
+        {enabled: !!auctionQueryData}
     );
 };
 
-export const useTransactionHistory = () => {
-    const {auction} = useAuction();
-    const {enqueueSnackbar} = useSnackbar();
+export const useTransactionHistory = (auctionQueryData: AuctionQueryResponse | undefined) => {
     return useQuery(
-        'transaction-history',
-        async () => {
-            return auction.queryTransactionHistory([], BigInt(10000), BigInt(0));
-        },
-        {
-            onError: err => {
-                enqueueSnackbar(`Failed to fetch transaction history: ${err}`, {variant: 'error'});
-                useQueryClient().removeQueries('transaction-history');
-            },
-        },
+        ['transaction-history', auctionQueryData],
+        async () => auctionQueryData?.transaction_history || [],
+        {enabled: !!auctionQueryData}
     );
 };
 
@@ -397,7 +382,16 @@ export const usePriceHistory = (limit: number, offset: number) => {
     return useQuery(
         ['price-history', offset],
         async () => {
-            return auction.queryPriceHistory([], BigInt(limit), BigInt(offset), false);
+            const res = await auction.auction_query({
+                asks: [],
+                bids: [],
+                credits: [],
+                session_numbers: [],
+                deposit_history: [],
+                transaction_history: [],
+                price_history: [[[], BigInt(limit), BigInt(offset), false]]
+            });
+            return res.price_history;
         },
         {
             keepPreviousData: true,

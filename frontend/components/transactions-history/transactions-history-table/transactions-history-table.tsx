@@ -1,17 +1,18 @@
 import { Box, Table } from '@mui/joy';
 
-import { useTokenInfoMap, useTransactionHistory, useQuoteLedger } from '@fe/integration';
+import {useTokenInfoMap, useTransactionHistory, useQuoteLedger, useAuctionQuery} from '@fe/integration';
 import InfoItem from '../../root/info-item';
 import { Principal } from '@dfinity/principal';
 import { displayWithDecimals } from '@fe/utils';
 
 const TransactionsHistoryTable = () => {
-  const { data: data } = useTransactionHistory();
+  const { data: auctionQuery } = useAuctionQuery();
+  const { data: data } = useTransactionHistory(auctionQuery);
 
   const { data: quoteLedger } = useQuoteLedger();
   const { data: symbols } = useTokenInfoMap();
   const getInfo = (ledger: Principal): { symbol: string, decimals: number } => {
-    const mapItem = (symbols || []).find(([p, s]) => p.toText() == ledger.toText());
+    const mapItem = (symbols || []).find(([p, _]) => p.toText() == ledger.toText());
     return mapItem ? mapItem[1] : { symbol: '-', decimals: 0 };
   };
 

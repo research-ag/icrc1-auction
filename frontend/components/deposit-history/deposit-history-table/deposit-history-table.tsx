@@ -1,12 +1,13 @@
 import { Box, Table } from '@mui/joy';
 
-import { useDepositHistory, useQuoteLedger, useTokenInfoMap } from '@fe/integration';
+import {useAuctionQuery, useDepositHistory, useQuoteLedger, useTokenInfoMap} from '@fe/integration';
 import InfoItem from '../../root/info-item';
 import { Principal } from '@dfinity/principal';
 import { displayWithDecimals } from '@fe/utils';
 
 const DepositHistoryTable = () => {
-  const { data: data } = useDepositHistory();
+  const { data: auctionQuery } = useAuctionQuery();
+  const { data: data } = useDepositHistory(auctionQuery);
 
   const { data: quoteLedger } = useQuoteLedger();
   const { data: symbols } = useTokenInfoMap();

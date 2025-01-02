@@ -224,31 +224,41 @@ service : (opt principal, opt principal) -> {
   // user queries
   auction_query : (
     record {
+      session_numbers : opt vec Token;
       asks : opt vec Token;
       bids : opt vec Token;
       credits : opt vec Token;
+      deposit_history : opt record { opt vec Token; nat; nat };
+      transaction_history : opt record { opt vec Token; nat; nat };
+      price_history : opt record { opt vec Token; nat; nat; bool };
     }
   ) -> (
     record {
-      asks : vec record { OrderId; Order; SessionNumber };
-      bids : vec record { OrderId; Order; SessionNumber };
+      session_numbers : vec record { Token; SessionNumber };
+      asks : vec record { OrderId; Order };
+      bids : vec record { OrderId; Order };
       credits : vec record {
         Token;
         record { total : nat; available : nat; locked : nat };
-        SessionNumber;
       };
+      deposit_history : vec record {
+        nat64;
+        variant { deposit; withdrawal; withdrawalRollback };
+        Token;
+        nat;
+      };
+      transaction_history : vec record {
+        nat64;
+        nat;
+        variant { ask; bid };
+        Token;
+        nat;
+        float64;
+      };
+      price_history : vec record { nat64; nat; Token; nat; float64 };
       points : nat;
     }
   ) query;
-
-  // Providing token in the arguments to history queries will filter results by token
-
-  // return values are: timestamp in nanoseconds; type; ICRC1 ledger principal; operation volume;
-  queryDepositHistory : (opt Token, nat, nat) -> (vec record { nat64; variant { deposit; withdrawal; withdrawalRollback }; Token; nat }) query;
-  // return values are: timestamp in nanoseconds; number of auction session; transaction type; ICRC1 ledger principal; transaction volume; transaction price
-  queryTransactionHistory : (opt Token, nat, nat) -> (vec record { nat64; nat; variant { ask; bid }; Token; nat; float64 }) query;
-  // return values are: timestamp in nanoseconds; number of auction session; ICRC1 ledger principal; volume sold; price
-  queryPriceHistory : (opt Token, nat, nat, bool) -> (vec record { nat64; nat; Token; nat; float64 }) query;
 
   // update
   manageOrders : (opt CancellationArg, PlaceArg, opt SessionNumber) -> (ManageOrdersResponse);
