@@ -546,4 +546,69 @@ describe('ICRC1 Auction', () => {
       expect(await queryCredit(ledger1Principal)).toEqual(0n);
     });
   });
+
+  describe('auction query', () => {
+    test('should return various info as single response', async () => {
+      await prepareDeposit(user);
+      await prepareDeposit(user, ledger1Principal);
+
+      await auction.placeBids([[ledger1Principal, 1_500n, 100_000]], []);
+      await auction.placeAsks([[ledger1Principal, 1_500n, 101_000]], []);
+      const buyer = createIdentity('buyer');
+      await prepareDeposit(buyer);
+      auction.setIdentity(buyer);
+      await auction.placeBids([[ledger1Principal, 1_500n, 102_000]], []);
+      auction.setIdentity(user);
+
+
+      await startNewAuctionSession();
+      await auction.placeAsks([[ledger1Principal, 1_500n, 102_000]], []);
+
+      const res = await auction.auction_query({
+        credits: [[]],
+        bids: [[]],
+        asks: [[]],
+        session_numbers: [[]],
+        transaction_history: [[[], 1000n, 0n]],
+        price_history: [[[], 1000n, 0n, true]],
+        deposit_history: [[[], 1000n, 0n]],
+      });
+
+      expect(res.credits).toEqual([
+        [ledger1Principal, { total: 499998500n, locked: 1500n, available: 499997000n }],
+        [quoteLedgerPrincipal, { total: 651500000n, locked: 150000000n, available: 501500000n }],
+      ]);
+      expect(res.asks).toEqual([
+        [3n, { icrc1Ledger: ledger1Principal, volume: 1500n, price: 102000 }],
+      ]);
+      expect(res.bids).toEqual([
+        [0n, { icrc1Ledger: ledger1Principal, volume: 1500n, price: 100000 }],
+      ]);
+      expect(res.session_numbers).toEqual([
+        [quoteLedgerPrincipal, 2n],
+        [ledger1Principal, 2n],
+        [ledger2Principal, 2n],
+      ]);
+      expect(res.transaction_history).toHaveLength(1);
+      expect(res.transaction_history[0][1]).toEqual(1n);
+      expect(res.transaction_history[0][2]).toEqual({ ask: null });
+      expect(res.transaction_history[0][3]).toEqual(ledger1Principal);
+      expect(res.transaction_history[0][4]).toEqual(1500n);
+      expect(res.transaction_history[0][5]).toEqual(101000);
+
+      expect(res.price_history).toHaveLength(1);
+      expect(res.price_history[0][1]).toEqual(1n);
+      expect(res.price_history[0][2]).toEqual(ledger1Principal);
+      expect(res.price_history[0][3]).toEqual(1500n);
+      expect(res.price_history[0][4]).toEqual(101000);
+
+      expect(res.deposit_history).toHaveLength(2);
+      expect(res.deposit_history[0][1]).toEqual({ deposit: null });
+      expect(res.deposit_history[0][2]).toEqual(ledger1Principal);
+      expect(res.deposit_history[0][3]).toEqual(500000000n);
+      expect(res.deposit_history[1][1]).toEqual({ deposit: null });
+      expect(res.deposit_history[1][2]).toEqual(quoteLedgerPrincipal);
+      expect(res.deposit_history[1][3]).toEqual(500000000n);
+    });
+  });
 });
