@@ -1,6 +1,6 @@
 import { Box, Button, Table } from '@mui/joy';
 
-import {useAuctionQuery, useListCredits, useTokenInfoMap} from '@fe/integration';
+import { useAuctionQuery, useListCredits, useTokenInfoMap } from '@fe/integration';
 import WithdrawCreditModal from '../withdraw-credit-modal';
 import { useState } from 'react';
 import InfoItem from '../../root/info-item';
@@ -29,10 +29,10 @@ const CreditsTable = () => {
     <Box sx={{ width: '100%', overflow: 'auto' }}>
       <Table>
         <colgroup>
-          <col style={{ width: '200px' }} />
-          <col style={{ width: '120px' }} />
-          <col style={{ width: '120px' }} />
-          <col style={{ width: '60px' }} />
+          <col style={{ width: '200px' }}/>
+          <col style={{ width: '120px' }}/>
+          <col style={{ width: '120px' }}/>
+          <col style={{ width: '60px' }}/>
         </colgroup>
         <thead>
         <tr>
@@ -47,7 +47,7 @@ const CreditsTable = () => {
           return (
             <tr key={i}>
               <td>
-                {symbols && <InfoItem content={getTokenInfo(ledger).symbol} withCopy={true} />}
+                {symbols && <InfoItem content={getTokenInfo(ledger).symbol} withCopy={true}/>}
               </td>
               <td>{displayWithDecimals(credit.available, getTokenInfo(ledger).decimals, 6)}</td>
               <td>{displayWithDecimals(credit.total, getTokenInfo(ledger).decimals, 6)}</td>
@@ -61,7 +61,7 @@ const CreditsTable = () => {
         })}
         </tbody>
       </Table>
-      <WithdrawCreditModal isOpen={isWithdrawModalOpen} onClose={closeWithdrawModal} ledger={withdrawLedger} />
+      <WithdrawCreditModal isOpen={isWithdrawModalOpen} onClose={closeWithdrawModal} ledger={withdrawLedger}/>
     </Box>
   );
 };

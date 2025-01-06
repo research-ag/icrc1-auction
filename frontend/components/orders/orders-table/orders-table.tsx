@@ -1,6 +1,6 @@
 import { Box, Button, Table } from '@mui/joy';
 
-import {useAuctionQuery, useCancelOrder, useListOrders, useQuoteLedger, useTokenInfoMap} from '@fe/integration';
+import { useAuctionQuery, useCancelOrder, useListOrders, useQuoteLedger, useTokenInfoMap } from '@fe/integration';
 import InfoItem from '../../root/info-item';
 import { Principal } from '@dfinity/principal';
 import { displayWithDecimals } from '@fe/utils';
@@ -23,10 +23,10 @@ const OrdersTable = ({ kind }: OrdersTableProps) => {
     <Box sx={{ width: '100%', overflow: 'auto' }}>
       <Table>
         <colgroup>
-          <col style={{ width: '200px' }} />
-          <col style={{ width: '110px' }} />
-          <col style={{ width: '110px' }} />
-          <col style={{ width: '80px' }} />
+          <col style={{ width: '200px' }}/>
+          <col style={{ width: '110px' }}/>
+          <col style={{ width: '110px' }}/>
+          <col style={{ width: '80px' }}/>
         </colgroup>
         <thead>
         <tr>
@@ -41,7 +41,7 @@ const OrdersTable = ({ kind }: OrdersTableProps) => {
           return (
             <tr key={i}>
               <td>
-                <InfoItem content={getInfo(order.icrc1Ledger).symbol} withCopy={true} />
+                <InfoItem content={getInfo(order.icrc1Ledger).symbol} withCopy={true}/>
               </td>
               <td>{displayWithDecimals(order.price, getInfo(quoteLedger!).decimals - getInfo(order.icrc1Ledger).decimals, 6)}</td>
               <td>{displayWithDecimals(order.volume, getInfo(order.icrc1Ledger).decimals)}</td>
