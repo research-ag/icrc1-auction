@@ -212,6 +212,11 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   var nextSessionTimestamp = Nat64.toNat(AUCTION_INTERVAL_SECONDS * (1 + Prim.time() / (AUCTION_INTERVAL_SECONDS * 1_000_000_000)));
 
   private func registerAsset_(ledgerPrincipal : Principal, minAskVolume : Nat) : async* R.Result<Nat, RegisterAssetError> {
+    let id = Vec.size(assets);
+    assert id == auction.assets.nAssets();
+    if (id == 0 and not Principal.equal(ledgerPrincipal, quoteLedgerPrincipal)) {
+      Prim.trap("Cannot register another token before registering quote");
+    };
     let canister = actor (Principal.toText(ledgerPrincipal)) : (actor { icrc1_decimals : () -> async Nat8; icrc1_symbol : () -> async Text });
     let decimalsCall = canister.icrc1_decimals();
     let symbolCall = canister.icrc1_symbol();
@@ -221,8 +226,6 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     if (Vec.forSome<AssetInfo>(assets, func(a) = Principal.equal(ledgerPrincipal, a.ledgerPrincipal))) {
       return #err(#AlreadyRegistered);
     };
-    let id = Vec.size(assets);
-    assert id == auction.assets.nAssets();
     createAssetInfo_(ledgerPrincipal, minAskVolume, decimals, symbol, null) |> Vec.add<AssetInfo>(assets, _);
     auction.registerAssets(1);
     registerAssetMetrics_(id);
@@ -683,15 +686,15 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     manageOrdersCounter.add(1);
     let cancellationArg : ?Auction.CancellationAction = switch (cancellations) {
       case (null) null;
-      case (? #orders x) ? #orders(x);
-      case (? #all null) ? #all(null);
-      case (? #all(?tokens)) {
+      case (?#orders x) ?#orders(x);
+      case (?#all null) ?#all(null);
+      case (?#all(?tokens)) {
         let aids = Array.init<Nat>(tokens.size(), 0);
         for (i in tokens.keys()) {
           let ?aid = getAssetId(tokens[i]) else return #Err(#cancellation({ index = i; error = #UnknownAsset }));
           aids[i] := aid;
         };
-        ? #all(?Array.freeze(aids));
+        ?#all(?Array.freeze(aids));
       };
     };
     let placementArg = Array.init<Auction.PlaceOrderAction>(placements.size(), #ask(0, 0, 0.0));
@@ -896,7 +899,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   public shared ({ caller }) func wipeOrders() : async () {
     await* assertAdminAccess(caller);
     for ((p, _) in auction.users.users.entries()) {
-      ignore auction.manageOrders(p, ? #all(null), [], null);
+      ignore auction.manageOrders(p, ?#all(null), [], null);
     };
   };
 
@@ -1078,7 +1081,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       #seconds(0),
       func() : async () {
         try {
-          ignore await* registerAsset_(quoteLedgerPrincipal, 0);
+          ignore U.requireOk(await* registerAsset_(quoteLedgerPrincipal, 0));
         } catch (err) {
           Debug.print("Error while registering quote token ledger: " # Error.message(err));
         };
