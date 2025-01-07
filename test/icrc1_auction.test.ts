@@ -101,7 +101,7 @@ describe('ICRC1 Auction', () => {
     ledger2.setIdentity(user);
 
     f = await pic.setupCanister({
-      wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction/icrc1_auction.wasm'),
+      wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction_development/icrc1_auction_development.wasm'),
       arg: IDL.encode(aInit({ IDL }), [[quoteLedgerPrincipal], [admin.getPrincipal()]]),
       sender: controller.getPrincipal(),
       idlFactory: A_IDL,
@@ -131,7 +131,7 @@ describe('ICRC1 Auction', () => {
       });
       await expect(pic.installCode({
         canisterId: p,
-        wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction/icrc1_auction.wasm'),
+        wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction_development/icrc1_auction_development.wasm'),
         arg: IDL.encode(aInit({ IDL }), [[], []]),
         sender: controller.getPrincipal(),
       })).rejects.toThrow(`Canister ${p.toText()} trapped explicitly: Quote ledger principal not provided`);
@@ -147,7 +147,7 @@ describe('ICRC1 Auction', () => {
     test('should upgrade canister without arguments', async () => {
       await pic.upgradeCanister({
         canisterId: auctionPrincipal,
-        wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction/icrc1_auction.wasm'),
+        wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction_development/icrc1_auction_development.wasm'),
         arg: IDL.encode(aInit({ IDL }), [[], []]),
         sender: controller.getPrincipal(),
       });
@@ -161,7 +161,7 @@ describe('ICRC1 Auction', () => {
       const fakeLedger = createIdentity('fakeLedger');
       await pic.upgradeCanister({
         canisterId: auctionPrincipal,
-        wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction/icrc1_auction.wasm'),
+        wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction_development/icrc1_auction_development.wasm'),
         arg: IDL.encode(aInit({ IDL }), [[fakeLedger.getPrincipal()], []]),
         sender: controller.getPrincipal(),
       });
@@ -195,7 +195,7 @@ describe('ICRC1 Auction', () => {
 
       await pic.upgradeCanister({
         canisterId: auctionPrincipal,
-        wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction/icrc1_auction.wasm'),
+        wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction_development/icrc1_auction_development.wasm'),
         arg: IDL.encode(aInit({ IDL }), [[], []]),
         sender: controller.getPrincipal(),
       });
