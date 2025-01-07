@@ -13,7 +13,6 @@
 # frontend code
 node_modules/
 dist/
-dist_new/
 declarations/
 
 .mops

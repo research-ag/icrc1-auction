@@ -17,55 +17,44 @@
       "type": "custom",
       "init_arg": "(opt \"MCK_2\", opt 2 : opt nat8)"
     },
-    "icrc1_auction": {
+    "frontend": {
+      "type": "assets",
+      "dependencies": [
+        "icrc1_auction_development"
+      ],
+      "source": [
+        "dist/"
+      ],
+      "build": "npm run build:frontend",
+      "declarations": {}
+    },
+    "icrc1_auction_development": {
       "main": "src/icrc1_auction_api.mo",
       "did": "src/icrc1_auction.did",
       "type": "motoko",
-      "init_arg": "(opt principal \"b77ix-eeaaa-aaaaa-qaada-cai\", opt principal \"2vxsx-fae\")",
+      "init_arg": "(opt principal \"br5f7-7uaaa-aaaaa-qaaca-cai\", opt principal \"2vxsx-fae\")",
       "declarations": {
-        "bindings": ["js", "ts"],
+        "bindings": [
+          "js",
+          "ts"
+        ],
         "output": "./declarations/icrc1_auction"
       },
       "optimize": "cycles"
     },
-    "frontend": {
-      "type": "assets",
-      "dependencies": ["icrc1_auction"],
-      "source": ["dist/"],
-      "build": "npm run build:frontend",
-      "declarations": {}
-    },
-    "icrc1_auction_new": {
-      "main": "src/icrc1_auction_api_new.mo",
-      "did": "src/icrc1_auction_new.did",
+    "icrc1_auction_production": {
+      "main": "src/icrc1_auction_api.mo",
+      "did": "src/icrc1_auction.did",
       "type": "motoko",
-      "init_arg": "(opt principal \"cngnf-vqaaa-aaaar-qag4q-cai\", opt principal \"2vxsx-fae\")",
+      "init_arg": "(opt principal \"br5f7-7uaaa-aaaaa-qaaca-cai\", opt principal \"2vxsx-fae\")",
       "declarations": {
-        "bindings": ["js", "ts"],
-        "output": "./declarations/icrc1_auction_new"
+        "bindings": [
+          "js",
+          "ts"
+        ],
+        "output": "./declarations/icrc1_auction_prod"
       },
       "optimize": "cycles"
-    },
-    "icrc1_auction_legacy_th": {
-      "main": "src/icrc1_auction_api_new.mo",
-      "did": "src/icrc1_auction_new.did",
-      "type": "motoko",
-      "init_arg": "(opt principal \"cngnf-vqaaa-aaaar-qag4q-cai\", opt principal \"2vxsx-fae\")",
-      "optimize": "cycles"
-    },
-    "icrc1_auction_testing": {
-      "main": "src/icrc1_auction_api_new.mo",
-      "did": "src/icrc1_auction_new.did",
-      "type": "motoko",
-      "init_arg": "(opt principal \"cngnf-vqaaa-aaaar-qag4q-cai\", opt principal \"2vxsx-fae\")",
-      "optimize": "cycles"
-    },
-    "frontend_new": {
-      "type": "assets",
-      "dependencies": ["icrc1_auction_new"],
-      "source": ["dist_new/"],
-      "build": "npm run build:frontend_new",
-      "declarations": {}
     }
   },
   "defaults": {
