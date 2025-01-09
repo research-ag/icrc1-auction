@@ -409,10 +409,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   public shared ({ caller }) func icrc84_deposit(args : { token : Principal; amount : Nat; from : { owner : Principal; subaccount : ?Blob }; expected_fee : ?Nat }) : async DepositResult {
     depositCounter.add(1);
-    let assetId = switch (getAssetId(args.token)) {
-      case (?aid) aid;
-      case (_) throw Error.reject("Unknown token");
-    };
+    let ?assetId = getAssetId(args.token) else throw Error.reject("Unknown token");
     let assetInfo = Vec.get(assets, assetId);
     let res = await* assetInfo.handler.depositFromAllowance(caller, args.from, args.amount, args.expected_fee);
     switch (res) {
@@ -627,15 +624,15 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     manageOrdersCounter.add(1);
     let cancellationArg : ?Auction.CancellationAction = switch (cancellations) {
       case (null) null;
-      case (? #orders x) ? #orders(x);
-      case (? #all null) ? #all(null);
-      case (? #all(?tokens)) {
+      case (?#orders x) ?#orders(x);
+      case (?#all null) ?#all(null);
+      case (?#all(?tokens)) {
         let aids = Array.init<Nat>(tokens.size(), 0);
         for (i in tokens.keys()) {
           let ?aid = getAssetId(tokens[i]) else return #Err(#cancellation({ index = i; error = #UnknownAsset }));
           aids[i] := aid;
         };
-        ? #all(?Array.freeze(aids));
+        ?#all(?Array.freeze(aids));
       };
     };
     let placementArg = Array.init<Auction.PlaceOrderAction>(placements.size(), #ask(0, 0, 0.0));
@@ -837,7 +834,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   public shared ({ caller }) func wipeOrders() : async () {
     await* assertAdminAccess(caller);
     for ((p, _) in auction.users.users.entries()) {
-      ignore auction.manageOrders(p, ? #all(null), [], null);
+      ignore auction.manageOrders(p, ?#all(null), [], null);
     };
   };
 
@@ -1027,7 +1024,8 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     startConsolidationTimer_<system>();
   };
 
-  public func setConsolidationTimerEnabled(enabled : Bool) : async () {
+  public shared ({ caller }) func setConsolidationTimerEnabled(enabled : Bool) : async () {
+    await* assertAdminAccess(caller);
     consolidationTimerEnabled := enabled;
     if (enabled) {
       startConsolidationTimer_<system>();
@@ -1036,13 +1034,26 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     };
   };
 
-  // A timer for running auction
-  ignore (
-    func() : async () {
-      ignore Timer.recurringTimer<system>(#seconds(Nat64.toNat(AUCTION_INTERVAL_SECONDS)), runAuction);
-      await runAuction();
-    }
-  ) |> Timer.setTimer<system>(#seconds(Nat64.toNat(AUCTION_INTERVAL_SECONDS - (Prim.time() / 1_000_000_000) % AUCTION_INTERVAL_SECONDS)), _);
+  var auctionTimerId : ?Nat = null;
+  private func startAuctionTimer_<system>() {
+    auctionTimerId := (
+      func() : async () {
+        auctionTimerId := ?Timer.recurringTimer<system>(#seconds(Nat64.toNat(AUCTION_INTERVAL_SECONDS)), runAuction);
+        await runAuction();
+      }
+    ) |> ?Timer.setTimer<system>(#seconds(Nat64.toNat(AUCTION_INTERVAL_SECONDS - (Prim.time() / 1_000_000_000) % AUCTION_INTERVAL_SECONDS)), _);
+  };
+
+  startAuctionTimer_<system>();
+
+  public shared ({ caller }) func restartAuctionTimer() : async () {
+    await* assertAdminAccess(caller);
+    switch (auctionTimerId) {
+      case (?tid) Timer.cancelTimer(tid);
+      case (null) {};
+    };
+    startAuctionTimer_<system>();
+  };
 
   // If assets are empty, register quote asset
   if (Vec.size(assets) == 0) {
