@@ -29,6 +29,58 @@ import T "./types";
 
 module {
 
+  public func defaultStableDataV8() : T.StableDataV8 = {
+    assets = Vec.new();
+    orders = { globalCounter = 0 };
+    quoteToken = { surplus = 0 };
+    sessions = { counter = 0; history = Vec.new<T.PriceHistoryItem>() };
+    users = {
+      registry = {
+        tree = #leaf;
+        size = 0;
+      };
+      participantsArchive = {
+        tree = #leaf;
+        size = 0;
+      };
+      accountsAmount = 0;
+    };
+  };
+  public type StableDataV8 = T.StableDataV8;
+  public func migrateStableDataV8(data : StableDataV7) : StableDataV8 {
+    let usersTree : RBTree.RBTree<Principal, T.StableUserInfoV6> = RBTree.RBTree(Principal.compare);
+    for ((p, x) in RBTree.iter(data.users.registry.tree, #bwd)) {
+      // remove withdraw rollback history items
+      var list : List.List<(timestamp : Nat64, kind : { #deposit; #withdrawal; #withdrawalRollback }, assetId : AssetId, volume : Nat)> = null;
+      for (item in Vec.vals(x.depositHistory)) {
+        list := List.push(item, list);
+      };
+      var newList : List.List<(timestamp : Nat64, kind : { #deposit; #withdrawal }, assetId : AssetId, volume : Nat)> = null;
+      var skipNextWithdrawEvents : Nat = 0;
+      for (item in List.toIter(list)) {
+        switch (item.1, skipNextWithdrawEvents > 0) {
+          case (#withdrawalRollback, _) skipNextWithdrawEvents += 1;
+          case (#withdrawal, true) skipNextWithdrawEvents -= 1;
+          case (#withdrawal, false) newList := List.push((item.0, #withdrawal, item.2, item.3), newList);
+          case (#deposit, _) newList := List.push((item.0, #deposit, item.2, item.3), newList);
+        };
+      };
+      let depositHistory : Vec.Vector<(timestamp : Nat64, kind : { #deposit; #withdrawal }, assetId : AssetId, volume : Nat)> = Vec.new();
+      for (item in List.toIter(newList)) {
+        Vec.add(depositHistory, item);
+      };
+      usersTree.put(p, { x with depositHistory });
+    };
+    {
+      data with
+      users = {
+        data.users with registry = {
+          data.users.registry with tree = usersTree.share()
+        }
+      };
+    };
+  };
+
   public func defaultStableDataV7() : T.StableDataV7 = {
     assets = Vec.new();
     orders = { globalCounter = 0 };
@@ -92,7 +144,7 @@ module {
   public func migrateStableDataV6(data : StableDataV5) : StableDataV6 {
     let usersTree : RBTree.RBTree<Principal, T.StableUserInfoV4> = RBTree.RBTree(Principal.compare);
     for ((p, x) in RBTree.iter(data.users.registry.tree, #bwd)) {
-      usersTree.put(p, { x with transactionHistory = x.history; depositHistory = Vec.new<T.DepositHistoryItem>() });
+      usersTree.put(p, { x with transactionHistory = x.history; depositHistory = Vec.new<(timestamp : Nat64, kind : { #deposit; #withdrawal; #withdrawalRollback }, assetId : AssetId, volume : Nat)>() });
     };
     {
       data with
@@ -453,7 +505,7 @@ module {
         case (#ask) (#ask(orderId), #ask(assetId, volume, price));
         case (#bid) (#bid(orderId), #bid(assetId, volume, price));
       };
-      switch (manageOrders(p, ? #orders([cancellation]), [placement], expectedSessionNumber)) {
+      switch (manageOrders(p, ?#orders([cancellation]), [placement], expectedSessionNumber)) {
         case (#ok(_, orderIds)) #ok(orderIds[0]);
         case (#err(#SessionNumberMismatch x)) #err(#SessionNumberMismatch(x));
         case (#err(#UnknownPrincipal)) #err(#UnknownPrincipal);
@@ -467,7 +519,7 @@ module {
         case (#ask) #ask(orderId);
         case (#bid) #bid(orderId);
       };
-      switch (manageOrders(p, ? #orders([cancellation]), [], expectedSessionNumber)) {
+      switch (manageOrders(p, ?#orders([cancellation]), [], expectedSessionNumber)) {
         case (#ok(x, _)) #ok(x[0]);
         case (#err(#SessionNumberMismatch x)) #err(#SessionNumberMismatch(x));
         case (#err(#UnknownPrincipal)) #err(#UnknownPrincipal);
@@ -528,7 +580,7 @@ module {
     // ============ history interface =============
 
     // ============= system interface =============
-    public func share() : T.StableDataV7 = {
+    public func share() : T.StableDataV8 = {
       assets = Vec.map<T.AssetInfo, T.StableAssetInfoV3>(
         assets.assets,
         func(x) = {
@@ -549,8 +601,8 @@ module {
       users = {
         registry = {
           tree = (
-            func() : RBTree.Tree<Principal, T.StableUserInfoV5> {
-              let stableUsers = RBTree.RBTree<Principal, T.StableUserInfoV5>(Principal.compare);
+            func() : RBTree.Tree<Principal, T.StableUserInfoV6> {
+              let stableUsers = RBTree.RBTree<Principal, T.StableUserInfoV6>(Principal.compare);
               for ((p, u) in users.users.entries()) {
                 stableUsers.put(
                   p,
@@ -581,7 +633,7 @@ module {
       };
     };
 
-    public func unshare(data : T.StableDataV7) {
+    public func unshare(data : T.StableDataV8) {
       assets.assets := Vec.map<T.StableAssetInfoV3, T.AssetInfo>(
         data.assets,
         func(x) = {
@@ -604,7 +656,7 @@ module {
       assets.history := data.sessions.history;
 
       users.usersAmount := data.users.registry.size;
-      let ud = RBTree.RBTree<Principal, T.StableUserInfoV5>(Principal.compare);
+      let ud = RBTree.RBTree<Principal, T.StableUserInfoV6>(Principal.compare);
       ud.unshare(data.users.registry.tree);
       for ((p, u) in ud.entries()) {
         let userData : UserInfo = {
