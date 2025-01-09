@@ -117,6 +117,9 @@ describe('ICRC1 Auction', () => {
 
     auction.setIdentity(user);
 
+    // let the initial timer set the auction recurring timer
+    await pic.advanceTime(2 * 60_000);
+    await pic.tick();
     await startNewAuctionSession();
   });
 
