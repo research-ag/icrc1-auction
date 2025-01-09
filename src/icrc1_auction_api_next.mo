@@ -212,6 +212,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   let metrics = PT.PromTracker("", 65);
   metrics.addSystemValues();
+  let sessionStartTimeBaseOffsetMetric = metrics.addCounter("session_start_time_base_offset", "", false);
   let sessionStartTimeGauge = metrics.addGauge("session_start_time_offset_ms", "", #none, [0, 1_000, 2_000, 4_000, 8_000, 16_000, 32_000, 64_000, 128_000], false);
   let startupTime = Prim.time();
   ignore metrics.addPullValue("uptime", "", func() = Nat64.toNat((Prim.time() - startupTime) / 1_000_000_000));
@@ -985,6 +986,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   private func startAuctionTimer_<system>() {
     auctionTimerId := (
       func() : async () {
+        sessionStartTimeBaseOffsetMetric.set(Nat64.toNat(Prim.time()));
         auctionTimerId := ?Timer.recurringTimer<system>(#seconds(Nat64.toNat(AUCTION_INTERVAL_SECONDS)), runAuction);
         await runAuction();
       }
