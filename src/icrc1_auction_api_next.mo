@@ -986,7 +986,8 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   private func startAuctionTimer_<system>() {
     auctionTimerId := (
       func() : async () {
-        sessionStartTimeBaseOffsetMetric.set(Nat64.toNat(Prim.time()));
+        let startTimeDiff : Int = Nat64.toNat(Prim.time() / 1_000_000) - nextSessionTimestamp * 1_000;
+        sessionStartTimeBaseOffsetMetric.set(Int.max(startTimeDiff, 0) |> Int.abs(_));
         auctionTimerId := ?Timer.recurringTimer<system>(#seconds(Nat64.toNat(AUCTION_INTERVAL_SECONDS)), runAuction);
         await runAuction();
       }
