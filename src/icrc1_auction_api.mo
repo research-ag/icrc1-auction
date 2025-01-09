@@ -957,7 +957,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     if (nextAssetIdToProcess == 0) {
       let startTimeDiff : Int = Nat64.toNat(Prim.time() / 1_000_000) - nextSessionTimestampInternal * 1_000;
       sessionStartTimeGauge.update(Int.max(startTimeDiff, 0) |> Int.abs(_));
-      let next = Nat64.toNat(AUCTION_INTERVAL_SECONDS * (1 + Prim.time() / (AUCTION_INTERVAL_SECONDS * 1_000_000_000)));
+      let next = calculateNextSessionTimestamp();
       if (next == nextSessionTimestampInternal) {
         // if auction started before expected time
         nextSessionTimestampInternal += Nat64.toNat(AUCTION_INTERVAL_SECONDS);
@@ -1042,16 +1042,18 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     };
   };
 
+  private func calculateNextSessionTimestamp() : Nat = Nat64.toNat(AUCTION_INTERVAL_SECONDS * (1 + Prim.time() / (AUCTION_INTERVAL_SECONDS * 1_000_000_000)));
+
   var auctionTimerId : ?Nat = null;
   private func startAuctionTimer_<system>() {
-    nextSessionTimestampInternal := Nat64.toNat(AUCTION_INTERVAL_SECONDS * (1 + Prim.time() / (AUCTION_INTERVAL_SECONDS * 1_000_000_000)));
+    nextSessionTimestampInternal := calculateNextSessionTimestamp() + Nat64.toNat(AUCTION_INTERVAL_SECONDS);
     nextSessionTimestamp := nextSessionTimestampInternal;
     auctionTimerId := (
       func() : async () {
-        let startTimeDiff : Int = Nat64.toNat(Prim.time() / 1_000_000) - nextSessionTimestampInternal * 1_000;
-        sessionStartTimeBaseOffsetMetric.set(Int.max(startTimeDiff, 0) |> Int.abs(_));
+        nextSessionTimestampInternal := calculateNextSessionTimestamp();
+        nextSessionTimestamp := nextSessionTimestampInternal;
+        sessionStartTimeBaseOffsetMetric.set(Nat64.toNat((Prim.time() / 1_000_000) % (AUCTION_INTERVAL_SECONDS * 1_000)));
         auctionTimerId := ?Timer.recurringTimer<system>(#seconds(Nat64.toNat(AUCTION_INTERVAL_SECONDS)), runAuction);
-        await runAuction();
       }
     ) |> ?Timer.setTimer<system>(#seconds(Nat64.toNat(AUCTION_INTERVAL_SECONDS - (Prim.time() / 1_000_000_000) % AUCTION_INTERVAL_SECONDS)), _);
   };
