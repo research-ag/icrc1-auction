@@ -191,7 +191,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   // will be set in startAuctionTimer_
   // this timestamp is set right before starting auction execution
-  var nextSessionTimestampInternal = 0;
+  var nextAuctionTickTimestamp = 0;
   // this timestamp is set after auction session executed completely, sycnhronized with auction.sessionsCounter
   var nextSessionTimestamp = 0;
 
@@ -225,7 +225,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   ignore metrics.addPullValue("users_with_credits_count", "", func() = auction.users.nUsersWithCredits());
   ignore metrics.addPullValue("accounts_count", "", func() = auction.credits.nAccounts());
   ignore metrics.addPullValue("quote_surplus", "", func() = auction.credits.quoteSurplus);
-  ignore metrics.addPullValue("next_session_timestamp", "", func() = nextSessionTimestampInternal);
+  ignore metrics.addPullValue("next_session_timestamp", "", func() = nextAuctionTickTimestamp);
   ignore metrics.addPullValue("total_unique_participants", "", func() = auction.users.participantsArchiveSize);
   ignore metrics.addPullValue("active_unique_participants", "", func() = auction.users.nUsersWithActiveOrders());
   ignore metrics.addPullValue(
@@ -955,20 +955,20 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   private func runAuction() : async () {
     if (nextAssetIdToProcess == 0) {
-      let startTimeDiff : Int = Nat64.toNat(Prim.time() / 1_000_000) - nextSessionTimestampInternal * 1_000;
+      let startTimeDiff : Int = Nat64.toNat(Prim.time() / 1_000_000) - nextAuctionTickTimestamp * 1_000;
       sessionStartTimeGauge.update(Int.max(startTimeDiff, 0) |> Int.abs(_));
       let next = calculateNextSessionTimestamp();
-      if (next == nextSessionTimestampInternal) {
+      if (next == nextAuctionTickTimestamp) {
         // if auction started before expected time
-        nextSessionTimestampInternal += Nat64.toNat(AUCTION_INTERVAL_SECONDS);
+        nextAuctionTickTimestamp += Nat64.toNat(AUCTION_INTERVAL_SECONDS);
       } else {
-        nextSessionTimestampInternal := next;
+        nextAuctionTickTimestamp := next;
       };
     };
     switch (processAssetsChunk(auction, nextAssetIdToProcess)) {
       case (#done) {
         auction.sessionsCounter += 1;
-        nextSessionTimestamp := nextSessionTimestampInternal;
+        nextSessionTimestamp := calculateNextSessionTimestamp();
         nextAssetIdToProcess := 0;
       };
       case (#nextIndex next) {
@@ -976,7 +976,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
           Prim.trap("Can never happen: not a single asset processed");
         };
         nextAssetIdToProcess := next;
-        ignore Timer.setTimer<system>(#seconds(1), runAuction);
+        ignore runAuction();
       };
     };
   };
@@ -1046,14 +1046,13 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   var auctionTimerId : ?Nat = null;
   private func startAuctionTimer_<system>() {
-    nextSessionTimestampInternal := calculateNextSessionTimestamp() + Nat64.toNat(AUCTION_INTERVAL_SECONDS);
-    nextSessionTimestamp := nextSessionTimestampInternal;
+    nextAuctionTickTimestamp := calculateNextSessionTimestamp();
+    nextSessionTimestamp := nextAuctionTickTimestamp;
     auctionTimerId := (
       func() : async () {
-        nextSessionTimestampInternal := calculateNextSessionTimestamp();
-        nextSessionTimestamp := nextSessionTimestampInternal;
         sessionStartTimeBaseOffsetMetric.set(Nat64.toNat((Prim.time() / 1_000_000) % (AUCTION_INTERVAL_SECONDS * 1_000)));
         auctionTimerId := ?Timer.recurringTimer<system>(#seconds(Nat64.toNat(AUCTION_INTERVAL_SECONDS)), runAuction);
+        await runAuction();
       }
     ) |> ?Timer.setTimer<system>(#seconds(Nat64.toNat(AUCTION_INTERVAL_SECONDS - (Prim.time() / 1_000_000_000) % AUCTION_INTERVAL_SECONDS)), _);
   };
