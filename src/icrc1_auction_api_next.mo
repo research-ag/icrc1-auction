@@ -198,6 +198,11 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   var nextSessionTimestamp = 0;
 
   private func registerAsset_(ledgerPrincipal : Principal, minAskVolume : Nat) : async* R.Result<Nat, RegisterAssetError> {
+    let id = Vec.size(assets);
+    assert id == auction.assets.nAssets();
+    if (id == 0 and not Principal.equal(ledgerPrincipal, quoteLedgerPrincipal)) {
+      Prim.trap("Cannot register another token before registering quote");
+    };
     let canister = actor (Principal.toText(ledgerPrincipal)) : (actor { icrc1_decimals : () -> async Nat8; icrc1_symbol : () -> async Text });
     let decimalsCall = canister.icrc1_decimals();
     let symbolCall = canister.icrc1_symbol();
@@ -207,8 +212,6 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     if (Vec.forSome<AssetInfo>(assets, func(a) = Principal.equal(ledgerPrincipal, a.ledgerPrincipal))) {
       return #err(#AlreadyRegistered);
     };
-    let id = Vec.size(assets);
-    assert id == auction.assets.nAssets();
     createAssetInfo_(ledgerPrincipal, minAskVolume, decimals, symbol, null) |> Vec.add<AssetInfo>(assets, _);
     auction.registerAssets(1);
     registerAssetMetrics_(id);
@@ -1019,7 +1022,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     ignore Timer.setTimer<system>(
       #seconds(0),
       func() : async () {
-        ignore await* registerAsset_(quoteLedgerPrincipal, 0);
+        ignore U.requireOk(await* registerAsset_(quoteLedgerPrincipal, 0));
       },
     );
   };
