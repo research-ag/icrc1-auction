@@ -4,7 +4,7 @@ import { useSnackbar } from 'notistack';
 import { useIdentity } from './identity';
 import { Principal } from '@dfinity/principal';
 import { useMemo } from 'react';
-import { canisterId as cid, createActor } from '@declarations/icrc1_auction_prod';
+import { createActor } from '@declarations/icrc1_auction';
 import { createActor as createLedgerActor } from '@declarations/icrc1_ledger_mock';
 
 // Custom replacer function for JSON.stringify
@@ -15,7 +15,7 @@ const bigIntReplacer = (key: string, value: any): any => {
   return value;
 };
 
-export const defaultAuctionCanisterId = cid;
+export const defaultAuctionCanisterId = "3gvau-pyaaa-aaaao-qa7kq-cai";
 
 export const useAuctionCanisterId = () => {
   return localStorage.getItem('auctionCanisterId') || defaultAuctionCanisterId;
@@ -48,7 +48,7 @@ export const useAuction = () => {
     return { auction };
   } catch (err) {
     const { enqueueSnackbar } = useSnackbar();
-    enqueueSnackbar(`Auction ${canisterId} cannot be used. Falling back to ${cid}`, { variant: 'warning' });
+    enqueueSnackbar(`Auction ${canisterId} cannot be used. Falling back to ${defaultAuctionCanisterId}`, { variant: 'warning' });
     updateAuctionCanisterId(defaultAuctionCanisterId);
     const auction = createActor(defaultAuctionCanisterId, {
       agentOptions: {

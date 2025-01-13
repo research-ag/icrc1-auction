@@ -5,6 +5,9 @@
   "icrc1_auction_production": {
     "ic": "g2mgr-byaaa-aaaai-actsq-cai"
   },
+  "icrc1_auction_production_2": {
+    "ic": "3gvau-pyaaa-aaaao-qa7kq-cai"
+  },
   "icrc1_auction_development": {
     "ic": "z4s7u-byaaa-aaaao-a3paa-cai"
   },
