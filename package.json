@@ -8,10 +8,9 @@
   "type": "module",
   "scripts": {
     "create": "dfx canister create --all",
-    "setup": "mkdir -p .dfx/local/canisters/frontend && mkdir -p .dfx/local/canisters/frontend_new && wget https://raw.githubusercontent.com/jamesbeadle/OpenFPL/master/candid/assetstorage.did -O .dfx/local/canisters/frontend/assetstorage.did && cp .dfx/local/canisters/frontend/assetstorage.did .dfx/local/canisters/frontend_new && dfx generate && dfx deploy",
+    "setup": "mkdir -p .dfx/local/canisters/frontend && wget https://raw.githubusercontent.com/jamesbeadle/OpenFPL/master/candid/assetstorage.did -O .dfx/local/canisters/frontend/assetstorage.did && dfx generate && dfx deploy",
     "dev:frontend": "vite --port 3993 --host",
     "build:frontend": "rm -rf ./dist/ && tsc && vite build",
-    "build:frontend_new": "mv frontend/integration/index.ts frontend/integration/index.ts.bak && cp frontend/integration/index_new.ts frontend/integration/index.ts && npm run build:frontend && rm -rf ./dist_new/ && mkdir ./dist_new && mv ./dist/* ./dist_new/; mv frontend/integration/index.ts.bak frontend/integration/index.ts",
     "prettier-format": "prettier --config frontend/.prettierrc 'frontend/**/*.ts' --write",
     "test": "jest -c ./test/jest.config.ts"
   },
