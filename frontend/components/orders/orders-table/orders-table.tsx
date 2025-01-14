@@ -1,6 +1,6 @@
 import { Box, Button, Table } from '@mui/joy';
 
-import { useCancelOrder, useListOrders, useQuoteLedger, useTokenInfoMap } from '@fe/integration';
+import { useAuctionQuery, useCancelOrder, useListOrders, useQuoteLedger, useTokenInfoMap } from '@fe/integration';
 import InfoItem from '../../root/info-item';
 import { Principal } from '@dfinity/principal';
 import { displayWithDecimals } from '@fe/utils';
@@ -8,7 +8,8 @@ import { displayWithDecimals } from '@fe/utils';
 export type OrdersTableProps = { kind: 'ask' | 'bid' };
 
 const OrdersTable = ({ kind }: OrdersTableProps) => {
-  const { data: orders } = useListOrders(kind);
+  const { data: auctionQuery } = useAuctionQuery();
+  const { data: orders } = useListOrders(auctionQuery, kind);
   const { mutate: cancelOrder } = useCancelOrder(kind);
 
   const { data: symbols } = useTokenInfoMap();
@@ -22,10 +23,10 @@ const OrdersTable = ({ kind }: OrdersTableProps) => {
     <Box sx={{ width: '100%', overflow: 'auto' }}>
       <Table>
         <colgroup>
-          <col style={{ width: '200px' }} />
-          <col style={{ width: '110px' }} />
-          <col style={{ width: '110px' }} />
-          <col style={{ width: '80px' }} />
+          <col style={{ width: '200px' }}/>
+          <col style={{ width: '110px' }}/>
+          <col style={{ width: '110px' }}/>
+          <col style={{ width: '80px' }}/>
         </colgroup>
         <thead>
         <tr>
@@ -36,11 +37,11 @@ const OrdersTable = ({ kind }: OrdersTableProps) => {
         </tr>
         </thead>
         <tbody>
-        {(orders ?? []).map(([orderId, order, _], i) => {
+        {(orders ?? []).map(([orderId, order], i) => {
           return (
             <tr key={i}>
               <td>
-                <InfoItem content={getInfo(order.icrc1Ledger).symbol} withCopy={true} />
+                <InfoItem content={getInfo(order.icrc1Ledger).symbol} withCopy={true}/>
               </td>
               <td>{displayWithDecimals(order.price, getInfo(quoteLedger!).decimals - getInfo(order.icrc1Ledger).decimals, 6)}</td>
               <td>{displayWithDecimals(order.volume, getInfo(order.icrc1Ledger).decimals)}</td>

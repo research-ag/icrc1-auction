@@ -225,7 +225,7 @@ do {
   assert auction.getCredit(user, 0).available == 470_000_000;
   assert auction.getCredit(user, ft).available == 2_000;
   // check history
-  let ?historyItem = auction.getTransactionHistory(user, ?ft, #desc).next() else Prim.trap("");
+  let ?historyItem = auction.getTransactionHistory(user, [ft], #desc).next() else Prim.trap("");
   assert historyItem.1 == 0;
   assert historyItem.2 == #bid;
   assert historyItem.3 == ft;
@@ -346,7 +346,7 @@ do {
   assert bids[0].1.price == 100_000;
   assert bids[0].1.volume == 1_000;
   // check that partial bid recorded in history
-  let ?historyItem = auction.getTransactionHistory(user3, ?ft, #desc).next() else Prim.trap("");
+  let ?historyItem = auction.getTransactionHistory(user3, [ft], #desc).next() else Prim.trap("");
   assert historyItem.2 == #bid;
   assert historyItem.3 == ft;
   assert historyItem.4 == 500;
