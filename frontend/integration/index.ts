@@ -304,7 +304,7 @@ export const usePlaceOrder = (kind: 'ask' | 'bid') => {
   return useMutation(
     (formObj: { ledger: string; volume: number; price: number }) =>
       (kind === 'bid' ? auction.placeBids : auction.placeAsks).bind(auction)(
-        [[Principal.fromText(formObj.ledger), BigInt(formObj.volume), Number(formObj.price)]],
+        [[Principal.fromText(formObj.ledger), { delayed: null }, BigInt(formObj.volume), Number(formObj.price)]],
         [],
       ),
     {

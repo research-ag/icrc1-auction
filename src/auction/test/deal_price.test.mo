@@ -13,12 +13,12 @@ do {
   ignore auction.appendCredit(user, 0, 500_000_000);
 
   // should be fulfilled
-  switch (auction.placeOrder(user, #bid, ft, 5_000_000, 1, null)) {
+  switch (auction.placeOrder(user, #bid, ft, #delayed, 5_000_000, 1, null)) {
     case (#ok _) ();
     case (_) assert false;
   };
   // should not be fulfilled, too low bid
-  switch (auction.placeOrder(user, #bid, ft, 5_000_000, 0.1, null)) {
+  switch (auction.placeOrder(user, #bid, ft, #delayed, 5_000_000, 0.1, null)) {
     case (#ok _) ();
     case (_) assert false;
   };
@@ -27,12 +27,12 @@ do {
   ignore auction.appendCredit(user2, ft, 500_000_000);
 
   // should be fulfilled
-  switch (auction.placeOrder(user2, #ask, ft, 5_000_000, 0.8, null)) {
+  switch (auction.placeOrder(user2, #ask, ft, #delayed, 5_000_000, 0.8, null)) {
     case (#ok _) ();
     case (_) assert false;
   };
   // should not be fulfilled
-  switch (auction.placeOrder(user2, #ask, ft, 5_000_000, 100, null)) {
+  switch (auction.placeOrder(user2, #ask, ft, #delayed, 5_000_000, 100, null)) {
     case (#ok _) ();
     case (_) assert false;
   };
@@ -52,12 +52,12 @@ do {
 
   ignore auction.appendCredit(user, 0, 500_000_000);
   // should be fulfilled partially
-  switch (auction.placeOrder(user, #bid, ft, 6_010_000, 1, null)) {
+  switch (auction.placeOrder(user, #bid, ft, #delayed, 6_010_000, 1, null)) {
     case (#ok _) ();
     case (_) assert false;
   };
   // should not be fulfilled, too low bid
-  switch (auction.placeOrder(user, #bid, ft, 5_000_000, 0.1, null)) {
+  switch (auction.placeOrder(user, #bid, ft, #delayed, 5_000_000, 0.1, null)) {
     case (#ok _) ();
     case (_) assert false;
   };
@@ -65,12 +65,12 @@ do {
   let user2 = Principal.fromText("tbsil-wffo6-dnxyb-b27v7-c5ghk-jsiqs-gsok7-bmtyu-w7u3b-el75k-iae");
   ignore auction.appendCredit(user2, ft, 500_000_000);
   // should be fulfilled
-  switch (auction.placeOrder(user2, #ask, ft, 5_000_000, 0.8, null)) {
+  switch (auction.placeOrder(user2, #ask, ft, #delayed, 5_000_000, 0.8, null)) {
     case (#ok _) ();
     case (_) assert false;
   };
   // should not be fulfilled
-  switch (auction.placeOrder(user2, #ask, ft, 5_000_000, 100, null)) {
+  switch (auction.placeOrder(user2, #ask, ft, #delayed, 5_000_000, 100, null)) {
     case (#ok _) ();
     case (_) assert false;
   };
@@ -90,12 +90,12 @@ do {
 
   ignore auction.appendCredit(user, 0, 500_000_000);
   // should be fulfilled partially
-  switch (auction.placeOrder(user, #bid, ft, 5_010_000, 1, null)) {
+  switch (auction.placeOrder(user, #bid, ft, #delayed, 5_010_000, 1, null)) {
     case (#ok _) ();
     case (_) assert false;
   };
   // should not be fulfilled, too low bid
-  switch (auction.placeOrder(user, #bid, ft, 5_000_000, 0.1, null)) {
+  switch (auction.placeOrder(user, #bid, ft, #delayed, 5_000_000, 0.1, null)) {
     case (#ok _) ();
     case (_) assert false;
   };
@@ -103,12 +103,12 @@ do {
   let user2 = Principal.fromText("tbsil-wffo6-dnxyb-b27v7-c5ghk-jsiqs-gsok7-bmtyu-w7u3b-el75k-iae");
   ignore auction.appendCredit(user2, ft, 500_000_000);
   // should be fulfilled partially
-  switch (auction.placeOrder(user2, #ask, ft, 6_000_000, 0.8, null)) {
+  switch (auction.placeOrder(user2, #ask, ft, #delayed, 6_000_000, 0.8, null)) {
     case (#ok _) ();
     case (_) assert false;
   };
   // should not be fulfilled
-  switch (auction.placeOrder(user2, #ask, ft, 5_000_000, 100, null)) {
+  switch (auction.placeOrder(user2, #ask, ft, #delayed, 5_000_000, 100, null)) {
     case (#ok _) ();
     case (_) assert false;
   };
@@ -143,7 +143,7 @@ do {
   ignore auction.appendCredit(user, 0, 500_000_000);
   userExpectedCredits[0] += 500_000_000;
 
-  switch (auction.placeOrder(user, #bid, ft, 5_000_000, 0.1, null)) {
+  switch (auction.placeOrder(user, #bid, ft, #delayed, 5_000_000, 0.1, null)) {
     case (#ok _) ();
     case (_) assert false;
   };
@@ -152,7 +152,7 @@ do {
   ignore auction.appendCredit(user, ft, 500_000_000);
   userExpectedCredits[1] += 500_000_000;
 
-  switch (auction.placeOrder(user, #ask, ft, 500_000, 26, null)) {
+  switch (auction.placeOrder(user, #ask, ft, #delayed, 500_000, 26, null)) {
     case (#ok _) ();
     case (_) assert false;
   };
@@ -164,7 +164,7 @@ do {
   ignore auction.appendCredit(user2, ft, 500_000_000);
   user2ExpectedCredits[1] += 500_000_000;
 
-  switch (auction.placeOrder(user2, #ask, ft, 980_000, 0.08, null)) {
+  switch (auction.placeOrder(user2, #ask, ft, #delayed, 980_000, 0.08, null)) {
     case (#ok _) ();
     case (_) assert false;
   };

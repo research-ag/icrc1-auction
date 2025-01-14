@@ -29,6 +29,54 @@ import T "./types";
 
 module {
 
+  public func defaultStableDataV9() : T.StableDataV9 = {
+    assets = Vec.new();
+    orders = { globalCounter = 0 };
+    quoteToken = { surplus = 0 };
+    sessions = { counter = 0; history = Vec.new<T.PriceHistoryItem>() };
+    users = {
+      registry = {
+        tree = #leaf;
+        size = 0;
+      };
+      participantsArchive = {
+        tree = #leaf;
+        size = 0;
+      };
+      accountsAmount = 0;
+    };
+  };
+  public type StableDataV9 = T.StableDataV9;
+  public func migrateStableDataV9(data : StableDataV8) : StableDataV9 {
+    let usersTree : RBTree.RBTree<Principal, T.StableUserInfoV7> = RBTree.RBTree(Principal.compare);
+    for ((p, x) in RBTree.iter(data.users.registry.tree, #bwd)) {
+      func mapOrderBookEntry((oid : OrderId, x : T.StableOrderDataV2)) : ((OrderId, T.StableOrderDataV3)) = (
+        oid,
+        { x with orderType = #delayed },
+      );
+      usersTree.put(
+        p,
+        {
+          x with
+          asks = {
+            var map = List.map<(OrderId, T.StableOrderDataV2), (OrderId, T.StableOrderDataV3)>(x.asks.map, mapOrderBookEntry);
+          };
+          bids = {
+            var map = List.map<(OrderId, T.StableOrderDataV2), (OrderId, T.StableOrderDataV3)>(x.bids.map, mapOrderBookEntry);
+          };
+        },
+      );
+    };
+    {
+      data with
+      users = {
+        data.users with registry = {
+          data.users.registry with tree = usersTree.share()
+        }
+      };
+    };
+  };
+
   public func defaultStableDataV8() : T.StableDataV8 = {
     assets = Vec.new();
     orders = { globalCounter = 0 };
@@ -262,6 +310,7 @@ module {
 
   public type AssetId = T.AssetId;
   public type OrderId = T.OrderId;
+  public type OrderType = T.OrderType;
   public type Order = T.Order;
   public type CreditInfo = Credits.CreditInfo;
   public type UserInfo = T.UserInfo;
@@ -482,10 +531,10 @@ module {
       orders.manageOrders(p, userInfo, cancellations, placements, expectedSessionNumber);
     };
 
-    public func placeOrder(p : Principal, kind : { #ask; #bid }, assetId : AssetId, volume : Nat, price : Float, expectedSessionNumber : ?Nat) : R.Result<OrderId, PlaceOrderError> {
+    public func placeOrder(p : Principal, kind : { #ask; #bid }, assetId : AssetId, orderType : OrderType, volume : Nat, price : Float, expectedSessionNumber : ?Nat) : R.Result<OrderId, PlaceOrderError> {
       let placement = switch (kind) {
-        case (#ask) #ask(assetId, volume, price);
-        case (#bid) #bid(assetId, volume, price);
+        case (#ask) #ask(assetId, orderType, volume, price);
+        case (#bid) #bid(assetId, orderType, volume, price);
       };
       switch (manageOrders(p, null, [placement], expectedSessionNumber)) {
         case (#ok(_, orderIds)) #ok(orderIds[0]);
@@ -497,13 +546,13 @@ module {
     };
 
     public func replaceOrder(p : Principal, kind : { #ask; #bid }, orderId : OrderId, volume : Nat, price : Float, expectedSessionNumber : ?Nat) : R.Result<OrderId, ReplaceOrderError> {
-      let assetId = switch (getOrder(p, kind, orderId)) {
-        case (?o) o.assetId;
+      let (assetId, orderType) = switch (getOrder(p, kind, orderId)) {
+        case (?o) (o.assetId, o.orderType);
         case (null) return #err(#UnknownOrder);
       };
       let (cancellation, placement) = switch (kind) {
-        case (#ask) (#ask(orderId), #ask(assetId, volume, price));
-        case (#bid) (#bid(orderId), #bid(assetId, volume, price));
+        case (#ask) (#ask(orderId), #ask(assetId, orderType, volume, price));
+        case (#bid) (#bid(orderId), #bid(assetId, orderType, volume, price));
       };
       switch (manageOrders(p, ?#orders([cancellation]), [placement], expectedSessionNumber)) {
         case (#ok(_, orderIds)) #ok(orderIds[0]);
@@ -580,7 +629,7 @@ module {
     // ============ history interface =============
 
     // ============= system interface =============
-    public func share() : T.StableDataV8 = {
+    public func share() : T.StableDataV9 = {
       assets = Vec.map<T.AssetInfo, T.StableAssetInfoV3>(
         assets.assets,
         func(x) = {
@@ -601,17 +650,17 @@ module {
       users = {
         registry = {
           tree = (
-            func() : RBTree.Tree<Principal, T.StableUserInfoV6> {
-              let stableUsers = RBTree.RBTree<Principal, T.StableUserInfoV6>(Principal.compare);
+            func() : RBTree.Tree<Principal, T.StableUserInfoV7> {
+              let stableUsers = RBTree.RBTree<Principal, T.StableUserInfoV7>(Principal.compare);
               for ((p, u) in users.users.entries()) {
                 stableUsers.put(
                   p,
                   {
                     asks = {
-                      var map = List.map<(T.OrderId, T.Order), (T.OrderId, T.StableOrderDataV2)>(u.asks.map, func(oid, o) = (oid, { assetId = o.assetId; price = o.price; user = o.user; volume = o.volume }));
+                      var map = List.map<(T.OrderId, T.Order), (T.OrderId, T.StableOrderDataV3)>(u.asks.map, func(oid, o) = (oid, { assetId = o.assetId; orderType = o.orderType; price = o.price; user = o.user; volume = o.volume }));
                     };
                     bids = {
-                      var map = List.map<(T.OrderId, T.Order), (T.OrderId, T.StableOrderDataV2)>(u.bids.map, func(oid, o) = (oid, { assetId = o.assetId; price = o.price; user = o.user; volume = o.volume }));
+                      var map = List.map<(T.OrderId, T.Order), (T.OrderId, T.StableOrderDataV3)>(u.bids.map, func(oid, o) = (oid, { assetId = o.assetId; orderType = o.orderType; price = o.price; user = o.user; volume = o.volume }));
                     };
                     credits = u.credits;
                     loyaltyPoints = u.loyaltyPoints;
@@ -633,7 +682,7 @@ module {
       };
     };
 
-    public func unshare(data : T.StableDataV8) {
+    public func unshare(data : T.StableDataV9) {
       assets.assets := Vec.map<T.StableAssetInfoV3, T.AssetInfo>(
         data.assets,
         func(x) = {
@@ -656,7 +705,7 @@ module {
       assets.history := data.sessions.history;
 
       users.usersAmount := data.users.registry.size;
-      let ud = RBTree.RBTree<Principal, T.StableUserInfoV6>(Principal.compare);
+      let ud = RBTree.RBTree<Principal, T.StableUserInfoV7>(Principal.compare);
       ud.unshare(data.users.registry.tree);
       for ((p, u) in ud.entries()) {
         let userData : UserInfo = {
