@@ -243,7 +243,7 @@ service : (opt principal, opt principal) -> {
       };
       deposit_history : vec record {
         nat64;
-        variant { deposit; withdrawal; withdrawalRollback };
+        variant { deposit; withdrawal };
         Token;
         nat;
       };

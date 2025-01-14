@@ -4,7 +4,7 @@ import { useSnackbar } from 'notistack';
 import { useIdentity } from './identity';
 import { Principal } from '@dfinity/principal';
 import { useMemo } from 'react';
-import { canisterId as cid, createActor } from '@declarations/icrc1_auction';
+import { createActor } from '@declarations/icrc1_auction';
 import { createActor as createLedgerActor } from '@declarations/icrc1_ledger_mock';
 import { AuctionQueryResponse } from "../../.dfx/local/canisters/icrc1_auction_new/service.did";
 
@@ -29,7 +29,7 @@ const replaceBigInts = <T>(obj: T): T => {
   return obj;
 }
 
-export const defaultAuctionCanisterId = cid;
+export const defaultAuctionCanisterId = "3gvau-pyaaa-aaaao-qa7kq-cai";
 
 export const useAuctionCanisterId = () => {
   return localStorage.getItem('auctionCanisterId') || defaultAuctionCanisterId;
@@ -60,7 +60,7 @@ export const useAuction = () => {
     return { auction };
   } catch (err) {
     const { enqueueSnackbar } = useSnackbar();
-    enqueueSnackbar(`Auction ${canisterId} cannot be used. Falling back to ${cid}`, { variant: 'warning' });
+    enqueueSnackbar(`Auction ${canisterId} cannot be used. Falling back to ${defaultAuctionCanisterId}`, { variant: 'warning' });
     updateAuctionCanisterId(defaultAuctionCanisterId);
     const auction = createActor(defaultAuctionCanisterId, {
       agentOptions: {
