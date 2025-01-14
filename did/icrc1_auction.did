@@ -77,8 +77,14 @@ type DepositResponse = variant {
 
 type OrderId = nat;
 
+type OrderType = variant {
+  delayed;
+  immediate;
+};
+
 type Order = record {
   icrc1Ledger : Token;
+  orderType : OrderType;
   price : float64;
   volume : nat;
 };
@@ -88,8 +94,8 @@ type CancellationArg = variant {
   orders : vec variant { ask : OrderId; bid : OrderId };
 };
 type PlaceArg = vec variant {
-  ask : record { Token; nat; float64 };
-  bid : record { Token; nat; float64 };
+  ask : record { Token; OrderType; nat; float64 };
+  bid : record { Token; OrderType; nat; float64 };
 };
 
 type ManageOrdersResponse = variant {
@@ -97,6 +103,7 @@ type ManageOrdersResponse = variant {
     vec record {
       OrderId;
       Token;
+      OrderType;
       nat;
       float64;
     };
@@ -157,6 +164,7 @@ type CancelOrderResponse = variant {
   Ok : record {
     OrderId;
     Token;
+    OrderType;
     nat;
     float64;
   };
@@ -241,11 +249,11 @@ service : (opt principal, opt principal) -> {
   // update
   manageOrders : (opt CancellationArg, PlaceArg, opt nat) -> (ManageOrdersResponse);
 
-  placeAsks : (vec record { Token; nat; float64 }, opt nat) -> (vec PlaceOrderResponse);
+  placeAsks : (vec record { Token; OrderType; nat; float64 }, opt nat) -> (vec PlaceOrderResponse);
   replaceAsk : (OrderId, nat, float64, opt nat) -> (ReplaceOrderResponse);
   cancelAsks : (vec OrderId, opt nat) -> (vec CancelOrderResponse);
 
-  placeBids : (vec record { Token; nat; float64 }, opt nat) -> (vec PlaceOrderResponse);
+  placeBids : (vec record { Token; OrderType; nat; float64 }, opt nat) -> (vec PlaceOrderResponse);
   replaceBid : (OrderId, nat, float64, opt nat) -> (ReplaceOrderResponse);
   cancelBids : (vec OrderId, opt nat) -> (vec CancelOrderResponse);
 

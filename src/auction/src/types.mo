@@ -18,10 +18,13 @@ module {
     var lockedCredit : Nat;
   };
 
+  public type OrderType = { #delayed; #immediate };
+
   public type Order = {
     user : Principal;
     userInfoRef : UserInfo;
     assetId : AssetId;
+    orderType : OrderType;
     price : Float;
     var volume : Nat;
   };
@@ -63,9 +66,10 @@ module {
   public type TransactionHistoryItem = (timestamp : Nat64, sessionNumber : Nat, kind : { #ask; #bid }, assetId : AssetId, volume : Nat, price : Float);
 
   // stable data types
-  public type StableDataV8 = StableDataV5_6_7<StableAssetInfoV3, StableUserInfoV6, { globalCounter : Nat }, { surplus : Nat }>;
+  public type StableDataV9 = StableDataV5_6_7<StableAssetInfoV3, StableUserInfoV7, { globalCounter : Nat }, { surplus : Nat }>;
 
   // old stable data types
+  public type StableDataV8 = StableDataV5_6_7<StableAssetInfoV3, StableUserInfoV6, { globalCounter : Nat }, { surplus : Nat }>;
   public type StableDataV7 = StableDataV5_6_7<StableAssetInfoV3, StableUserInfoV5, { globalCounter : Nat }, { surplus : Nat }>;
   public type StableDataV6 = StableDataV5_6_7<StableAssetInfoV2, StableUserInfoV4, { globalCounter : Nat; fulfilledCounter : Nat }, { totalProcessedVolume : Nat; surplus : Nat }>;
   public type StableDataV5 = StableDataV5_6_7<StableAssetInfoV2, StableUserInfoV3, { globalCounter : Nat; fulfilledCounter : Nat }, { totalProcessedVolume : Nat; surplus : Nat }>;
@@ -124,6 +128,13 @@ module {
     quoteSurplus : Nat;
   };
 
+  public type StableOrderDataV3 = {
+    user : Principal;
+    assetId : AssetId;
+    orderType : OrderType;
+    price : Float;
+    volume : Nat;
+  };
   public type StableOrderDataV2 = {
     user : Principal;
     assetId : AssetId;
@@ -140,6 +151,14 @@ module {
   public type StableAssetInfoV2 = {
     lastRate : Float;
     lastProcessingInstructions : Nat;
+  };
+  public type StableUserInfoV7 = {
+    asks : UserOrderBook_<StableOrderDataV3>;
+    bids : UserOrderBook_<StableOrderDataV3>;
+    credits : AssocList.AssocList<AssetId, Account>;
+    loyaltyPoints : Nat;
+    depositHistory : Vec.Vector<DepositHistoryItem>;
+    transactionHistory : Vec.Vector<TransactionHistoryItem>;
   };
   public type StableUserInfoV6 = {
     asks : UserOrderBook_<StableOrderDataV2>;

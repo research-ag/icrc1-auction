@@ -22,24 +22,24 @@ do {
   let seller4 = Principal.fromText("qo2aj-uwwcl-gw2to-zzmko-mdptl-ogqy3-ondre-dmlra-tal7p-klf4v-uae");
   ignore auction.appendCredit(seller4, ft, 1_000);
 
-  switch (auction.placeOrder(user, #bid, ft, 4_000, 1, null)) {
+  switch (auction.placeOrder(user, #bid, ft, #delayed, 4_000, 1, null)) {
     case (#ok _) ();
     case (_) assert false;
   };
 
-  switch (auction.placeOrder(seller1, #ask, ft, 1_000, 0.0125, null)) {
+  switch (auction.placeOrder(seller1, #ask, ft, #delayed, 1_000, 0.0125, null)) {
     case (#ok _) ();
     case (_) assert false;
   };
-  switch (auction.placeOrder(seller2, #ask, ft, 1_000, 0.0125, null)) {
+  switch (auction.placeOrder(seller2, #ask, ft, #delayed, 1_000, 0.0125, null)) {
     case (#ok _) ();
     case (_) assert false;
   };
-  switch (auction.placeOrder(seller3, #ask, ft, 1_000, 0.0125, null)) {
+  switch (auction.placeOrder(seller3, #ask, ft, #delayed, 1_000, 0.0125, null)) {
     case (#ok _) ();
     case (_) assert false;
   };
-  switch (auction.placeOrder(seller4, #ask, ft, 1_000, 0.0125, null)) {
+  switch (auction.placeOrder(seller4, #ask, ft, #delayed, 1_000, 0.0125, null)) {
     case (#ok _) ();
     case (_) assert false;
   };
@@ -87,7 +87,7 @@ do {
   |> Int.abs(Float.toInt(_));
 
   ignore auction.appendCredit(user, 0, denominateVolumeInQuoteAsset(bidVolume, bidPrice));
-  let oid = switch (auction.placeOrder(user, #bid, ft, bidVolume, bidPrice, null)) {
+  let oid = switch (auction.placeOrder(user, #bid, ft, #delayed, bidVolume, bidPrice, null)) {
     case (#ok x) x;
     case (_) {
       assert false;
@@ -97,7 +97,7 @@ do {
 
   assert auction.getCredit(user, 0).locked == denominateVolumeInQuoteAsset(bidVolume, bidPrice);
 
-  switch (auction.placeOrder(seller, #ask, ft, askVolume, askPrice, null)) {
+  switch (auction.placeOrder(seller, #ask, ft, #delayed, askVolume, askPrice, null)) {
     case (#ok _) ();
     case (_) assert false;
   };

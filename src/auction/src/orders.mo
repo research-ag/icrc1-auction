@@ -27,11 +27,11 @@ module {
   };
 
   public type PlaceOrderAction = {
-    #ask : (assetId : T.AssetId, volume : Nat, price : Float);
-    #bid : (assetId : T.AssetId, volume : Nat, price : Float);
+    #ask : (assetId : T.AssetId, orderType : T.OrderType, volume : Nat, price : Float);
+    #bid : (assetId : T.AssetId, orderType : T.OrderType, volume : Nat, price : Float);
   };
 
-  public type CancellationResult = (T.OrderId, assetId : T.AssetId, volume : Nat, price : Float);
+  public type CancellationResult = (T.OrderId, assetId : T.AssetId, orderType : T.OrderType, volume : Nat, price : Float);
 
   public type InternalCancelOrderError = {
     #UnknownOrder;
@@ -332,7 +332,7 @@ module {
               switch (userOrderBook.map) {
                 case (?((orderId, _), _)) {
                   let ?order = ordersService.cancel(userInfo, orderId) else Prim.trap("Can never happen");
-                  Vec.add(ret, (orderId, order.assetId, order.volume, order.price));
+                  Vec.add(ret, (orderId, order.assetId, order.orderType, order.volume, order.price));
                 };
                 case (_) break l;
               };
@@ -359,7 +359,7 @@ module {
             let ret : Vec.Vector<CancellationResult> = Vec.new();
             for (orderId in Vec.vals(orderIds)) {
               let ?order = ordersService.cancel(userInfo, orderId) else Prim.trap("Can never happen");
-              Vec.add(ret, (orderId, order.assetId, order.volume, order.price));
+              Vec.add(ret, (orderId, order.assetId, order.orderType, order.volume, order.price));
             };
             Vec.toArray(ret);
           },
@@ -369,7 +369,7 @@ module {
 
       switch (cancellations) {
         case (null) {};
-        case (? #all(null)) {
+        case (?#all(null)) {
           switch (expectedSessionNumber) {
             case (?sn) {
               for ((asset, aid) in Vec.items(assets.assets)) {
@@ -385,7 +385,7 @@ module {
           prepareBulkCancellation(asks);
           prepareBulkCancellation(bids);
         };
-        case (? #all(?aids)) {
+        case (?#all(?aids)) {
           switch (expectedSessionNumber) {
             case (?sn) {
               for (i in aids.keys()) {
@@ -402,7 +402,7 @@ module {
           prepareBulkCancellationWithFilter(asks, asksDelta.isOrderCancelled);
           prepareBulkCancellationWithFilter(bids, bidsDelta.isOrderCancelled);
         };
-        case (? #orders(orders)) {
+        case (?#orders(orders)) {
           let cancelledAsks : RBTree.RBTree<T.OrderId, ()> = RBTree.RBTree(Nat.compare);
           let cancelledBids : RBTree.RBTree<T.OrderId, ()> = RBTree.RBTree(Nat.compare);
           asksDelta.isOrderCancelled := func(_, orderId) = cancelledAsks.get(orderId) |> not Option.isNull(_);
@@ -420,7 +420,7 @@ module {
             cancellationCommitActions := List.push<() -> [CancellationResult]>(
               func() {
                 let ?order = ordersService.cancel(userInfo, orderId) else return [];
-                [(orderId, order.assetId, order.volume, order.price)];
+                [(orderId, order.assetId, order.orderType, order.volume, order.price)];
               },
               cancellationCommitActions,
             );
@@ -442,7 +442,7 @@ module {
       // validate and prepare placements
       var assetIdSet : AssocList.AssocList<T.AssetId, Nat> = null;
       for (i in placements.keys()) {
-        let (ordersService, (assetId, volume, rawPrice), ordersDelta, oppositeOrdersDelta) = switch (placements[i]) {
+        let (ordersService, (assetId, orderType, volume, rawPrice), ordersDelta, oppositeOrdersDelta) = switch (placements[i]) {
           case (#ask(args)) (asks, args, asksDelta, bidsDelta);
           case (#bid(args)) (bids, args, bidsDelta, asksDelta);
         };
@@ -512,8 +512,9 @@ module {
         let order : T.Order = {
           user = p;
           userInfoRef = userInfo;
-          assetId = assetId;
-          price = price;
+          assetId;
+          orderType;
+          price;
           var volume = volume;
         };
         ordersDelta.placed := List.push((null, order), ordersDelta.placed);
