@@ -5,8 +5,8 @@ import { useIdentity } from './identity';
 import { Principal } from '@dfinity/principal';
 import { useMemo } from 'react';
 import { createActor } from '@declarations/icrc1_auction';
+import { AuctionQueryResponse } from "@declarations/icrc1_auction/icrc1_auction_development.did";
 import { createActor as createLedgerActor } from '@declarations/icrc1_ledger_mock';
-import { AuctionQueryResponse } from "../../.dfx/local/canisters/icrc1_auction_new/service.did";
 
 // Custom replacer function for JSON.stringify
 const bigIntReplacer = (key: string, value: any): any => {
