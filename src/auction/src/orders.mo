@@ -32,6 +32,7 @@ module {
   };
 
   public type CancellationResult = (T.OrderId, assetId : T.AssetId, orderType : T.OrderType, volume : Nat, price : Float);
+  public type PlaceOrderResult = (T.OrderId, { #placed; #executed : (price : Float, volume : Nat) });
 
   public type InternalCancelOrderError = {
     #UnknownOrder;
@@ -282,7 +283,7 @@ module {
       cancellations : ?CancellationAction,
       placements : [PlaceOrderAction],
       expectedSessionNumber : ?Nat,
-    ) : R.Result<([CancellationResult], [T.OrderId]), OrderManagementError> {
+    ) : R.Result<([CancellationResult], [PlaceOrderResult]), OrderManagementError> {
 
       // temporary list of new balances for all affected user credit accounts
       var newBalances : AssocList.AssocList<T.AssetId, Nat> = null;
@@ -302,7 +303,7 @@ module {
 
       // array of functions which will write all changes to the state
       var cancellationCommitActions : List.List<() -> [CancellationResult]> = null;
-      let placementCommitActions : [var () -> T.OrderId] = Array.init<() -> T.OrderId>(placements.size(), func() = 0);
+      let placementCommitActions = Array.init<() -> PlaceOrderResult>(placements.size(), func() = (0, #placed));
 
       // update temporary balances: add unlocked credits for each cancelled order
       func affectNewBalancesWithCancellation(ordersService : OrdersService, order : T.Order) {
@@ -523,7 +524,7 @@ module {
           let orderId = ordersCounter;
           ordersCounter += 1;
           ordersService.place(userInfo, chargeAcc, assetInfo, orderId, order);
-          orderId;
+          (orderId, #placed);
         };
         AssocList.replace<T.AssetId, Nat>(assetIdSet, assetId, Nat.equal, ?i) |> (assetIdSet := _.0);
       };
@@ -545,7 +546,7 @@ module {
           Vec.add(retCancellations, c);
         };
       };
-      let retPlacements = Array.tabulate<T.OrderId>(placementCommitActions.size(), func(i) = placementCommitActions[i]());
+      let retPlacements = Array.tabulate<PlaceOrderResult>(placementCommitActions.size(), func(i) = placementCommitActions[i]());
 
       if (placements.size() > 0) {
         let oldRecord = users.participantsArchive.replace(p, { lastOrderPlacement = Prim.time() });

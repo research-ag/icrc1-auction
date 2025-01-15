@@ -88,7 +88,7 @@ do {
 
   ignore auction.appendCredit(user, 0, denominateVolumeInQuoteAsset(bidVolume, bidPrice));
   let oid = switch (auction.placeOrder(user, #bid, ft, #delayed, bidVolume, bidPrice, null)) {
-    case (#ok x) x;
+    case (#ok(x, _)) x;
     case (_) {
       assert false;
       0;

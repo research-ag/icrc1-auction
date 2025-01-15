@@ -135,7 +135,7 @@ do {
 
   assert auction.getCredit(user, 0).available == 500_000_000;
   let orderId = switch (auction.placeOrder(user, #bid, ft, #delayed, 2_000, 100_000, null)) {
-    case (#ok id) id;
+    case (#ok(id, _)) id;
     case (_) { assert false; 0 };
   };
   assert auction.getCredit(user, 0).available == 300_000_000;
@@ -154,14 +154,14 @@ do {
   let ft = createFt(auction);
 
   let orderId = switch (auction.placeOrder(user, #bid, ft, #delayed, 2_000, 125_000, null)) {
-    case (#ok id) id;
+    case (#ok(id, _)) id;
     case (_) { assert false; 0 };
   };
   assert auction.getCredit(user, 0).available == 250_000_000;
   assert auction.getOrders(user, #bid, ?ft).size() == 1;
 
   let newOrderId = switch (auction.replaceOrder(user, #bid, orderId, 2_000, 250_000, null)) {
-    case (#ok id) id;
+    case (#ok(id, _)) id;
     case (_) { assert false; 0 };
   };
   assert auction.getCredit(user, 0).available == 0;
@@ -182,7 +182,7 @@ do {
   let ft = createFt(auction);
 
   let orderId = switch (auction.placeOrder(user, #bid, ft, #delayed, 2_000, 125_000, null)) {
-    case (#ok id) id;
+    case (#ok(id, _)) id;
     case (_) { assert false; 0 };
   };
   assert auction.getCredit(user, 0).available == 250_000_000;

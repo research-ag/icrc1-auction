@@ -322,6 +322,7 @@ module {
   public type PlaceOrderAction = Orders.PlaceOrderAction;
 
   public type CancellationResult = Orders.CancellationResult;
+  public type PlaceOrderResult = Orders.PlaceOrderResult;
 
   public type IndicativeStats = {
     clearing : {
@@ -526,18 +527,18 @@ module {
       cancellations : ?Orders.CancellationAction,
       placements : [Orders.PlaceOrderAction],
       expectedSessionNumber : ?Nat,
-    ) : R.Result<([CancellationResult], [OrderId]), ManageOrdersError> {
+    ) : R.Result<([CancellationResult], [PlaceOrderResult]), ManageOrdersError> {
       let ?userInfo = users.get(p) else return #err(#UnknownPrincipal);
       orders.manageOrders(p, userInfo, cancellations, placements, expectedSessionNumber);
     };
 
-    public func placeOrder(p : Principal, kind : { #ask; #bid }, assetId : AssetId, orderType : OrderType, volume : Nat, price : Float, expectedSessionNumber : ?Nat) : R.Result<OrderId, PlaceOrderError> {
+    public func placeOrder(p : Principal, kind : { #ask; #bid }, assetId : AssetId, orderType : OrderType, volume : Nat, price : Float, expectedSessionNumber : ?Nat) : R.Result<PlaceOrderResult, PlaceOrderError> {
       let placement = switch (kind) {
         case (#ask) #ask(assetId, orderType, volume, price);
         case (#bid) #bid(assetId, orderType, volume, price);
       };
       switch (manageOrders(p, null, [placement], expectedSessionNumber)) {
-        case (#ok(_, orderIds)) #ok(orderIds[0]);
+        case (#ok(_, x)) #ok(x[0]);
         case (#err(#SessionNumberMismatch x)) #err(#SessionNumberMismatch(x));
         case (#err(#UnknownPrincipal)) #err(#UnknownPrincipal);
         case (#err(#placement { error })) #err(error);
@@ -545,7 +546,7 @@ module {
       };
     };
 
-    public func replaceOrder(p : Principal, kind : { #ask; #bid }, orderId : OrderId, volume : Nat, price : Float, expectedSessionNumber : ?Nat) : R.Result<OrderId, ReplaceOrderError> {
+    public func replaceOrder(p : Principal, kind : { #ask; #bid }, orderId : OrderId, volume : Nat, price : Float, expectedSessionNumber : ?Nat) : R.Result<PlaceOrderResult, ReplaceOrderError> {
       let (assetId, orderType) = switch (getOrder(p, kind, orderId)) {
         case (?o) (o.assetId, o.orderType);
         case (null) return #err(#UnknownOrder);
@@ -555,7 +556,7 @@ module {
         case (#bid) (#bid(orderId), #bid(assetId, orderType, volume, price));
       };
       switch (manageOrders(p, ?#orders([cancellation]), [placement], expectedSessionNumber)) {
-        case (#ok(_, orderIds)) #ok(orderIds[0]);
+        case (#ok(_, x)) #ok(x[0]);
         case (#err(#SessionNumberMismatch x)) #err(#SessionNumberMismatch(x));
         case (#err(#UnknownPrincipal)) #err(#UnknownPrincipal);
         case (#err(#cancellation({ error }))) #err(error);

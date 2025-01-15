@@ -43,7 +43,7 @@ module Icrc84Auction {
 
   type UpperResult<Ok, Err> = { #Ok : Ok; #Err : Err };
 
-  public func mapPlaceOrderResult(res : R.Result<T.OrderId, Auction.PlaceOrderError>, getToken : (T.AssetId) -> Principal) : UpperResult<T.OrderId, PlaceOrderError> {
+  public func mapPlaceOrderResult(res : R.Result<Auction.PlaceOrderResult, Auction.PlaceOrderError>, getToken : (T.AssetId) -> Principal) : UpperResult<Auction.PlaceOrderResult, PlaceOrderError> {
     switch (res) {
       case (#ok x) #Ok(x);
       case (#err err) #Err(
@@ -61,7 +61,7 @@ module Icrc84Auction {
     };
   };
 
-  public func mapReplaceOrderResult(res : R.Result<T.OrderId, Auction.ReplaceOrderError>, getToken : (T.AssetId) -> Principal) : UpperResult<T.OrderId, ReplaceOrderError> {
+  public func mapReplaceOrderResult(res : R.Result<Auction.PlaceOrderResult, Auction.ReplaceOrderError>, getToken : (T.AssetId) -> Principal) : UpperResult<Auction.PlaceOrderResult, ReplaceOrderError> {
     switch (res) {
       case (#ok x) #Ok(x);
       case (#err err) #Err(
@@ -93,7 +93,7 @@ module Icrc84Auction {
     };
   };
 
-  public func mapManageOrdersResult(res : R.Result<([Auction.CancellationResult], [Auction.OrderId]), Auction.ManageOrdersError>, getToken : (T.AssetId) -> Principal) : UpperResult<([CancellationResult], [Auction.OrderId]), ManageOrdersError> {
+  public func mapManageOrdersResult(res : R.Result<([Auction.CancellationResult], [Auction.PlaceOrderResult]), Auction.ManageOrdersError>, getToken : (T.AssetId) -> Principal) : UpperResult<([CancellationResult], [Auction.PlaceOrderResult]), ManageOrdersError> {
     switch (res) {
       case (#ok(cancellations, placements)) #Ok(
         Array.map<Auction.CancellationResult, CancellationResult>(cancellations, func(oid, aid, orderType, volume, price) = (oid, getToken(aid), orderType, volume, price)),

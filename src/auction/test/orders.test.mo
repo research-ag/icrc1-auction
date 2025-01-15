@@ -29,7 +29,7 @@ do {
   ignore auction.appendCredit(user, 0, 500_000_000);
   ignore auction.appendCredit(user, ft, 500_000_000);
   let orderId = switch (auction.placeOrder(user, #bid, ft, #delayed, 2_000, 250, null)) {
-    case (#ok id) id;
+    case (#ok(id, _)) id;
     case (_) { assert false; 0 };
   };
   switch (auction.placeOrder(user, #ask, ft, #delayed, 2_000_000, 200, null)) {
@@ -48,7 +48,7 @@ do {
   ignore auction.appendCredit(user, 0, 500_000_000);
   ignore auction.appendCredit(user, ft, 500_000_000);
   let orderId = switch (auction.placeOrder(user, #ask, ft, #delayed, 2_000_000, 200, null)) {
-    case (#ok id) id;
+    case (#ok(id, _)) id;
     case (_) { assert false; 0 };
   };
   switch (auction.placeOrder(user, #bid, ft, #delayed, 2_000, 250, null)) {
@@ -92,7 +92,7 @@ do {
   ignore auction.appendCredit(user, 0, 500_000_000);
   ignore auction.appendCredit(user, ft, 500_000_000);
   let orderId = switch (auction.placeOrder(user, #ask, ft, #delayed, 2_000_000, 200, null)) {
-    case (#ok id) id;
+    case (#ok(id, _)) id;
     case (_) { assert false; 0 };
   };
   switch (
@@ -237,7 +237,7 @@ do {
   ignore auction.appendCredit(user, 0, 500_000_000);
   ignore auction.appendCredit(user, ft1, 500_000_000);
   ignore auction.appendCredit(user, ft2, 500_000_000);
-  let orderIds = switch (
+  let placementResults = switch (
     auction.manageOrders(
       user,
       null,
@@ -254,13 +254,13 @@ do {
       null,
     )
   ) {
-    case (#ok(_, ids)) ids;
+    case (#ok(_, x)) x;
     case (_) {
       assert false;
       [];
     };
   };
-  switch (auction.manageOrders(user, ?#orders([#bid(orderIds[1]), #ask(orderIds[4]), #ask(orderIds[5])]), [], null)) {
+  switch (auction.manageOrders(user, ?#orders([#bid(placementResults[1].0), #ask(placementResults[4].0), #ask(placementResults[5].0)]), [], null)) {
     case (#ok _) ();
     case (_) assert false;
   };

@@ -107,7 +107,10 @@ type ManageOrdersResponse = variant {
       nat;
       float64;
     };
-    vec OrderId;
+    vec record {
+      OrderId;
+      variant { placed; executed : record { float64; nat } };
+    };
   };
   Err : variant {
     SessionNumberMismatch : Token;
@@ -134,7 +137,10 @@ type ManageOrdersResponse = variant {
 };
 
 type PlaceOrderResponse = variant {
-  Ok : OrderId;
+  Ok : record {
+    OrderId;
+    variant { placed; executed : record { float64; nat } };
+  };
   Err : variant {
     ConflictingOrder : record { variant { ask; bid }; opt OrderId };
     NoCredit;
@@ -147,7 +153,10 @@ type PlaceOrderResponse = variant {
   };
 };
 type ReplaceOrderResponse = variant {
-  Ok : OrderId;
+  Ok : record {
+    OrderId;
+    variant { placed; executed : record { float64; nat } };
+  };
   Err : variant {
     ConflictingOrder : record { variant { ask; bid }; opt OrderId };
     NoCredit;
