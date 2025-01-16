@@ -1,12 +1,9 @@
-import Float "mo:base/Float";
 import Iter "mo:base/Iter";
-import List "mo:base/List";
-import O "mo:base/Order";
 import Prim "mo:prim";
 
 import Vec "mo:vector";
 
-import PriorityQueue "./priority_queue";
+import AssetOrderBook "./asset_order_book";
 import T "./types";
 
 module {
@@ -29,14 +26,12 @@ module {
         (
           {
             bids = {
-              var queue = List.nil();
-              var size = 0;
-              var totalVolume = 0;
+              immediate = AssetOrderBook.nil(#bid);
+              delayed = AssetOrderBook.nil(#bid);
             };
             asks = {
-              var queue = List.nil();
-              var size = 0;
-              var totalVolume = 0;
+              immediate = AssetOrderBook.nil(#ask);
+              delayed = AssetOrderBook.nil(#ask);
             };
             var lastRate = 0;
             var lastProcessingInstructions = 0;
@@ -50,38 +45,29 @@ module {
       };
     };
 
-    public func getOrderBook(asset : T.AssetInfo, kind : { #ask; #bid }) : T.AssetOrderBook = switch (kind) {
-      case (#ask) asset.asks;
-      case (#bid) asset.bids;
-    };
+    public func getOrderBook(asset : T.AssetInfo, kind : { #ask; #bid }, orderType : T.OrderType) : T.AssetOrderBook = (
+      switch (kind) {
+        case (#ask) asset.asks;
+        case (#bid) asset.bids;
+      }
+    ) |> (
+      switch (orderType) {
+        case (#immediate) _.immediate;
+        case (#delayed) _.delayed;
+      }
+    );
 
     public func deductOrderVolume(asset : T.AssetInfo, kind : { #ask; #bid }, order : T.Order, amount : Nat) {
-      let orderBook = getOrderBook(asset, kind);
       order.volume -= amount;
-      orderBook.totalVolume -= amount;
+      AssetOrderBook.deductVolume(getOrderBook(asset, kind, order.orderType), amount);
     };
 
     public func putOrder(asset : T.AssetInfo, kind : { #ask; #bid }, orderId : T.OrderId, order : T.Order) {
-      let orderBook = getOrderBook(asset, kind);
-      orderBook.queue := PriorityQueue.insert(
-        orderBook.queue,
-        (orderId, order),
-        switch (kind) {
-          case (#ask) func(a : (T.OrderId, T.Order), b : (T.OrderId, T.Order)) : O.Order = Float.compare(b.1.price, a.1.price);
-          case (#bid) func(a : (T.OrderId, T.Order), b : (T.OrderId, T.Order)) : O.Order = Float.compare(a.1.price, b.1.price);
-        },
-      );
-      orderBook.size += 1;
-      orderBook.totalVolume += order.volume;
+      AssetOrderBook.insert(getOrderBook(asset, kind, order.orderType), orderId, order);
     };
 
-    public func deleteOrder(asset : T.AssetInfo, kind : { #ask; #bid }, orderId : T.OrderId) {
-      let orderBook = getOrderBook(asset, kind);
-      let (upd, oldValue) = PriorityQueue.findOneAndDelete<(T.OrderId, T.Order)>(orderBook.queue, func(id, _) = id == orderId);
-      let ?(_, existingOrder) = oldValue else Prim.trap("Cannot delete order from asset order book");
-      orderBook.queue := upd;
-      orderBook.size -= 1;
-      orderBook.totalVolume -= existingOrder.volume;
+    public func deleteOrder(asset : T.AssetInfo, kind : { #ask; #bid }, orderType : T.OrderType, orderId : T.OrderId) {
+      let ?_ = AssetOrderBook.delete(getOrderBook(asset, kind, orderType), orderId) else Prim.trap("Cannot delete order from asset order book");
     };
 
     public func pushToHistory(item : T.PriceHistoryItem) {

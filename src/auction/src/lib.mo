@@ -19,6 +19,7 @@ import RBTree "mo:base/RBTree";
 
 import Vec "mo:vector";
 
+import AssetOrderBook "./asset_order_book";
 import Assets "./assets";
 import C "./constants";
 import Credits "./credits";
@@ -392,8 +393,8 @@ module {
       let assetInfo = assets.getAsset(assetId);
       let (price, volume, surplus) = processAuction(
         sessionsCounter,
-        orders.asks.createOrderBookService(assetInfo),
-        orders.bids.createOrderBookService(assetInfo),
+        orders.asks.createCombinedOrderBookService(assetInfo),
+        orders.bids.createCombinedOrderBookService(assetInfo),
       );
       assets.pushToHistory(Prim.time(), sessionsCounter, assetId, volume, price);
       assetInfo.lastProcessingInstructions := Nat64.toNat(settings.performanceCounter(0) - startInstructions);
@@ -408,21 +409,21 @@ module {
 
     public func indicativeAssetStats(assetId : AssetId) : IndicativeStats {
       let assetInfo = assets.getAsset(assetId);
-      let asksOrderBook = orders.asks.createOrderBookService(assetInfo);
-      let bidsOrderBook = orders.bids.createOrderBookService(assetInfo);
+      let asksOrderBook = orders.asks.createCombinedOrderBookService(assetInfo);
+      let bidsOrderBook = orders.bids.createCombinedOrderBookService(assetInfo);
       switch (clearAuction(asksOrderBook, bidsOrderBook)) {
         case (?(price, volume)) ({
           clearing = #match({ price; volume });
-          totalBidVolume = assetInfo.bids.totalVolume;
-          totalAskVolume = assetInfo.asks.totalVolume;
+          totalBidVolume = bidsOrderBook.totalVolume();
+          totalAskVolume = asksOrderBook.totalVolume();
         });
         case (null) ({
           clearing = #noMatch({
-            maxBidPrice = List.get(bidsOrderBook.queue(), 0) |> Option.map<(T.OrderId, T.Order), Float>(_, func(b) = b.1.price);
-            minAskPrice = List.get(asksOrderBook.queue(), 0) |> Option.map<(T.OrderId, T.Order), Float>(_, func(b) = b.1.price);
+            maxBidPrice = bidsOrderBook.nextOrder() |> Option.map<(T.OrderId, T.Order), Float>(_, func(b) = b.1.price);
+            minAskPrice = asksOrderBook.nextOrder() |> Option.map<(T.OrderId, T.Order), Float>(_, func(b) = b.1.price);
           });
-          totalBidVolume = assetInfo.bids.totalVolume;
-          totalAskVolume = assetInfo.asks.totalVolume;
+          totalBidVolume = bidsOrderBook.totalVolume();
+          totalAskVolume = asksOrderBook.totalVolume();
         });
       };
     };
@@ -510,8 +511,8 @@ module {
       };
     };
 
-    public func getOrderBook(assetId : AssetId, kind : { #ask; #bid }) : [(OrderId, T.Order)] {
-      let orderBook = assets.getAsset(assetId) |> assets.getOrderBook(_, kind);
+    public func listAssetOrders(assetId : AssetId, kind : { #ask; #bid }, orderType : T.OrderType) : [(OrderId, T.Order)] {
+      let orderBook = assets.getAsset(assetId) |> assets.getOrderBook(_, kind, orderType);
       let queueIter = List.toIter(orderBook.queue);
       Array.tabulate<(OrderId, T.Order)>(
         orderBook.size,
@@ -687,8 +688,14 @@ module {
       assets.assets := Vec.map<T.StableAssetInfoV3, T.AssetInfo>(
         data.assets,
         func(x) = {
-          asks = { var queue = null; var size = 0; var totalVolume = 0 };
-          bids = { var queue = null; var size = 0; var totalVolume = 0 };
+          asks = {
+            delayed = AssetOrderBook.nil(#ask);
+            immediate = AssetOrderBook.nil(#ask);
+          };
+          bids = {
+            delayed = AssetOrderBook.nil(#bid);
+            immediate = AssetOrderBook.nil(#bid);
+          };
           var lastRate = x.lastRate;
           var lastProcessingInstructions = x.lastProcessingInstructions;
           var totalExecutedVolumeBase = x.totalExecutedVolumeBase;

@@ -82,14 +82,14 @@ do {
   ignore auction.placeOrder(buyer, #bid, ft, #delayed, 2_000_000, 100, null);
   ignore auction.placeOrder(user, #ask, ft, #delayed, 2_000_000, 100, null);
 
-  assert auction.assets.getAsset(ft).asks.size == 1;
-  assert auction.assets.getAsset(ft).asks.totalVolume == 2000000;
+  assert auction.assets.getAsset(ft).asks.delayed.size == 1;
+  assert auction.assets.getAsset(ft).asks.delayed.totalVolume == 2000000;
 
   auction.processAsset(ft);
 
   assert auction.getOrders(user, #ask, ?ft).size() == 0;
-  assert auction.assets.getAsset(ft).asks.size == 0;
-  assert auction.assets.getAsset(ft).asks.totalVolume == 0;
+  assert auction.assets.getAsset(ft).asks.delayed.size == 0;
+  assert auction.assets.getAsset(ft).asks.delayed.totalVolume == 0;
 };
 
 do {

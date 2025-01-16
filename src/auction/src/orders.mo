@@ -18,6 +18,7 @@ import Credits "./credits";
 import Users "./users";
 
 import T "./types";
+import AssetOrderBook "asset_order_book";
 
 module {
 
@@ -52,19 +53,47 @@ module {
     #placement : { index : Nat; error : InternalPlaceOrderError };
   };
 
-  /// helper class to work with orders of given asset
-  public class OrderBookService(service : OrdersService, assetInfo : T.AssetInfo) {
+  /// helper class to work with all orders of given asset
+  public class CombinedOrderBookService(service : OrdersService, assetInfo : T.AssetInfo) {
 
-    public func queue() : List.List<(T.OrderId, T.Order)> = service.assetOrdersQueue(assetInfo);
-
-    public func nextOrder() : ?(T.OrderId, T.Order) = switch (queue()) {
-      case (?(x, _)) ?x;
-      case (_) null;
+    public func toIter() : Iter.Iter<(T.OrderId, T.Order)> {
+      var delayedCursor = service.assetOrderBook(assetInfo, #delayed).queue;
+      var immediateCursor = service.assetOrderBook(assetInfo, #immediate).queue;
+      object {
+        public func next() : ?(T.OrderId, T.Order) {
+          switch (delayedCursor, immediateCursor) {
+            case (?(d, nextD), ?(i, nextI)) switch (AssetOrderBook.comparePriority(service.kind)(d, i)) {
+              case (#less) {
+                immediateCursor := nextI;
+                ?i;
+              };
+              // delayed order with the same price has greater priority
+              case (_) {
+                delayedCursor := nextD;
+                ?d;
+              };
+            };
+            case (?(x, next), null) {
+              delayedCursor := next;
+              ?x;
+            };
+            case (null, ?(x, next)) {
+              immediateCursor := next;
+              ?x;
+            };
+            case (_) null;
+          };
+        };
+      };
     };
+
+    public func nextOrder() : ?(T.OrderId, T.Order) = toIter().next();
 
     public func fulfilOrder(sessionNumber : Nat, orderId : T.OrderId, order : T.Order, maxVolume : Nat, price : Float) : (volume : Nat, quoteVol : Nat) {
       service.fulfil(assetInfo, sessionNumber, orderId, order, maxVolume, price);
     };
+
+    public func totalVolume() : Nat = service.assetOrderBook(assetInfo, #delayed).totalVolume + service.assetOrderBook(assetInfo, #immediate).totalVolume;
   };
 
   /// A class with functionality to operate on all orders of the given type across the auction
@@ -78,7 +107,7 @@ module {
     kind_ : { #ask; #bid },
   ) = self {
 
-    public func createOrderBookService(assetInfo : T.AssetInfo) : OrderBookService = OrderBookService(self, assetInfo);
+    public func createCombinedOrderBookService(assetInfo : T.AssetInfo) : CombinedOrderBookService = CombinedOrderBookService(self, assetInfo);
 
     public let kind : { #ask; #bid } = kind_;
 
@@ -121,10 +150,7 @@ module {
       case (#bid) oppositeOrderPrice <= orderPrice;
     };
 
-    public func assetOrdersQueue(assetInfo : T.AssetInfo) : List.List<(T.OrderId, T.Order)> = switch (kind) {
-      case (#ask) assetInfo.asks.queue;
-      case (#bid) assetInfo.bids.queue;
-    };
+    public func assetOrderBook(assetInfo : T.AssetInfo, orderType : T.OrderType) : T.AssetOrderBook = assets.getOrderBook(assetInfo, kind, orderType);
 
     public func place(userInfo : T.UserInfo, accountToCharge : T.Account, assetInfo : T.AssetInfo, orderId : T.OrderId, order : T.Order) {
       // charge user credits
@@ -140,7 +166,7 @@ module {
     public func cancel(userInfo : T.UserInfo, orderId : T.OrderId) : ?T.Order {
       // find and remove from order lists
       let ?existingOrder = users.deleteOrder(userInfo, kind, orderId) else return null;
-      assets.getAsset(existingOrder.assetId) |> assets.deleteOrder(_, kind, orderId);
+      assets.getAsset(existingOrder.assetId) |> assets.deleteOrder(_, kind, existingOrder.orderType, orderId);
       // return deposit to user
       let ?sourceAcc = credits.getAccount(userInfo, srcAssetId(existingOrder.assetId)) else Prim.trap("Can never happen");
       let (success, _) = credits.unlockCredit(sourceAcc, srcVolume(existingOrder.volume, existingOrder.price));
@@ -174,7 +200,7 @@ module {
         assets.deductOrderVolume(assetInfo, kind, order, baseVolume); // shrink order
       } else {
         users.deleteOrder(order.userInfoRef, kind, orderId) |> (ignore _); // delete order
-        assets.deleteOrder(assetInfo, kind, orderId); // delete order
+        assets.deleteOrder(assetInfo, kind, order.orderType, orderId); // delete order
       };
 
       // debit at source

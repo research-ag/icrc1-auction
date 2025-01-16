@@ -29,12 +29,12 @@ module {
     var volume : Nat;
   };
 
-  type AssetOrderBook_<O> = {
-    var queue : PriorityQueue.PriorityQueue<(OrderId, O)>;
+  public type AssetOrderBook = {
+    kind : { #ask; #bid };
+    var queue : PriorityQueue.PriorityQueue<(OrderId, Order)>;
     var size : Nat;
     var totalVolume : Nat;
   };
-  public type AssetOrderBook = AssetOrderBook_<Order>;
 
   public type UserOrderBook_<O> = {
     var map : AssocList.AssocList<OrderId, O>;
@@ -42,8 +42,14 @@ module {
   public type UserOrderBook = UserOrderBook_<Order>;
 
   public type AssetInfo = {
-    asks : AssetOrderBook;
-    bids : AssetOrderBook;
+    asks : {
+      immediate : AssetOrderBook;
+      delayed : AssetOrderBook;
+    };
+    bids : {
+      immediate : AssetOrderBook;
+      delayed : AssetOrderBook;
+    };
     var lastRate : Float;
     var lastProcessingInstructions : Nat;
     var totalExecutedVolumeBase : Nat;

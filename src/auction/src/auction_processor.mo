@@ -1,7 +1,6 @@
 import Float "mo:base/Float";
 import Int "mo:base/Int";
 import Iter "mo:base/Iter";
-import List "mo:base/List";
 import Prim "mo:prim";
 
 import { clear } "mo:auction";
@@ -11,13 +10,14 @@ import T "./types";
 
 module {
 
-  public func clearAuction(asks : Orders.OrderBookService, bids : Orders.OrderBookService) : ?(price : Float, volume : Nat) {
-    let mapOrders = func(orders : List.List<(T.OrderId, T.Order)>) : Iter.Iter<(Float, Nat)> = List.toIter(orders)
-    |> Iter.map<(T.OrderId, T.Order), (Float, Nat)>(_, func(_, order) = (order.price, order.volume));
-    clear(mapOrders(asks.queue()), mapOrders(bids.queue()), Float.less);
+  public func clearAuction(asks : Orders.CombinedOrderBookService, bids : Orders.CombinedOrderBookService) : ?(price : Float, volume : Nat) {
+    let mapOrders = func(orders : Iter.Iter<(T.OrderId, T.Order)>) : Iter.Iter<(Float, Nat)> {
+      Iter.map<(T.OrderId, T.Order), (Float, Nat)>(orders, func(_, order) = (order.price, order.volume));
+    };
+    clear(mapOrders(asks.toIter()), mapOrders(bids.toIter()), Float.less);
   };
 
-  public func processAuction(sessionNumber : Nat, asks : Orders.OrderBookService, bids : Orders.OrderBookService) : (price : Float, volume : Nat, surplus : Nat) {
+  public func processAuction(sessionNumber : Nat, asks : Orders.CombinedOrderBookService, bids : Orders.CombinedOrderBookService) : (price : Float, volume : Nat, surplus : Nat) {
 
     let ?(price, dealVolume) = clearAuction(asks, bids) else return (0.0, 0, 0);
 

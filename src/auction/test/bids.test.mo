@@ -81,8 +81,8 @@ do {
   let ft = createFt(auction);
   ignore auction.placeOrder(user, #bid, ft, #delayed, 2_000, 15_000, null);
 
-  assert auction.assets.getAsset(ft).bids.size == 1;
-  assert auction.assets.getAsset(ft).bids.totalVolume == 2000;
+  assert auction.assets.getAsset(ft).bids.delayed.size == 1;
+  assert auction.assets.getAsset(ft).bids.delayed.totalVolume == 2000;
 
   let seller = Principal.fromText("ocqy6-3dphi-xgf54-vkr2e-lk4oz-3exc6-446gr-5e72g-bsdfo-4nzrm-hqe");
   ignore auction.appendCredit(seller, ft, 500_000_000);
@@ -90,8 +90,8 @@ do {
   auction.processAsset(ft);
 
   assert auction.getOrders(user, #bid, ?ft).size() == 0;
-  assert auction.assets.getAsset(ft).bids.size == 0;
-  assert auction.assets.getAsset(ft).bids.totalVolume == 0;
+  assert auction.assets.getAsset(ft).bids.delayed.size == 0;
+  assert auction.assets.getAsset(ft).bids.delayed.totalVolume == 0;
 };
 
 do {

@@ -3,7 +3,6 @@ import Error "mo:base/Error";
 import Float "mo:base/Float";
 import Int "mo:base/Int";
 import Iter "mo:base/Iter";
-import List "mo:base/List";
 import Nat "mo:base/Nat";
 import Nat8 "mo:base/Nat8";
 import Nat64 "mo:base/Nat64";
@@ -16,6 +15,7 @@ import Text "mo:base/Text";
 import Timer "mo:base/Timer";
 
 import Auction "./auction/src";
+import AssetOrderBook "./auction/src/asset_order_book";
 import ICRC84Auction "./icrc84_auction";
 import ICRC1 "mo:token_handler_legacy/ICRC1";
 import PT "mo:promtracker";
@@ -270,10 +270,16 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     let renderPrice = func(price : Float) : Nat = Int.abs(Float.toInt(price * priceMultiplier));
     let labels = "asset_id=\"" # Vec.get(assets, assetId).symbol # "\"";
 
-    ignore metrics.addPullValue("asks_count", labels, func() = asset.asks.size);
-    ignore metrics.addPullValue("asks_volume", labels, func() = asset.asks.totalVolume);
-    ignore metrics.addPullValue("bids_count", labels, func() = asset.bids.size);
-    ignore metrics.addPullValue("bids_volume", labels, func() = asset.bids.totalVolume);
+    ignore metrics.addPullValue("asks_count", labels # ",order_book=\"immediate\"", func() = asset.asks.immediate.size);
+    ignore metrics.addPullValue("asks_volume", labels # ",order_book=\"immediate\"", func() = asset.asks.immediate.totalVolume);
+    ignore metrics.addPullValue("asks_count", labels # ",order_book=\"delayed\"", func() = asset.asks.delayed.size);
+    ignore metrics.addPullValue("asks_volume", labels # ",order_book=\"delayed\"", func() = asset.asks.delayed.totalVolume);
+
+    ignore metrics.addPullValue("bids_count", labels # ",order_book=\"immediate\"", func() = asset.bids.immediate.size);
+    ignore metrics.addPullValue("bids_volume", labels # ",order_book=\"immediate\"", func() = asset.bids.immediate.totalVolume);
+    ignore metrics.addPullValue("bids_count", labels # ",order_book=\"delayed\"", func() = asset.bids.delayed.size);
+    ignore metrics.addPullValue("bids_volume", labels # ",order_book=\"delayed\"", func() = asset.bids.delayed.totalVolume);
+
     ignore metrics.addPullValue("processing_instructions", labels, func() = asset.lastProcessingInstructions);
     ignore metrics.addPullValue("total_executed_volume_base", labels, func() = asset.totalExecutedVolumeBase);
     ignore metrics.addPullValue("total_executed_volume_quote", labels, func() = asset.totalExecutedVolumeQuote);
@@ -856,12 +862,10 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       auction.users.users.delete(p);
     };
     for (asset in Vec.vals(auction.assets.assets)) {
-      asset.asks.queue := List.nil();
-      asset.asks.size := 0;
-      asset.asks.totalVolume := 0;
-      asset.bids.queue := List.nil();
-      asset.bids.size := 0;
-      asset.bids.totalVolume := 0;
+      AssetOrderBook.clear(asset.asks.immediate);
+      AssetOrderBook.clear(asset.asks.delayed);
+      AssetOrderBook.clear(asset.bids.immediate);
+      AssetOrderBook.clear(asset.bids.delayed);
     };
   };
 
@@ -883,16 +887,27 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   };
 
   public shared query ({ caller }) func queryOrderBook(icrc1Ledger : Principal) : async {
-    asks : [(Auction.OrderId, UserOrder)];
-    bids : [(Auction.OrderId, UserOrder)];
+    asks : {
+      immediate : [(Auction.OrderId, UserOrder)];
+      delayed : [(Auction.OrderId, UserOrder)];
+    };
+    bids : {
+      immediate : [(Auction.OrderId, UserOrder)];
+      delayed : [(Auction.OrderId, UserOrder)];
+    };
   } {
     assertAdminAccessSync(caller);
     let ?assetId = getAssetId(icrc1Ledger) else throw Error.reject("Unknown asset");
+    func mapOrdersList(orderBook : [(Auction.OrderId, Auction.Order)]) : [(Auction.OrderId, UserOrder)] = Array.tabulate<(Auction.OrderId, UserOrder)>(orderBook.size(), func(i) = (orderBook[i].0, mapUserOrder(orderBook[i].1)));
     {
-      asks = auction.getOrderBook(assetId, #ask)
-      |> Array.tabulate<(Auction.OrderId, UserOrder)>(_.size(), func(i) = (_ [i].0, mapUserOrder(_ [i].1)));
-      bids = auction.getOrderBook(assetId, #bid)
-      |> Array.tabulate<(Auction.OrderId, UserOrder)>(_.size(), func(i) = (_ [i].0, mapUserOrder(_ [i].1)));
+      asks = {
+        immediate = mapOrdersList(auction.listAssetOrders(assetId, #ask, #immediate));
+        delayed = mapOrdersList(auction.listAssetOrders(assetId, #ask, #delayed));
+      };
+      bids = {
+        immediate = mapOrdersList(auction.listAssetOrders(assetId, #bid, #immediate));
+        delayed = mapOrdersList(auction.listAssetOrders(assetId, #bid, #delayed));
+      };
     };
   };
 

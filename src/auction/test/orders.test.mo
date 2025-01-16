@@ -272,3 +272,30 @@ do {
   assert auction.getCredit(user, ft1).available == 500_000_000;
   assert auction.getCredit(user, ft2).available == 496_000_000;
 };
+
+do {
+  Prim.debugPrint("should be able to cancel immediate orders by id...");
+  let (auction, user) = init(0, 3, 5);
+  let ft = createFt(auction);
+  ignore auction.appendCredit(user, 0, 500_000_000);
+  let placementResults = switch (
+    auction.manageOrders(
+      user,
+      null,
+      [#bid(ft, #immediate, 2_000, 250)],
+      null,
+    )
+  ) {
+    case (#ok(_, x)) x;
+    case (_) {
+      assert false;
+      [];
+    };
+  };
+  assert auction.getOrders(user, #bid, ?ft).size() == 1;
+  switch (auction.manageOrders(user, ?#orders([#bid(placementResults[0].0)]), [], null)) {
+    case (#ok _) ();
+    case (_) assert false;
+  };
+  assert auction.getOrders(user, #bid, ?ft).size() == 0;
+};
