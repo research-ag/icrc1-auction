@@ -190,8 +190,8 @@ describe('ICRC1 Auction', () => {
       let metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
-      expect(metrics).toContain(`bids_count{canister="${shortP}",asset_id="MOCK"} 1 `);
-      expect(metrics).toContain(`bids_volume{canister="${shortP}",asset_id="MOCK"} 100 `);
+      expect(metrics).toContain(`bids_count{canister="${shortP}",asset_id="MOCK",order_book="delayed"} 1 `);
+      expect(metrics).toContain(`bids_volume{canister="${shortP}",asset_id="MOCK",order_book="delayed"} 100 `);
 
       await pic.upgradeCanister({
         canisterId: auctionPrincipal,
@@ -208,8 +208,8 @@ describe('ICRC1 Auction', () => {
       metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
-      expect(metrics).toContain(`bids_count{canister="${shortP}",asset_id="MOCK"} 1 `);
-      expect(metrics).toContain(`bids_volume{canister="${shortP}",asset_id="MOCK"} 100 `);
+      expect(metrics).toContain(`bids_count{canister="${shortP}",asset_id="MOCK",order_book="delayed"} 1 `);
+      expect(metrics).toContain(`bids_volume{canister="${shortP}",asset_id="MOCK",order_book="delayed"} 100 `);
     });
   });
 
@@ -358,8 +358,8 @@ describe('ICRC1 Auction', () => {
       let metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
-      expect(metrics).toContain(`asks_count{canister="${shortP}",order_book="delayed",asset_id="MOCK"} 1 `);
-      expect(metrics).toContain(`asks_volume{canister="${shortP}",order_book="delayed",asset_id="MOCK"} 2000000 `);
+      expect(metrics).toContain(`asks_count{canister="${shortP}",asset_id="MOCK",order_book="delayed"} 1 `);
+      expect(metrics).toContain(`asks_volume{canister="${shortP}",asset_id="MOCK",order_book="delayed"} 2000000 `);
 
       await startNewAuctionSession();
 
@@ -367,8 +367,8 @@ describe('ICRC1 Auction', () => {
       metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
-      expect(metrics).toContain(`asks_count{canister="${shortP}",order_book="delayed",asset_id="MOCK"} 0 `);
-      expect(metrics).toContain(`asks_volume{canister="${shortP}",order_book="delayed",asset_id="MOCK"} 0 `);
+      expect(metrics).toContain(`asks_count{canister="${shortP}",asset_id="MOCK",order_book="delayed"} 0 `);
+      expect(metrics).toContain(`asks_volume{canister="${shortP}",asset_id="MOCK",order_book="delayed"} 0 `);
     });
 
   });
