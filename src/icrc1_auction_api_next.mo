@@ -516,12 +516,17 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   public shared query ({ caller }) func queryCredit(icrc1Ledger : Principal) : async (Auction.CreditInfo, Nat) {
     let ?assetId = getAssetId(icrc1Ledger) else throw Error.reject("Unknown asset");
-    (auction.getCredit(caller, assetId), auction.getAssetSessionNumber(assetId));
+    (auction.getCredit(caller, assetId), auction.getAccountRevision(caller));
   };
 
-  public shared query ({ caller }) func queryCredits() : async [(Principal, Auction.CreditInfo, Nat)] {
+  public shared query ({ caller }) func queryCredits() : async ([(Principal, Auction.CreditInfo)], Nat) {
     auction.getCredits(caller)
-    |> Array.tabulate<(Principal, Auction.CreditInfo, Nat)>(_.size(), func(i) = (getIcrc1Ledger(_ [i].0), _ [i].1, auction.getAssetSessionNumber(_ [i].0)));
+    |> Array.tabulate<(Principal, Auction.CreditInfo)>(_.size(), func(i) = (getIcrc1Ledger(_ [i].0), _ [i].1))
+    |> (_, auction.getAccountRevision(caller));
+  };
+
+  public shared query ({ caller }) func queryAccountRevision() : async Nat {
+    auction.getAccountRevision(caller);
   };
 
   public shared query ({ caller }) func queryPoints() : async Nat {
@@ -543,12 +548,13 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
     auction.getOrders(caller, #bid, ?assetId)
     |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = (_ [i].0, mapOrder(_ [i].1)))
-    |> (_, auction.getAssetSessionNumber(assetId));
+    |> (_, auction.getAccountRevision(caller));
   };
 
-  public shared query ({ caller }) func queryBids() : async ([(Auction.OrderId, Order, Nat)]) {
+  public shared query ({ caller }) func queryBids() : async ([(Auction.OrderId, Order)], Nat) {
     auction.getOrders(caller, #bid, null)
-    |> Array.tabulate<(Auction.OrderId, Order, Nat)>(_.size(), func(i) = (_ [i].0, mapOrder(_ [i].1), auction.getAssetSessionNumber(_ [i].1.assetId)));
+    |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = (_ [i].0, mapOrder(_ [i].1)))
+    |> (_, auction.getAccountRevision(caller));
   };
 
   public shared query ({ caller }) func queryTokenAsks(ledger : Principal) : async ([(Auction.OrderId, Order)], Nat) {
@@ -556,12 +562,13 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
     auction.getOrders(caller, #ask, ?assetId)
     |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = (_ [i].0, mapOrder(_ [i].1)))
-    |> (_, auction.getAssetSessionNumber(assetId));
+    |> (_, auction.getAccountRevision(caller));
   };
 
-  public shared query ({ caller }) func queryAsks() : async ([(Auction.OrderId, Order, Nat)]) {
+  public shared query ({ caller }) func queryAsks() : async ([(Auction.OrderId, Order)], Nat) {
     auction.getOrders(caller, #ask, null)
-    |> Array.tabulate<(Auction.OrderId, Order, Nat)>(_.size(), func(i) = (_ [i].0, mapOrder(_ [i].1), auction.getAssetSessionNumber(_ [i].1.assetId)));
+    |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = (_ [i].0, mapOrder(_ [i].1)))
+    |> (_, auction.getAccountRevision(caller));
   };
 
   public shared query ({ caller }) func queryDepositHistory(token : ?Principal, limit : Nat, skip : Nat) : async [DepositHistoryItem] {
@@ -603,7 +610,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       #ask : (token : Principal, orderType : Auction.OrderType, volume : Nat, price : Float);
       #bid : (token : Principal, orderType : Auction.OrderType, volume : Nat, price : Float);
     }],
-    expectedSessionNumber : ?Nat,
+    expectedAccountRevision : ?Nat,
   ) : async UpperResult<([ICRC84Auction.CancellationResult], [Auction.PlaceOrderResult]), ICRC84Auction.ManageOrdersError> {
     manageOrdersCounter.add(1);
     let cancellationArg : ?Auction.CancellationAction = switch (cancellations) {
@@ -629,59 +636,59 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
         case (#bid(_, orderType, volume, price)) #bid(aid, orderType, volume, price);
       };
     };
-    auction.manageOrders(caller, cancellationArg, Array.freeze(placementArg), expectedSessionNumber)
+    auction.manageOrders(caller, cancellationArg, Array.freeze(placementArg), expectedAccountRevision)
     |> ICRC84Auction.mapManageOrdersResult(_, getIcrc1Ledger);
   };
 
-  public shared ({ caller }) func placeBids(arg : [(ledger : Principal, orderType : Auction.OrderType, volume : Nat, price : Float)], expectedSessionNumber : ?Nat) : async [UpperResult<Auction.PlaceOrderResult, ICRC84Auction.PlaceOrderError>] {
+  public shared ({ caller }) func placeBids(arg : [(ledger : Principal, orderType : Auction.OrderType, volume : Nat, price : Float)], expectedAccountRevision : ?Nat) : async [UpperResult<Auction.PlaceOrderResult, ICRC84Auction.PlaceOrderError>] {
     orderPlacementCounter.add(1);
     Array.tabulate<UpperResult<Auction.PlaceOrderResult, ICRC84Auction.PlaceOrderError>>(
       arg.size(),
       func(i) {
         let ?assetId = getAssetId(arg[i].0) else return #Err(#UnknownAsset);
-        auction.placeOrder(caller, #bid, assetId, arg[i].1, arg[i].2, arg[i].3, expectedSessionNumber)
-        |> ICRC84Auction.mapPlaceOrderResult(_, getIcrc1Ledger);
+        auction.placeOrder(caller, #bid, assetId, arg[i].1, arg[i].2, arg[i].3, expectedAccountRevision)
+        |> R.toUpper(_);
       },
     );
   };
 
-  public shared ({ caller }) func replaceBid(orderId : Auction.OrderId, volume : Nat, price : Float, expectedSessionNumber : ?Nat) : async UpperResult<Auction.PlaceOrderResult, ICRC84Auction.ReplaceOrderError> {
+  public shared ({ caller }) func replaceBid(orderId : Auction.OrderId, volume : Nat, price : Float, expectedAccountRevision : ?Nat) : async UpperResult<Auction.PlaceOrderResult, ICRC84Auction.ReplaceOrderError> {
     orderReplacementCounter.add(1);
-    auction.replaceOrder(caller, #bid, orderId, volume : Nat, price : Float, expectedSessionNumber)
-    |> ICRC84Auction.mapReplaceOrderResult(_, getIcrc1Ledger);
+    auction.replaceOrder(caller, #bid, orderId, volume : Nat, price : Float, expectedAccountRevision)
+    |> R.toUpper(_);
   };
 
-  public shared ({ caller }) func cancelBids(orderIds : [Auction.OrderId], expectedSessionNumber : ?Nat) : async [UpperResult<ICRC84Auction.CancellationResult, ICRC84Auction.CancelOrderError>] {
+  public shared ({ caller }) func cancelBids(orderIds : [Auction.OrderId], expectedAccountRevision : ?Nat) : async [UpperResult<ICRC84Auction.CancellationResult, ICRC84Auction.CancelOrderError>] {
     orderCancellationCounter.add(1);
     Array.tabulate<UpperResult<ICRC84Auction.CancellationResult, ICRC84Auction.CancelOrderError>>(
       orderIds.size(),
-      func(i) = auction.cancelOrder(caller, #bid, orderIds[i], expectedSessionNumber) |> ICRC84Auction.mapCancelOrderResult(_, getIcrc1Ledger),
+      func(i) = auction.cancelOrder(caller, #bid, orderIds[i], expectedAccountRevision) |> ICRC84Auction.mapCancelOrderResult(_, getIcrc1Ledger),
     );
   };
 
-  public shared ({ caller }) func placeAsks(arg : [(ledger : Principal, orderType : Auction.OrderType, volume : Nat, price : Float)], expectedSessionNumber : ?Nat) : async [UpperResult<Auction.PlaceOrderResult, ICRC84Auction.PlaceOrderError>] {
+  public shared ({ caller }) func placeAsks(arg : [(ledger : Principal, orderType : Auction.OrderType, volume : Nat, price : Float)], expectedAccountRevision : ?Nat) : async [UpperResult<Auction.PlaceOrderResult, ICRC84Auction.PlaceOrderError>] {
     orderPlacementCounter.add(1);
     Array.tabulate<UpperResult<Auction.PlaceOrderResult, ICRC84Auction.PlaceOrderError>>(
       arg.size(),
       func(i) {
         let ?assetId = getAssetId(arg[i].0) else return #Err(#UnknownAsset);
-        auction.placeOrder(caller, #ask, assetId, arg[i].1, arg[i].2, arg[i].3, expectedSessionNumber)
-        |> ICRC84Auction.mapPlaceOrderResult(_, getIcrc1Ledger);
+        auction.placeOrder(caller, #ask, assetId, arg[i].1, arg[i].2, arg[i].3, expectedAccountRevision)
+        |> R.toUpper(_);
       },
     );
   };
 
-  public shared ({ caller }) func replaceAsk(orderId : Auction.OrderId, volume : Nat, price : Float, expectedSessionNumber : ?Nat) : async UpperResult<Auction.PlaceOrderResult, ICRC84Auction.ReplaceOrderError> {
+  public shared ({ caller }) func replaceAsk(orderId : Auction.OrderId, volume : Nat, price : Float, expectedAccountRevision : ?Nat) : async UpperResult<Auction.PlaceOrderResult, ICRC84Auction.ReplaceOrderError> {
     orderReplacementCounter.add(1);
-    auction.replaceOrder(caller, #ask, orderId, volume : Nat, price : Float, expectedSessionNumber)
-    |> ICRC84Auction.mapReplaceOrderResult(_, getIcrc1Ledger);
+    auction.replaceOrder(caller, #ask, orderId, volume : Nat, price : Float, expectedAccountRevision)
+    |> R.toUpper(_);
   };
 
-  public shared ({ caller }) func cancelAsks(orderIds : [Auction.OrderId], expectedSessionNumber : ?Nat) : async [UpperResult<ICRC84Auction.CancellationResult, ICRC84Auction.CancelOrderError>] {
+  public shared ({ caller }) func cancelAsks(orderIds : [Auction.OrderId], expectedAccountRevision : ?Nat) : async [UpperResult<ICRC84Auction.CancellationResult, ICRC84Auction.CancelOrderError>] {
     orderCancellationCounter.add(1);
     Array.tabulate<UpperResult<ICRC84Auction.CancellationResult, ICRC84Auction.CancelOrderError>>(
       orderIds.size(),
-      func(i) = auction.cancelOrder(caller, #ask, orderIds[i], expectedSessionNumber) |> ICRC84Auction.mapCancelOrderResult(_, getIcrc1Ledger),
+      func(i) = auction.cancelOrder(caller, #ask, orderIds[i], expectedAccountRevision) |> ICRC84Auction.mapCancelOrderResult(_, getIcrc1Ledger),
     );
   };
 

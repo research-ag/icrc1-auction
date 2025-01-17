@@ -294,28 +294,30 @@ describe('ICRC1 Auction', () => {
     test('should be able to manage orders via single query', async () => {
       await prepareDeposit(user);
       await auction.placeBids([[ledger1Principal, { delayed: null }, 1_000n, 15_000]], []);
-      expect(await auction.queryBids()).toHaveLength(1);
+      expect((await auction.queryBids())[0]).toHaveLength(1);
       let res2 = await auction.manageOrders([{ all: [] }], [
         { bid: [ledger1Principal, { delayed: null }, 1_000n, 15_100] },
         { bid: [ledger1Principal, { delayed: null }, 1_000n, 15_200] },
       ], []);
       expect(res2).toHaveProperty('Ok');
-      expect(await auction.queryBids()).toHaveLength(2);
+      expect((await auction.queryBids())[0]).toHaveLength(2);
     });
 
-    test('should reject changes if session number is wrong', async () => {
+    test('should reject changes if account revision is wrong', async () => {
       await prepareDeposit(user);
-      const res = await auction.placeBids([[ledger1Principal, { delayed: null }, 1_000n, 15_000]], [1005n]);
+      const rev = await auction.queryAccountRevision();
+      const res = await auction.placeBids([[ledger1Principal, { delayed: null }, 1_000n, 15_000]], [rev - 1n]);
       expect(res[0]).toHaveProperty('Err');
-      expect((res[0] as any)['Err']).toHaveProperty('SessionNumberMismatch');
-      expect(await auction.queryBids()).toHaveLength(0);
+      expect((res[0] as any)['Err']).toHaveProperty('AccountRevisionMismatch');
+      expect((await auction.queryBids())[0]).toHaveLength(0);
     });
 
-    test('should accept correct session number', async () => {
+    test('should accept correct account revision', async () => {
       await prepareDeposit(user);
-      const res = await auction.placeBids([[ledger1Principal, { delayed: null }, 1_000n, 15_000]], [1n]);
+      const rev = await auction.queryAccountRevision();
+      const res = await auction.placeBids([[ledger1Principal, { delayed: null }, 1_000n, 15_000]], [rev]);
       expect(res[0]).toHaveProperty('Ok');
-      expect(await auction.queryBids()).toHaveLength(1);
+      expect((await auction.queryBids())[0]).toHaveLength(1);
     });
 
     test('bids should affect metrics', async () => {

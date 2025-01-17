@@ -62,6 +62,7 @@ module {
     asks : UserOrderBook;
     bids : UserOrderBook;
     var credits : AssocList.AssocList<AssetId, Account>;
+    var accountRevision : Nat;
     var loyaltyPoints : Nat;
     var depositHistory : Vec.Vector<DepositHistoryItem>;
     var transactionHistory : Vec.Vector<TransactionHistoryItem>;
@@ -162,6 +163,7 @@ module {
     asks : UserOrderBook_<StableOrderDataV3>;
     bids : UserOrderBook_<StableOrderDataV3>;
     credits : AssocList.AssocList<AssetId, Account>;
+    accountRevision : Nat;
     loyaltyPoints : Nat;
     depositHistory : Vec.Vector<DepositHistoryItem>;
     transactionHistory : Vec.Vector<TransactionHistoryItem>;

@@ -65,6 +65,7 @@ module {
           bids = {
             var map = List.map<(OrderId, T.StableOrderDataV2), (OrderId, T.StableOrderDataV3)>(x.bids.map, mapOrderBookEntry);
           };
+          accountRevision = 0;
         },
       );
     };
@@ -344,11 +345,11 @@ module {
     #UnknownPrincipal;
   };
   public type CancelOrderError = Orders.InternalCancelOrderError or {
-    #SessionNumberMismatch : T.AssetId;
+    #AccountRevisionMismatch;
     #UnknownPrincipal;
   };
   public type PlaceOrderError = Orders.InternalPlaceOrderError or {
-    #SessionNumberMismatch : T.AssetId;
+    #AccountRevisionMismatch;
     #UnknownPrincipal;
   };
   public type ReplaceOrderError = CancelOrderError or PlaceOrderError;
@@ -440,6 +441,11 @@ module {
       case (?ui) credits.infoAll(ui);
     };
 
+    public func getAccountRevision(p : Principal) : Nat = switch (users.get(p)) {
+      case (null) 0;
+      case (?ui) ui.accountRevision;
+    };
+
     public func getLoyaltyPoints(p : Principal) : Nat = switch (users.get(p)) {
       case (null) 0;
       case (?ui) ui.loyaltyPoints;
@@ -457,6 +463,7 @@ module {
       let userInfo = users.getOrCreate(p);
       let acc = credits.getOrCreate(userInfo, assetId);
       Vec.add<T.DepositHistoryItem>(userInfo.depositHistory, (Prim.time(), #deposit, assetId, amount));
+      userInfo.accountRevision += 1;
       credits.appendCredit(acc, amount);
     };
 
@@ -465,6 +472,7 @@ module {
       let ?creditAcc = credits.getAccount(user, assetId) else return #err(#NoCredit);
       switch (credits.deductCredit(creditAcc, amount)) {
         case (true, balance) {
+          user.accountRevision += 1;
           if (balance == 0 and credits.deleteIfEmpty(user, assetId)) {
             #ok(
               0,
@@ -527,27 +535,27 @@ module {
       p : Principal,
       cancellations : ?Orders.CancellationAction,
       placements : [Orders.PlaceOrderAction],
-      expectedSessionNumber : ?Nat,
+      expectedAccountRevision : ?Nat,
     ) : R.Result<([CancellationResult], [PlaceOrderResult]), ManageOrdersError> {
       let ?userInfo = users.get(p) else return #err(#UnknownPrincipal);
-      orders.manageOrders(p, userInfo, cancellations, placements, expectedSessionNumber);
+      orders.manageOrders(p, userInfo, cancellations, placements, expectedAccountRevision);
     };
 
-    public func placeOrder(p : Principal, kind : { #ask; #bid }, assetId : AssetId, orderType : OrderType, volume : Nat, price : Float, expectedSessionNumber : ?Nat) : R.Result<PlaceOrderResult, PlaceOrderError> {
+    public func placeOrder(p : Principal, kind : { #ask; #bid }, assetId : AssetId, orderType : OrderType, volume : Nat, price : Float, expectedAccountRevision : ?Nat) : R.Result<PlaceOrderResult, PlaceOrderError> {
       let placement = switch (kind) {
         case (#ask) #ask(assetId, orderType, volume, price);
         case (#bid) #bid(assetId, orderType, volume, price);
       };
-      switch (manageOrders(p, null, [placement], expectedSessionNumber)) {
+      switch (manageOrders(p, null, [placement], expectedAccountRevision)) {
         case (#ok(_, x)) #ok(x[0]);
-        case (#err(#SessionNumberMismatch x)) #err(#SessionNumberMismatch(x));
+        case (#err(#AccountRevisionMismatch)) #err(#AccountRevisionMismatch);
         case (#err(#UnknownPrincipal)) #err(#UnknownPrincipal);
         case (#err(#placement { error })) #err(error);
         case (#err(#cancellation _)) Prim.trap("Can never happen");
       };
     };
 
-    public func replaceOrder(p : Principal, kind : { #ask; #bid }, orderId : OrderId, volume : Nat, price : Float, expectedSessionNumber : ?Nat) : R.Result<PlaceOrderResult, ReplaceOrderError> {
+    public func replaceOrder(p : Principal, kind : { #ask; #bid }, orderId : OrderId, volume : Nat, price : Float, expectedAccountRevision : ?Nat) : R.Result<PlaceOrderResult, ReplaceOrderError> {
       let (assetId, orderType) = switch (getOrder(p, kind, orderId)) {
         case (?o) (o.assetId, o.orderType);
         case (null) return #err(#UnknownOrder);
@@ -556,23 +564,23 @@ module {
         case (#ask) (#ask(orderId), #ask(assetId, orderType, volume, price));
         case (#bid) (#bid(orderId), #bid(assetId, orderType, volume, price));
       };
-      switch (manageOrders(p, ?#orders([cancellation]), [placement], expectedSessionNumber)) {
+      switch (manageOrders(p, ?#orders([cancellation]), [placement], expectedAccountRevision)) {
         case (#ok(_, x)) #ok(x[0]);
-        case (#err(#SessionNumberMismatch x)) #err(#SessionNumberMismatch(x));
+        case (#err(#AccountRevisionMismatch)) #err(#AccountRevisionMismatch);
         case (#err(#UnknownPrincipal)) #err(#UnknownPrincipal);
         case (#err(#cancellation({ error }))) #err(error);
         case (#err(#placement({ error }))) #err(error);
       };
     };
 
-    public func cancelOrder(p : Principal, kind : { #ask; #bid }, orderId : OrderId, expectedSessionNumber : ?Nat) : R.Result<CancellationResult, CancelOrderError> {
+    public func cancelOrder(p : Principal, kind : { #ask; #bid }, orderId : OrderId, expectedAccountRevision : ?Nat) : R.Result<CancellationResult, CancelOrderError> {
       let cancellation = switch (kind) {
         case (#ask) #ask(orderId);
         case (#bid) #bid(orderId);
       };
-      switch (manageOrders(p, ?#orders([cancellation]), [], expectedSessionNumber)) {
+      switch (manageOrders(p, ?#orders([cancellation]), [], expectedAccountRevision)) {
         case (#ok(x, _)) #ok(x[0]);
-        case (#err(#SessionNumberMismatch x)) #err(#SessionNumberMismatch(x));
+        case (#err(#AccountRevisionMismatch)) #err(#AccountRevisionMismatch);
         case (#err(#UnknownPrincipal)) #err(#UnknownPrincipal);
         case (#err(#cancellation({ error }))) #err(error);
         case (#err(#placement _)) Prim.trap("Can never happen");
@@ -665,6 +673,7 @@ module {
                       var map = List.map<(T.OrderId, T.Order), (T.OrderId, T.StableOrderDataV3)>(u.bids.map, func(oid, o) = (oid, { assetId = o.assetId; orderType = o.orderType; price = o.price; user = o.user; volume = o.volume }));
                     };
                     credits = u.credits;
+                    accountRevision = u.accountRevision;
                     loyaltyPoints = u.loyaltyPoints;
                     depositHistory = u.depositHistory;
                     transactionHistory = u.transactionHistory;
@@ -724,6 +733,7 @@ module {
             var map = null;
           };
           var credits = u.credits;
+          var accountRevision = u.accountRevision;
           var loyaltyPoints = u.loyaltyPoints;
           var depositHistory = u.depositHistory;
           var transactionHistory = u.transactionHistory;

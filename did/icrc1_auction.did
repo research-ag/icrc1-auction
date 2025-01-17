@@ -1,5 +1,6 @@
 type Token = principal;
 type Amount = nat;
+type AccountRevision = nat;
 
 type TokenInfo = record {
   allowance_fee : Amount;
@@ -113,7 +114,7 @@ type ManageOrdersResponse = variant {
     };
   };
   Err : variant {
-    SessionNumberMismatch : Token;
+    AccountRevisionMismatch;
     UnknownPrincipal;
     cancellation : record {
       index : nat;
@@ -149,7 +150,7 @@ type PlaceOrderResponse = variant {
     UnknownPrincipal;
     PriceDigitsOverflow : record { maxDigits : nat };
     VolumeStepViolated : record { baseVolumeStep : nat };
-    SessionNumberMismatch : Token;
+    AccountRevisionMismatch;
   };
 };
 type ReplaceOrderResponse = variant {
@@ -166,7 +167,7 @@ type ReplaceOrderResponse = variant {
     UnknownPrincipal;
     PriceDigitsOverflow : record { maxDigits : nat };
     VolumeStepViolated : record { baseVolumeStep : nat };
-    SessionNumberMismatch : Token;
+    AccountRevisionMismatch;
   };
 };
 type CancelOrderResponse = variant {
@@ -180,7 +181,7 @@ type CancelOrderResponse = variant {
   Err : variant {
     UnknownOrder;
     UnknownPrincipal;
-    SessionNumberMismatch : Token;
+    AccountRevisionMismatch;
   };
 };
 
@@ -238,12 +239,13 @@ service : (opt principal, opt principal) -> {
   indicativeStats : (principal) -> (IndicativeStats) query;
 
   // user queries
-  queryTokenBids : (Token) -> (vec record { OrderId; Order }, nat) query;
-  queryBids : () -> (vec record { OrderId; Order; nat }) query;
-  queryTokenAsks : (Token) -> (vec record { OrderId; Order }, nat) query;
-  queryAsks : () -> (vec record { OrderId; Order; nat }) query;
-  queryCredit : (Token) -> (record { total : nat; available : nat; locked : nat }, nat) query;
-  queryCredits : () -> (vec record { principal; record { total : nat; available : nat; locked : nat }; nat }) query;
+  queryTokenBids : (Token) -> (vec record { OrderId; Order }, AccountRevision) query;
+  queryBids : () -> (vec record { OrderId; Order }, AccountRevision) query;
+  queryTokenAsks : (Token) -> (vec record { OrderId; Order }, AccountRevision) query;
+  queryAsks : () -> (vec record { OrderId; Order }, AccountRevision) query;
+  queryCredit : (Token) -> (record { total : nat; available : nat; locked : nat }, AccountRevision) query;
+  queryCredits : () -> (vec record { principal; record { total : nat; available : nat; locked : nat } }, AccountRevision) query;
+  queryAccountRevision : () -> (AccountRevision) query;
   queryPoints : () -> (nat) query;
 
   // Providing token in the arguments to history queries will filter results by token
@@ -256,15 +258,15 @@ service : (opt principal, opt principal) -> {
   queryPriceHistory : (opt Token, nat, nat, bool) -> (vec record { nat64; nat; Token; nat; float64 }) query;
 
   // update
-  manageOrders : (opt CancellationArg, PlaceArg, opt nat) -> (ManageOrdersResponse);
+  manageOrders : (opt CancellationArg, PlaceArg, opt AccountRevision) -> (ManageOrdersResponse);
 
-  placeAsks : (vec record { Token; OrderType; nat; float64 }, opt nat) -> (vec PlaceOrderResponse);
-  replaceAsk : (OrderId, nat, float64, opt nat) -> (ReplaceOrderResponse);
-  cancelAsks : (vec OrderId, opt nat) -> (vec CancelOrderResponse);
+  placeAsks : (vec record { Token; OrderType; nat; float64 }, opt AccountRevision) -> (vec PlaceOrderResponse);
+  replaceAsk : (OrderId, nat, float64, opt AccountRevision) -> (ReplaceOrderResponse);
+  cancelAsks : (vec OrderId, opt AccountRevision) -> (vec CancelOrderResponse);
 
-  placeBids : (vec record { Token; OrderType; nat; float64 }, opt nat) -> (vec PlaceOrderResponse);
-  replaceBid : (OrderId, nat, float64, opt nat) -> (ReplaceOrderResponse);
-  cancelBids : (vec OrderId, opt nat) -> (vec CancelOrderResponse);
+  placeBids : (vec record { Token; OrderType; nat; float64 }, opt AccountRevision) -> (vec PlaceOrderResponse);
+  replaceBid : (OrderId, nat, float64, opt AccountRevision) -> (ReplaceOrderResponse);
+  cancelBids : (vec OrderId, opt AccountRevision) -> (vec CancelOrderResponse);
 
   // ADMIN API
   // query

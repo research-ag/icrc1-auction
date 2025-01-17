@@ -201,7 +201,8 @@ export const useListOrders = (kind: 'ask' | 'bid') => {
   return useQuery(
     kind === 'bid' ? 'myBids' : 'myAsks',
     async () => {
-      return kind === 'bid' ? auction.queryBids() : auction.queryAsks();
+      const [res, accountRev] = await (kind === 'bid' ? auction.queryBids() : auction.queryAsks());
+      return res;
     },
     {
       onError: err => {
@@ -218,7 +219,8 @@ export const useListCredits = () => {
   return useQuery(
     'myCredits',
     async () => {
-      return auction.queryCredits();
+      const [res, accountRev] = await auction.queryCredits();
+      return res;
     },
     {
       onError: err => {

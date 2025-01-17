@@ -48,7 +48,7 @@ module {
   };
 
   public type OrderManagementError = {
-    #SessionNumberMismatch : T.AssetId;
+    #AccountRevisionMismatch;
     #cancellation : { index : Nat; error : InternalCancelOrderError };
     #placement : { index : Nat; error : InternalPlaceOrderError };
   };
@@ -159,8 +159,6 @@ module {
       // insert into order lists
       users.putOrder(userInfo, kind, orderId, order);
       assets.putOrder(assetInfo, kind, orderId, order);
-      // add rewards
-      userInfo.loyaltyPoints += C.LOYALTY_REWARD.ORDER_MODIFICATION;
     };
 
     public func cancel(userInfo : T.UserInfo, orderId : T.OrderId) : ?T.Order {
@@ -171,8 +169,6 @@ module {
       let ?sourceAcc = credits.getAccount(userInfo, srcAssetId(existingOrder.assetId)) else Prim.trap("Can never happen");
       let (success, _) = credits.unlockCredit(sourceAcc, srcVolume(existingOrder.volume, existingOrder.price));
       assert success;
-      // add rewards
-      userInfo.loyaltyPoints += C.LOYALTY_REWARD.ORDER_MODIFICATION;
 
       ?existingOrder;
     };
@@ -221,6 +217,8 @@ module {
       if (not isPartial) {
         assetInfo.totalExecutedOrders += 1;
       };
+
+      order.userInfoRef.accountRevision += 1;
       order.userInfoRef.loyaltyPoints += C.LOYALTY_REWARD.ORDER_EXECUTION + quoteVolume / C.LOYALTY_REWARD.ORDER_VOLUME_DIVISOR;
       switch (kind) {
         case (#ask) assetInfo.totalExecutedVolumeQuote += quoteVolume;
@@ -308,8 +306,17 @@ module {
       userInfo : T.UserInfo,
       cancellations : ?CancellationAction,
       placements : [PlaceOrderAction],
-      expectedSessionNumber : ?Nat,
+      expectedAccountRevision : ?Nat,
     ) : R.Result<([CancellationResult], [PlaceOrderResult]), OrderManagementError> {
+
+      switch (expectedAccountRevision) {
+        case (?rev) {
+          if (rev != userInfo.accountRevision) {
+            return #err(#AccountRevisionMismatch);
+          };
+        };
+        case (null) {};
+      };
 
       // temporary list of new balances for all affected user credit accounts
       var newBalances : AssocList.AssocList<T.AssetId, Nat> = null;
@@ -397,33 +404,12 @@ module {
       switch (cancellations) {
         case (null) {};
         case (?#all(null)) {
-          switch (expectedSessionNumber) {
-            case (?sn) {
-              for ((asset, aid) in Vec.items(assets.assets)) {
-                if (aid != quoteAssetId and asset.sessionsCounter != sn) {
-                  return #err(#SessionNumberMismatch(aid));
-                };
-              };
-            };
-            case (null) {};
-          };
           asksDelta.isOrderCancelled := func(_, _) = true;
           bidsDelta.isOrderCancelled := func(_, _) = true;
           prepareBulkCancellation(asks);
           prepareBulkCancellation(bids);
         };
         case (?#all(?aids)) {
-          switch (expectedSessionNumber) {
-            case (?sn) {
-              for (i in aids.keys()) {
-                let aid = aids[i];
-                if (Vec.get(assets.assets, aid).sessionsCounter != sn) {
-                  return #err(#SessionNumberMismatch(aid));
-                };
-              };
-            };
-            case (null) {};
-          };
           asksDelta.isOrderCancelled := func(assetId, _) = Array.find<Nat>(aids, func(x) = x == assetId) |> not Option.isNull(_);
           bidsDelta.isOrderCancelled := func(assetId, _) = Array.find<Nat>(aids, func(x) = x == assetId) |> not Option.isNull(_);
           prepareBulkCancellationWithFilter(asks, asksDelta.isOrderCancelled);
@@ -452,16 +438,6 @@ module {
               cancellationCommitActions,
             );
             AssocList.replace<T.AssetId, Nat>(assetIdSet, oldOrder.assetId, Nat.equal, ?i) |> (assetIdSet := _.0);
-          };
-          switch (expectedSessionNumber) {
-            case (?sn) {
-              for ((aid, index) in List.toIter(assetIdSet)) {
-                if (Vec.get(assets.assets, aid).sessionsCounter != sn) {
-                  return #err(#SessionNumberMismatch(aid));
-                };
-              };
-            };
-            case (null) {};
           };
         };
       };
@@ -554,16 +530,6 @@ module {
         };
         AssocList.replace<T.AssetId, Nat>(assetIdSet, assetId, Nat.equal, ?i) |> (assetIdSet := _.0);
       };
-      switch (expectedSessionNumber) {
-        case (?sn) {
-          for ((aid, index) in List.toIter(assetIdSet)) {
-            if (Vec.get(assets.assets, aid).sessionsCounter != sn) {
-              return #err(#SessionNumberMismatch(aid));
-            };
-          };
-        };
-        case (null) {};
-      };
 
       // commit changes, return results
       let retCancellations : Vec.Vector<CancellationResult> = Vec.new();
@@ -573,6 +539,11 @@ module {
         };
       };
       let retPlacements = Array.tabulate<PlaceOrderResult>(placementCommitActions.size(), func(i) = placementCommitActions[i]());
+
+      if (Vec.size(retCancellations) > 0 or placements.size() > 0) {
+        userInfo.accountRevision += 1;
+        userInfo.loyaltyPoints += (Vec.size(retCancellations) + placements.size()) * C.LOYALTY_REWARD.ORDER_MODIFICATION;
+      };
 
       if (placements.size() > 0) {
         let oldRecord = users.participantsArchive.replace(p, { lastOrderPlacement = Prim.time() });

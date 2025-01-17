@@ -36,7 +36,7 @@ const OrdersTable = ({ kind }: OrdersTableProps) => {
         </tr>
         </thead>
         <tbody>
-        {(orders ?? []).map(([orderId, order, _], i) => {
+        {(orders ?? []).map(([orderId, order], i) => {
           return (
             <tr key={i}>
               <td>
