@@ -18,13 +18,13 @@ module {
     var lockedCredit : Nat;
   };
 
-  public type OrderType = { #delayed; #immediate };
+  public type OrderBookType = { #delayed; #immediate };
 
   public type Order = {
     user : Principal;
     userInfoRef : UserInfo;
     assetId : AssetId;
-    orderType : OrderType;
+    orderBookType : OrderBookType;
     price : Float;
     var volume : Nat;
   };
@@ -73,7 +73,29 @@ module {
   public type TransactionHistoryItem = (timestamp : Nat64, sessionNumber : Nat, kind : { #ask; #bid }, assetId : AssetId, volume : Nat, price : Float);
 
   // stable data types
-  public type StableDataV9 = StableDataV5_6_7<StableAssetInfoV3, StableUserInfoV7, { globalCounter : Nat }, { surplus : Nat }>;
+  public type StableDataV9 = {
+    assets : Vec.Vector<StableAssetInfoV3>;
+    orders : { globalCounter : Nat };
+    quoteToken : { surplus : Nat };
+    sessions : {
+      counter : Nat;
+      history : {
+        immediate : ([var ?PriceHistoryItem], Nat, Nat);
+        delayed : Vec.Vector<PriceHistoryItem>;
+      };
+    };
+    users : {
+      registry : {
+        tree : RBTree.Tree<Principal, StableUserInfoV7>;
+        size : Nat;
+      };
+      participantsArchive : {
+        tree : RBTree.Tree<Principal, { lastOrderPlacement : Nat64 }>;
+        size : Nat;
+      };
+      accountsAmount : Nat;
+    };
+  };
 
   // old stable data types
   public type StableDataV8 = StableDataV5_6_7<StableAssetInfoV3, StableUserInfoV6, { globalCounter : Nat }, { surplus : Nat }>;
@@ -138,7 +160,7 @@ module {
   public type StableOrderDataV3 = {
     user : Principal;
     assetId : AssetId;
-    orderType : OrderType;
+    orderBookType : OrderBookType;
     price : Float;
     volume : Nat;
   };

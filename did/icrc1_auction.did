@@ -78,14 +78,14 @@ type DepositResponse = variant {
 
 type OrderId = nat;
 
-type OrderType = variant {
+type OrderBookType = variant {
   delayed;
   immediate;
 };
 
 type Order = record {
   icrc1Ledger : Token;
-  orderType : OrderType;
+  orderBookType : OrderBookType;
   price : float64;
   volume : nat;
 };
@@ -95,8 +95,8 @@ type CancellationArg = variant {
   orders : vec variant { ask : OrderId; bid : OrderId };
 };
 type PlaceArg = vec variant {
-  ask : record { Token; OrderType; nat; float64 };
-  bid : record { Token; OrderType; nat; float64 };
+  ask : record { Token; OrderBookType; nat; float64 };
+  bid : record { Token; OrderBookType; nat; float64 };
 };
 
 type ManageOrdersResponse = variant {
@@ -104,7 +104,7 @@ type ManageOrdersResponse = variant {
     vec record {
       OrderId;
       Token;
-      OrderType;
+      OrderBookType;
       nat;
       float64;
     };
@@ -174,7 +174,7 @@ type CancelOrderResponse = variant {
   Ok : record {
     OrderId;
     Token;
-    OrderType;
+    OrderBookType;
     nat;
     float64;
   };
@@ -256,15 +256,16 @@ service : (opt principal, opt principal) -> {
   queryTransactionHistory : (opt Token, nat, nat) -> (vec record { nat64; nat; variant { ask; bid }; Token; nat; float64 }) query;
   // return values are: timestamp in nanoseconds; number of auction session; ICRC1 ledger principal; volume sold; price
   queryPriceHistory : (opt Token, nat, nat, bool) -> (vec record { nat64; nat; Token; nat; float64 }) query;
+  queryImmediatePriceHistory : (opt Token, nat, nat) -> (vec record { nat64; nat; Token; nat; float64 }) query;
 
   // update
   manageOrders : (opt CancellationArg, PlaceArg, opt AccountRevision) -> (ManageOrdersResponse);
 
-  placeAsks : (vec record { Token; OrderType; nat; float64 }, opt AccountRevision) -> (vec PlaceOrderResponse);
+  placeAsks : (vec record { Token; OrderBookType; nat; float64 }, opt AccountRevision) -> (vec PlaceOrderResponse);
   replaceAsk : (OrderId, nat, float64, opt AccountRevision) -> (ReplaceOrderResponse);
   cancelAsks : (vec OrderId, opt AccountRevision) -> (vec CancelOrderResponse);
 
-  placeBids : (vec record { Token; OrderType; nat; float64 }, opt AccountRevision) -> (vec PlaceOrderResponse);
+  placeBids : (vec record { Token; OrderBookType; nat; float64 }, opt AccountRevision) -> (vec PlaceOrderResponse);
   replaceBid : (OrderId, nat, float64, opt AccountRevision) -> (ReplaceOrderResponse);
   cancelBids : (vec OrderId, opt AccountRevision) -> (vec CancelOrderResponse);
 

@@ -20,7 +20,7 @@ module Icrc84Auction {
     #VolumeStepViolated : { baseVolumeStep : Nat };
   };
 
-  public type CancellationResult = (T.OrderId, assetId : Principal, orderType : Auction.OrderType, volume : Nat, price : Float);
+  public type CancellationResult = (T.OrderId, assetId : Principal, orderBookType : Auction.OrderBookType, volume : Nat, price : Float);
 
   public type ManageOrdersError = {
     #AccountRevisionMismatch;
@@ -45,7 +45,7 @@ module Icrc84Auction {
 
   public func mapCancelOrderResult(res : R.Result<Auction.CancellationResult, Auction.CancelOrderError>, getToken : (T.AssetId) -> Principal) : UpperResult<CancellationResult, CancelOrderError> {
     switch (res) {
-      case (#ok(oid, aid, orderType, volume, price)) #Ok(oid, getToken(aid), orderType, volume, price);
+      case (#ok(oid, aid, orderBookType, volume, price)) #Ok(oid, getToken(aid), orderBookType, volume, price);
       case (#err err) #Err(err);
     };
   };
@@ -53,7 +53,7 @@ module Icrc84Auction {
   public func mapManageOrdersResult(res : R.Result<([Auction.CancellationResult], [Auction.PlaceOrderResult]), Auction.ManageOrdersError>, getToken : (T.AssetId) -> Principal) : UpperResult<([CancellationResult], [Auction.PlaceOrderResult]), ManageOrdersError> {
     switch (res) {
       case (#ok(cancellations, placements)) #Ok(
-        Array.map<Auction.CancellationResult, CancellationResult>(cancellations, func(oid, aid, orderType, volume, price) = (oid, getToken(aid), orderType, volume, price)),
+        Array.map<Auction.CancellationResult, CancellationResult>(cancellations, func(oid, aid, orderBookType, volume, price) = (oid, getToken(aid), orderBookType, volume, price)),
         placements,
       );
       case (#err err) #Err(err);

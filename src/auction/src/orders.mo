@@ -28,11 +28,11 @@ module {
   };
 
   public type PlaceOrderAction = {
-    #ask : (assetId : T.AssetId, orderType : T.OrderType, volume : Nat, price : Float);
-    #bid : (assetId : T.AssetId, orderType : T.OrderType, volume : Nat, price : Float);
+    #ask : (assetId : T.AssetId, orderBookType : T.OrderBookType, volume : Nat, price : Float);
+    #bid : (assetId : T.AssetId, orderBookType : T.OrderBookType, volume : Nat, price : Float);
   };
 
-  public type CancellationResult = (T.OrderId, assetId : T.AssetId, orderType : T.OrderType, volume : Nat, price : Float);
+  public type CancellationResult = (T.OrderId, assetId : T.AssetId, orderBookType : T.OrderBookType, volume : Nat, price : Float);
   public type PlaceOrderResult = (T.OrderId, { #placed; #executed : (price : Float, volume : Nat) });
 
   public type InternalCancelOrderError = {
@@ -150,7 +150,7 @@ module {
       case (#bid) oppositeOrderPrice <= orderPrice;
     };
 
-    public func assetOrderBook(assetInfo : T.AssetInfo, orderType : T.OrderType) : T.AssetOrderBook = assets.getOrderBook(assetInfo, kind, orderType);
+    public func assetOrderBook(assetInfo : T.AssetInfo, orderBookType : T.OrderBookType) : T.AssetOrderBook = assets.getOrderBook(assetInfo, kind, orderBookType);
 
     public func place(userInfo : T.UserInfo, accountToCharge : T.Account, assetInfo : T.AssetInfo, orderId : T.OrderId, order : T.Order) {
       // charge user credits
@@ -164,7 +164,7 @@ module {
     public func cancel(userInfo : T.UserInfo, orderId : T.OrderId) : ?T.Order {
       // find and remove from order lists
       let ?existingOrder = users.deleteOrder(userInfo, kind, orderId) else return null;
-      assets.getAsset(existingOrder.assetId) |> assets.deleteOrder(_, kind, existingOrder.orderType, orderId);
+      assets.getAsset(existingOrder.assetId) |> assets.deleteOrder(_, kind, existingOrder.orderBookType, orderId);
       // return deposit to user
       let ?sourceAcc = credits.getAccount(userInfo, srcAssetId(existingOrder.assetId)) else Prim.trap("Can never happen");
       let (success, _) = credits.unlockCredit(sourceAcc, srcVolume(existingOrder.volume, existingOrder.price));
@@ -196,7 +196,7 @@ module {
         assets.deductOrderVolume(assetInfo, kind, order, baseVolume); // shrink order
       } else {
         users.deleteOrder(order.userInfoRef, kind, orderId) |> (ignore _); // delete order
-        assets.deleteOrder(assetInfo, kind, order.orderType, orderId); // delete order
+        assets.deleteOrder(assetInfo, kind, order.orderBookType, orderId); // delete order
       };
 
       // debit at source
@@ -366,7 +366,7 @@ module {
               switch (userOrderBook.map) {
                 case (?((orderId, _), _)) {
                   let ?order = ordersService.cancel(userInfo, orderId) else Prim.trap("Can never happen");
-                  Vec.add(ret, (orderId, order.assetId, order.orderType, order.volume, order.price));
+                  Vec.add(ret, (orderId, order.assetId, order.orderBookType, order.volume, order.price));
                 };
                 case (_) break l;
               };
@@ -393,7 +393,7 @@ module {
             let ret : Vec.Vector<CancellationResult> = Vec.new();
             for (orderId in Vec.vals(orderIds)) {
               let ?order = ordersService.cancel(userInfo, orderId) else Prim.trap("Can never happen");
-              Vec.add(ret, (orderId, order.assetId, order.orderType, order.volume, order.price));
+              Vec.add(ret, (orderId, order.assetId, order.orderBookType, order.volume, order.price));
             };
             Vec.toArray(ret);
           },
@@ -433,7 +433,7 @@ module {
             cancellationCommitActions := List.push<() -> [CancellationResult]>(
               func() {
                 let ?order = ordersService.cancel(userInfo, orderId) else return [];
-                [(orderId, order.assetId, order.orderType, order.volume, order.price)];
+                [(orderId, order.assetId, order.orderBookType, order.volume, order.price)];
               },
               cancellationCommitActions,
             );
@@ -445,7 +445,7 @@ module {
       // validate and prepare placements
       var assetIdSet : AssocList.AssocList<T.AssetId, Nat> = null;
       for (i in placements.keys()) {
-        let (ordersService, (assetId, orderType, volume, rawPrice), ordersDelta, oppositeOrdersDelta) = switch (placements[i]) {
+        let (ordersService, (assetId, orderBookType, volume, rawPrice), ordersDelta, oppositeOrdersDelta) = switch (placements[i]) {
           case (#ask(args)) (asks, args, asksDelta, bidsDelta);
           case (#bid(args)) (bids, args, bidsDelta, asksDelta);
         };
@@ -516,7 +516,7 @@ module {
           user = p;
           userInfoRef = userInfo;
           assetId;
-          orderType;
+          orderBookType;
           price;
           var volume = volume;
         };
