@@ -19,6 +19,7 @@ import RBTree "mo:base/RBTree";
 
 import Vec "mo:vector";
 
+import AssetOrderBook "./asset_order_book";
 import Assets "./assets";
 import C "./constants";
 import Credits "./credits";
@@ -28,6 +29,68 @@ import { processAuction; clearAuction } "./auction_processor";
 import T "./types";
 
 module {
+
+  public func defaultStableDataV9() : T.StableDataV9 = {
+    assets = Vec.new();
+    orders = { globalCounter = 0 };
+    quoteToken = { surplus = 0 };
+    sessions = {
+      counter = 0;
+      history = {
+        immediate = ([var], 0, 0);
+        delayed = Vec.new<T.PriceHistoryItem>();
+      };
+    };
+    users = {
+      registry = {
+        tree = #leaf;
+        size = 0;
+      };
+      participantsArchive = {
+        tree = #leaf;
+        size = 0;
+      };
+      accountsAmount = 0;
+    };
+  };
+  public type StableDataV9 = T.StableDataV9;
+  public func migrateStableDataV9(data : StableDataV8) : StableDataV9 {
+    let usersTree : RBTree.RBTree<Principal, T.StableUserInfoV7> = RBTree.RBTree(Principal.compare);
+    for ((p, x) in RBTree.iter(data.users.registry.tree, #bwd)) {
+      func mapOrderBookEntry((oid : OrderId, x : T.StableOrderDataV2)) : ((OrderId, T.StableOrderDataV3)) = (
+        oid,
+        { x with orderBookType = #delayed },
+      );
+      usersTree.put(
+        p,
+        {
+          x with
+          asks = {
+            var map = List.map<(OrderId, T.StableOrderDataV2), (OrderId, T.StableOrderDataV3)>(x.asks.map, mapOrderBookEntry);
+          };
+          bids = {
+            var map = List.map<(OrderId, T.StableOrderDataV2), (OrderId, T.StableOrderDataV3)>(x.bids.map, mapOrderBookEntry);
+          };
+          accountRevision = 0;
+        },
+      );
+    };
+    {
+      data with
+      sessions = {
+        counter = data.sessions.counter;
+        history = {
+          immediate = (Array.init<?PriceHistoryItem>(0, null), 0, 0);
+          delayed = data.sessions.history;
+        };
+      };
+      users = {
+        data.users with registry = {
+          data.users.registry with tree = usersTree.share()
+        }
+      };
+    };
+  };
 
   public func defaultStableDataV8() : T.StableDataV8 = {
     assets = Vec.new();
@@ -262,6 +325,7 @@ module {
 
   public type AssetId = T.AssetId;
   public type OrderId = T.OrderId;
+  public type OrderBookType = T.OrderBookType;
   public type Order = T.Order;
   public type CreditInfo = Credits.CreditInfo;
   public type UserInfo = T.UserInfo;
@@ -273,6 +337,7 @@ module {
   public type PlaceOrderAction = Orders.PlaceOrderAction;
 
   public type CancellationResult = Orders.CancellationResult;
+  public type PlaceOrderResult = Orders.PlaceOrderResult;
 
   public type IndicativeStats = {
     clearing : {
@@ -293,11 +358,11 @@ module {
     #UnknownPrincipal;
   };
   public type CancelOrderError = Orders.InternalCancelOrderError or {
-    #SessionNumberMismatch : T.AssetId;
+    #AccountRevisionMismatch;
     #UnknownPrincipal;
   };
   public type PlaceOrderError = Orders.InternalPlaceOrderError or {
-    #SessionNumberMismatch : T.AssetId;
+    #AccountRevisionMismatch;
     #UnknownPrincipal;
   };
   public type ReplaceOrderError = CancelOrderError or PlaceOrderError;
@@ -342,10 +407,10 @@ module {
       let assetInfo = assets.getAsset(assetId);
       let (price, volume, surplus) = processAuction(
         sessionsCounter,
-        orders.asks.createOrderBookService(assetInfo),
-        orders.bids.createOrderBookService(assetInfo),
+        orders.asks.createCombinedOrderBookService(assetInfo),
+        orders.bids.createCombinedOrderBookService(assetInfo),
       );
-      assets.pushToHistory(Prim.time(), sessionsCounter, assetId, volume, price);
+      assets.pushToHistory(#delayed, (Prim.time(), sessionsCounter, assetId, volume, price));
       assetInfo.lastProcessingInstructions := Nat64.toNat(settings.performanceCounter(0) - startInstructions);
       assetInfo.sessionsCounter := sessionsCounter + 1;
       if (volume > 0) {
@@ -358,21 +423,21 @@ module {
 
     public func indicativeAssetStats(assetId : AssetId) : IndicativeStats {
       let assetInfo = assets.getAsset(assetId);
-      let asksOrderBook = orders.asks.createOrderBookService(assetInfo);
-      let bidsOrderBook = orders.bids.createOrderBookService(assetInfo);
+      let asksOrderBook = orders.asks.createCombinedOrderBookService(assetInfo);
+      let bidsOrderBook = orders.bids.createCombinedOrderBookService(assetInfo);
       switch (clearAuction(asksOrderBook, bidsOrderBook)) {
         case (?(price, volume)) ({
           clearing = #match({ price; volume });
-          totalBidVolume = assetInfo.bids.totalVolume;
-          totalAskVolume = assetInfo.asks.totalVolume;
+          totalBidVolume = bidsOrderBook.totalVolume();
+          totalAskVolume = asksOrderBook.totalVolume();
         });
         case (null) ({
           clearing = #noMatch({
-            maxBidPrice = List.get(bidsOrderBook.queue(), 0) |> Option.map<(T.OrderId, T.Order), Float>(_, func(b) = b.1.price);
-            minAskPrice = List.get(asksOrderBook.queue(), 0) |> Option.map<(T.OrderId, T.Order), Float>(_, func(b) = b.1.price);
+            maxBidPrice = bidsOrderBook.nextOrder() |> Option.map<(T.OrderId, T.Order), Float>(_, func(b) = b.1.price);
+            minAskPrice = asksOrderBook.nextOrder() |> Option.map<(T.OrderId, T.Order), Float>(_, func(b) = b.1.price);
           });
-          totalBidVolume = assetInfo.bids.totalVolume;
-          totalAskVolume = assetInfo.asks.totalVolume;
+          totalBidVolume = bidsOrderBook.totalVolume();
+          totalAskVolume = asksOrderBook.totalVolume();
         });
       };
     };
@@ -387,6 +452,11 @@ module {
     public func getCredits(p : Principal) : [(AssetId, CreditInfo)] = switch (users.get(p)) {
       case (null) [];
       case (?ui) credits.infoAll(ui);
+    };
+
+    public func getAccountRevision(p : Principal) : Nat = switch (users.get(p)) {
+      case (null) 0;
+      case (?ui) ui.accountRevision;
     };
 
     public func getLoyaltyPoints(p : Principal) : Nat = switch (users.get(p)) {
@@ -406,6 +476,7 @@ module {
       let userInfo = users.getOrCreate(p);
       let acc = credits.getOrCreate(userInfo, assetId);
       Vec.add<T.DepositHistoryItem>(userInfo.depositHistory, (Prim.time(), #deposit, assetId, amount));
+      userInfo.accountRevision += 1;
       credits.appendCredit(acc, amount);
     };
 
@@ -414,6 +485,7 @@ module {
       let ?creditAcc = credits.getAccount(user, assetId) else return #err(#NoCredit);
       switch (credits.deductCredit(creditAcc, amount)) {
         case (true, balance) {
+          user.accountRevision += 1;
           if (balance == 0 and credits.deleteIfEmpty(user, assetId)) {
             #ok(
               0,
@@ -460,8 +532,8 @@ module {
       };
     };
 
-    public func getOrderBook(assetId : AssetId, kind : { #ask; #bid }) : [(OrderId, T.Order)] {
-      let orderBook = assets.getAsset(assetId) |> assets.getOrderBook(_, kind);
+    public func listAssetOrders(assetId : AssetId, kind : { #ask; #bid }, orderBookType : T.OrderBookType) : [(OrderId, T.Order)] {
+      let orderBook = assets.getAsset(assetId) |> assets.getOrderBook(_, kind, orderBookType);
       let queueIter = List.toIter(orderBook.queue);
       Array.tabulate<(OrderId, T.Order)>(
         orderBook.size,
@@ -476,52 +548,52 @@ module {
       p : Principal,
       cancellations : ?Orders.CancellationAction,
       placements : [Orders.PlaceOrderAction],
-      expectedSessionNumber : ?Nat,
-    ) : R.Result<([CancellationResult], [OrderId]), ManageOrdersError> {
+      expectedAccountRevision : ?Nat,
+    ) : R.Result<([CancellationResult], [PlaceOrderResult]), ManageOrdersError> {
       let ?userInfo = users.get(p) else return #err(#UnknownPrincipal);
-      orders.manageOrders(p, userInfo, cancellations, placements, expectedSessionNumber);
+      orders.manageOrders(p, userInfo, cancellations, placements, expectedAccountRevision);
     };
 
-    public func placeOrder(p : Principal, kind : { #ask; #bid }, assetId : AssetId, volume : Nat, price : Float, expectedSessionNumber : ?Nat) : R.Result<OrderId, PlaceOrderError> {
+    public func placeOrder(p : Principal, kind : { #ask; #bid }, assetId : AssetId, orderBookType : OrderBookType, volume : Nat, price : Float, expectedAccountRevision : ?Nat) : R.Result<PlaceOrderResult, PlaceOrderError> {
       let placement = switch (kind) {
-        case (#ask) #ask(assetId, volume, price);
-        case (#bid) #bid(assetId, volume, price);
+        case (#ask) #ask(assetId, orderBookType, volume, price);
+        case (#bid) #bid(assetId, orderBookType, volume, price);
       };
-      switch (manageOrders(p, null, [placement], expectedSessionNumber)) {
-        case (#ok(_, orderIds)) #ok(orderIds[0]);
-        case (#err(#SessionNumberMismatch x)) #err(#SessionNumberMismatch(x));
+      switch (manageOrders(p, null, [placement], expectedAccountRevision)) {
+        case (#ok(_, x)) #ok(x[0]);
+        case (#err(#AccountRevisionMismatch)) #err(#AccountRevisionMismatch);
         case (#err(#UnknownPrincipal)) #err(#UnknownPrincipal);
         case (#err(#placement { error })) #err(error);
         case (#err(#cancellation _)) Prim.trap("Can never happen");
       };
     };
 
-    public func replaceOrder(p : Principal, kind : { #ask; #bid }, orderId : OrderId, volume : Nat, price : Float, expectedSessionNumber : ?Nat) : R.Result<OrderId, ReplaceOrderError> {
-      let assetId = switch (getOrder(p, kind, orderId)) {
-        case (?o) o.assetId;
+    public func replaceOrder(p : Principal, kind : { #ask; #bid }, orderId : OrderId, volume : Nat, price : Float, expectedAccountRevision : ?Nat) : R.Result<PlaceOrderResult, ReplaceOrderError> {
+      let (assetId, orderBookType) = switch (getOrder(p, kind, orderId)) {
+        case (?o) (o.assetId, o.orderBookType);
         case (null) return #err(#UnknownOrder);
       };
       let (cancellation, placement) = switch (kind) {
-        case (#ask) (#ask(orderId), #ask(assetId, volume, price));
-        case (#bid) (#bid(orderId), #bid(assetId, volume, price));
+        case (#ask) (#ask(orderId), #ask(assetId, orderBookType, volume, price));
+        case (#bid) (#bid(orderId), #bid(assetId, orderBookType, volume, price));
       };
-      switch (manageOrders(p, ?#orders([cancellation]), [placement], expectedSessionNumber)) {
-        case (#ok(_, orderIds)) #ok(orderIds[0]);
-        case (#err(#SessionNumberMismatch x)) #err(#SessionNumberMismatch(x));
+      switch (manageOrders(p, ?#orders([cancellation]), [placement], expectedAccountRevision)) {
+        case (#ok(_, x)) #ok(x[0]);
+        case (#err(#AccountRevisionMismatch)) #err(#AccountRevisionMismatch);
         case (#err(#UnknownPrincipal)) #err(#UnknownPrincipal);
         case (#err(#cancellation({ error }))) #err(error);
         case (#err(#placement({ error }))) #err(error);
       };
     };
 
-    public func cancelOrder(p : Principal, kind : { #ask; #bid }, orderId : OrderId, expectedSessionNumber : ?Nat) : R.Result<CancellationResult, CancelOrderError> {
+    public func cancelOrder(p : Principal, kind : { #ask; #bid }, orderId : OrderId, expectedAccountRevision : ?Nat) : R.Result<CancellationResult, CancelOrderError> {
       let cancellation = switch (kind) {
         case (#ask) #ask(orderId);
         case (#bid) #bid(orderId);
       };
-      switch (manageOrders(p, ?#orders([cancellation]), [], expectedSessionNumber)) {
+      switch (manageOrders(p, ?#orders([cancellation]), [], expectedAccountRevision)) {
         case (#ok(x, _)) #ok(x[0]);
-        case (#err(#SessionNumberMismatch x)) #err(#SessionNumberMismatch(x));
+        case (#err(#AccountRevisionMismatch)) #err(#AccountRevisionMismatch);
         case (#err(#UnknownPrincipal)) #err(#UnknownPrincipal);
         case (#err(#cancellation({ error }))) #err(error);
         case (#err(#placement _)) Prim.trap("Can never happen");
@@ -561,13 +633,7 @@ module {
     };
 
     public func getPriceHistory(assetId : ?AssetId, order : { #asc; #desc }, skipEmpty : Bool) : Iter.Iter<T.PriceHistoryItem> {
-      var iter = assets.history
-      |> (
-        switch (order) {
-          case (#asc) Vec.vals(_);
-          case (#desc) Vec.valsRev(_);
-        }
-      );
+      var iter = assets.historyIter(#delayed, order);
       switch (assetId) {
         case (?aid) iter := Iter.filter<T.PriceHistoryItem>(iter, func x = x.2 == aid);
         case (_) {};
@@ -577,10 +643,19 @@ module {
       };
       iter;
     };
+
+    public func getImmediatePriceHistory(assetId : ?AssetId, order : { #asc; #desc }) : Iter.Iter<T.PriceHistoryItem> {
+      var iter = assets.historyIter(#immediate, order);
+      switch (assetId) {
+        case (?aid) iter := Iter.filter<T.PriceHistoryItem>(iter, func x = x.2 == aid);
+        case (_) {};
+      };
+      iter;
+    };
     // ============ history interface =============
 
     // ============= system interface =============
-    public func share() : T.StableDataV8 = {
+    public func share() : T.StableDataV9 = {
       assets = Vec.map<T.AssetInfo, T.StableAssetInfoV3>(
         assets.assets,
         func(x) = {
@@ -597,23 +672,30 @@ module {
       quoteToken = {
         surplus = credits.quoteSurplus;
       };
-      sessions = { counter = sessionsCounter; history = assets.history };
+      sessions = {
+        counter = sessionsCounter;
+        history = {
+          immediate = assets.history.immediate.share();
+          delayed = assets.history.delayed;
+        };
+      };
       users = {
         registry = {
           tree = (
-            func() : RBTree.Tree<Principal, T.StableUserInfoV6> {
-              let stableUsers = RBTree.RBTree<Principal, T.StableUserInfoV6>(Principal.compare);
+            func() : RBTree.Tree<Principal, T.StableUserInfoV7> {
+              let stableUsers = RBTree.RBTree<Principal, T.StableUserInfoV7>(Principal.compare);
               for ((p, u) in users.users.entries()) {
                 stableUsers.put(
                   p,
                   {
                     asks = {
-                      var map = List.map<(T.OrderId, T.Order), (T.OrderId, T.StableOrderDataV2)>(u.asks.map, func(oid, o) = (oid, { assetId = o.assetId; price = o.price; user = o.user; volume = o.volume }));
+                      var map = List.map<(T.OrderId, T.Order), (T.OrderId, T.StableOrderDataV3)>(u.asks.map, func(oid, o) = (oid, { assetId = o.assetId; orderBookType = o.orderBookType; price = o.price; user = o.user; volume = o.volume }));
                     };
                     bids = {
-                      var map = List.map<(T.OrderId, T.Order), (T.OrderId, T.StableOrderDataV2)>(u.bids.map, func(oid, o) = (oid, { assetId = o.assetId; price = o.price; user = o.user; volume = o.volume }));
+                      var map = List.map<(T.OrderId, T.Order), (T.OrderId, T.StableOrderDataV3)>(u.bids.map, func(oid, o) = (oid, { assetId = o.assetId; orderBookType = o.orderBookType; price = o.price; user = o.user; volume = o.volume }));
                     };
                     credits = u.credits;
+                    accountRevision = u.accountRevision;
                     loyaltyPoints = u.loyaltyPoints;
                     depositHistory = u.depositHistory;
                     transactionHistory = u.transactionHistory;
@@ -633,12 +715,18 @@ module {
       };
     };
 
-    public func unshare(data : T.StableDataV8) {
+    public func unshare(data : T.StableDataV9) {
       assets.assets := Vec.map<T.StableAssetInfoV3, T.AssetInfo>(
         data.assets,
         func(x) = {
-          asks = { var queue = null; var size = 0; var totalVolume = 0 };
-          bids = { var queue = null; var size = 0; var totalVolume = 0 };
+          asks = {
+            delayed = AssetOrderBook.nil(#ask);
+            immediate = AssetOrderBook.nil(#ask);
+          };
+          bids = {
+            delayed = AssetOrderBook.nil(#bid);
+            immediate = AssetOrderBook.nil(#bid);
+          };
           var lastRate = x.lastRate;
           var lastProcessingInstructions = x.lastProcessingInstructions;
           var totalExecutedVolumeBase = x.totalExecutedVolumeBase;
@@ -653,10 +741,14 @@ module {
       credits.quoteSurplus := data.quoteToken.surplus;
 
       sessionsCounter := data.sessions.counter;
-      assets.history := data.sessions.history;
+
+      if (data.sessions.history.immediate.0.size() == assets.IMMEDIATE_BUFFER_CAPACITY) {
+        assets.history.immediate.unshare(data.sessions.history.immediate);
+      };
+      assets.history.delayed := data.sessions.history.delayed;
 
       users.usersAmount := data.users.registry.size;
-      let ud = RBTree.RBTree<Principal, T.StableUserInfoV6>(Principal.compare);
+      let ud = RBTree.RBTree<Principal, T.StableUserInfoV7>(Principal.compare);
       ud.unshare(data.users.registry.tree);
       for ((p, u) in ud.entries()) {
         let userData : UserInfo = {
@@ -667,6 +759,7 @@ module {
             var map = null;
           };
           var credits = u.credits;
+          var accountRevision = u.accountRevision;
           var loyaltyPoints = u.loyaltyPoints;
           var depositHistory = u.depositHistory;
           var transactionHistory = u.transactionHistory;

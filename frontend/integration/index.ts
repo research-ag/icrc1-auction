@@ -201,7 +201,8 @@ export const useListOrders = (kind: 'ask' | 'bid') => {
   return useQuery(
     kind === 'bid' ? 'myBids' : 'myAsks',
     async () => {
-      return kind === 'bid' ? auction.queryBids() : auction.queryAsks();
+      const [res, accountRev] = await (kind === 'bid' ? auction.queryBids() : auction.queryAsks());
+      return res;
     },
     {
       onError: err => {
@@ -218,7 +219,8 @@ export const useListCredits = () => {
   return useQuery(
     'myCredits',
     async () => {
-      return auction.queryCredits();
+      const [res, accountRev] = await auction.queryCredits();
+      return res;
     },
     {
       onError: err => {
@@ -304,7 +306,7 @@ export const usePlaceOrder = (kind: 'ask' | 'bid') => {
   return useMutation(
     (formObj: { ledger: string; volume: number; price: number }) =>
       (kind === 'bid' ? auction.placeBids : auction.placeAsks).bind(auction)(
-        [[Principal.fromText(formObj.ledger), BigInt(formObj.volume), Number(formObj.price)]],
+        [[Principal.fromText(formObj.ledger), { delayed: null }, BigInt(formObj.volume), Number(formObj.price)]],
         [],
       ),
     {
