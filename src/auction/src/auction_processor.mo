@@ -10,14 +10,14 @@ import T "./types";
 
 module {
 
-  public func clearAuction(asks : Orders.CombinedOrderBookService, bids : Orders.CombinedOrderBookService) : ?(price : Float, volume : Nat) {
+  public func clearAuction(asks : Orders.OrderBookExecutionService, bids : Orders.OrderBookExecutionService) : ?(price : Float, volume : Nat) {
     let mapOrders = func(orders : Iter.Iter<(T.OrderId, T.Order)>) : Iter.Iter<(Float, Nat)> {
       Iter.map<(T.OrderId, T.Order), (Float, Nat)>(orders, func(_, order) = (order.price, order.volume));
     };
     clear(mapOrders(asks.toIter()), mapOrders(bids.toIter()), Float.less);
   };
 
-  public func processAuction(sessionNumber : Nat, asks : Orders.CombinedOrderBookService, bids : Orders.CombinedOrderBookService) : (price : Float, volume : Nat, surplus : Nat) {
+  public func processAuction(sessionNumber : Nat, asks : Orders.OrderBookExecutionService, bids : Orders.OrderBookExecutionService) : (price : Float, volume : Nat, surplus : Nat) {
 
     let ?(price, dealVolume) = clearAuction(asks, bids) else return (0.0, 0, 0);
 

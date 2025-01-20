@@ -54,34 +54,39 @@ module {
   };
 
   /// helper class to work with all orders of given asset
-  public class CombinedOrderBookService(service : OrdersService, assetInfo : T.AssetInfo) {
+  public class OrderBookExecutionService(service : OrdersService, assetInfo : T.AssetInfo, orderBookType : { #immediate; #combined }) {
 
     public func toIter() : Iter.Iter<(T.OrderId, T.Order)> {
-      var delayedCursor = service.assetOrderBook(assetInfo, #delayed).queue;
-      var immediateCursor = service.assetOrderBook(assetInfo, #immediate).queue;
-      object {
-        public func next() : ?(T.OrderId, T.Order) {
-          switch (delayedCursor, immediateCursor) {
-            case (?(d, nextD), ?(i, nextI)) switch (AssetOrderBook.comparePriority(service.kind)(d, i)) {
-              case (#less) {
-                immediateCursor := nextI;
-                ?i;
+      switch (orderBookType) {
+        case (#immediate) service.assetOrderBook(assetInfo, #immediate).queue |> List.toIter(_);
+        case (#combined) {
+          var delayedCursor = service.assetOrderBook(assetInfo, #delayed).queue;
+          var immediateCursor = service.assetOrderBook(assetInfo, #immediate).queue;
+          object {
+            public func next() : ?(T.OrderId, T.Order) {
+              switch (delayedCursor, immediateCursor) {
+                case (?(d, nextD), ?(i, nextI)) switch (AssetOrderBook.comparePriority(service.kind)(d, i)) {
+                  case (#less) {
+                    immediateCursor := nextI;
+                    ?i;
+                  };
+                  // delayed order with the same price has greater priority
+                  case (_) {
+                    delayedCursor := nextD;
+                    ?d;
+                  };
+                };
+                case (?(x, next), null) {
+                  delayedCursor := next;
+                  ?x;
+                };
+                case (null, ?(x, next)) {
+                  immediateCursor := next;
+                  ?x;
+                };
+                case (_) null;
               };
-              // delayed order with the same price has greater priority
-              case (_) {
-                delayedCursor := nextD;
-                ?d;
-              };
             };
-            case (?(x, next), null) {
-              delayedCursor := next;
-              ?x;
-            };
-            case (null, ?(x, next)) {
-              immediateCursor := next;
-              ?x;
-            };
-            case (_) null;
           };
         };
       };
@@ -107,7 +112,7 @@ module {
     kind_ : { #ask; #bid },
   ) = self {
 
-    public func createCombinedOrderBookService(assetInfo : T.AssetInfo) : CombinedOrderBookService = CombinedOrderBookService(self, assetInfo);
+    public func createOrderBookExecutionService(assetInfo : T.AssetInfo, orderBookType : { #immediate; #combined }) : OrderBookExecutionService = OrderBookExecutionService(self, assetInfo, orderBookType);
 
     public let kind : { #ask; #bid } = kind_;
 
@@ -152,7 +157,7 @@ module {
 
     public func assetOrderBook(assetInfo : T.AssetInfo, orderBookType : T.OrderBookType) : T.AssetOrderBook = assets.getOrderBook(assetInfo, kind, orderBookType);
 
-    public func place(userInfo : T.UserInfo, accountToCharge : T.Account, assetInfo : T.AssetInfo, orderId : T.OrderId, order : T.Order) {
+    public func place(userInfo : T.UserInfo, accountToCharge : T.Account, assetInfo : T.AssetInfo, orderId : T.OrderId, order : T.Order) : Nat {
       // charge user credits
       let (success, _) = credits.lockCredit(accountToCharge, srcVolume(order.volume, order.price));
       assert success;
@@ -245,6 +250,8 @@ module {
     public let quoteVolumeStep : Nat = 10 ** settings.volumeStepLog10;
     public let minQuoteVolume : Nat = settings.minVolumeSteps * quoteVolumeStep;
     public let priceMaxDigits : Nat = settings.priceMaxDigits;
+
+    public var executeImmediateOrderBooks : ?((assetId : T.AssetId) -> (price : Float, volume : Nat)) = null;
 
     public func getBaseVolumeStep(price : Float) : Nat {
       let p = price / Float.fromInt(10 ** settings.volumeStepLog10);
@@ -525,8 +532,18 @@ module {
         placementCommitActions[i] := func() {
           let orderId = ordersCounter;
           ordersCounter += 1;
-          ordersService.place(userInfo, chargeAcc, assetInfo, orderId, order);
-          (orderId, #placed);
+          switch (order.orderBookType, ordersService.place(userInfo, chargeAcc, assetInfo, orderId, order)) {
+            case (#immediate, 0) {
+              let ?executeFunc = executeImmediateOrderBooks else Prim.trap("execute function was not set");
+              let (price, volume) = executeFunc(order.assetId);
+              if (volume > 0) {
+                (orderId, #executed(price, Nat.min(volume, order.volume)));
+              } else {
+                (orderId, #placed);
+              };
+            };
+            case (_) (orderId, #placed);
+          };
         };
         AssocList.replace<T.AssetId, Nat>(assetIdSet, assetId, Nat.equal, ?i) |> (assetIdSet := _.0);
       };

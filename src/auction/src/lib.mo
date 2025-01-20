@@ -391,6 +391,26 @@ module {
       quoteAssetId,
       settings,
     );
+    orders.executeImmediateOrderBooks := ?(
+      func(assetId : T.AssetId) : (price : Float, volume : Nat) {
+        if (assetId == quoteAssetId) return (0.0, 0);
+        let assetInfo = assets.getAsset(assetId);
+        let (price, volume, surplus) = processAuction(
+          0,
+          orders.asks.createOrderBookExecutionService(assetInfo, #immediate),
+          orders.bids.createOrderBookExecutionService(assetInfo, #immediate),
+        );
+        if (volume > 0) {
+          assets.pushToHistory(#immediate, (Prim.time(), 0, assetId, volume, price));
+          // TODO should we update asset last rate on immediate order book execution?
+          assetInfo.lastRate := price;
+          if (surplus > 0) {
+            credits.quoteSurplus += surplus;
+          };
+        };
+        (price, volume);
+      }
+    );
 
     // ============= assets interface =============
     public func getAssetSessionNumber(assetId : AssetId) : Nat = if (assetId == quoteAssetId) {
@@ -407,8 +427,8 @@ module {
       let assetInfo = assets.getAsset(assetId);
       let (price, volume, surplus) = processAuction(
         sessionsCounter,
-        orders.asks.createCombinedOrderBookService(assetInfo),
-        orders.bids.createCombinedOrderBookService(assetInfo),
+        orders.asks.createOrderBookExecutionService(assetInfo, #combined),
+        orders.bids.createOrderBookExecutionService(assetInfo, #combined),
       );
       assets.pushToHistory(#delayed, (Prim.time(), sessionsCounter, assetId, volume, price));
       assetInfo.lastProcessingInstructions := Nat64.toNat(settings.performanceCounter(0) - startInstructions);
@@ -423,8 +443,8 @@ module {
 
     public func indicativeAssetStats(assetId : AssetId) : IndicativeStats {
       let assetInfo = assets.getAsset(assetId);
-      let asksOrderBook = orders.asks.createCombinedOrderBookService(assetInfo);
-      let bidsOrderBook = orders.bids.createCombinedOrderBookService(assetInfo);
+      let asksOrderBook = orders.asks.createOrderBookExecutionService(assetInfo, #combined);
+      let bidsOrderBook = orders.bids.createOrderBookExecutionService(assetInfo, #combined);
       switch (clearAuction(asksOrderBook, bidsOrderBook)) {
         case (?(price, volume)) ({
           clearing = #match({ price; volume });
@@ -770,7 +790,7 @@ module {
             var volume = orderData.volume;
           };
           users.putOrder(userData, #ask, oid, order);
-          assets.putOrder(assets.getAsset(order.assetId), #ask, oid, order);
+          ignore assets.putOrder(assets.getAsset(order.assetId), #ask, oid, order);
         };
         for ((oid, orderData) in List.toIter(u.bids.map)) {
           let order : T.Order = {
@@ -778,7 +798,7 @@ module {
             var volume = orderData.volume;
           };
           users.putOrder(userData, #bid, oid, order);
-          assets.putOrder(assets.getAsset(order.assetId), #bid, oid, order);
+          ignore assets.putOrder(assets.getAsset(order.assetId), #bid, oid, order);
         };
         users.users.put(p, userData);
       };

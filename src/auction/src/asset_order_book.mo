@@ -29,14 +29,16 @@ module OrderBook {
     case (#bid) func(a : (OrderId, Order), b : (OrderId, Order)) = Float.compare(a.1.price, b.1.price);
   };
 
-  public func insert(orderBook : AssetOrderBook, orderId : OrderId, order : Order) {
-    orderBook.queue := PriorityQueue.insert<(OrderId, Order)>(
+  public func insert(orderBook : AssetOrderBook, orderId : OrderId, order : Order) : Nat {
+    let (queueUpd, index) = PriorityQueue.insert<(OrderId, Order)>(
       orderBook.queue,
       (orderId, order),
       comparePriority(orderBook.kind),
     );
+    orderBook.queue := queueUpd;
     orderBook.size += 1;
     orderBook.totalVolume += order.volume;
+    index;
   };
 
   // call this after updating order volume

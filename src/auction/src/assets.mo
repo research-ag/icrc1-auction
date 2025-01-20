@@ -108,7 +108,7 @@ module {
       AssetOrderBook.deductVolume(getOrderBook(asset, kind, order.orderBookType), amount);
     };
 
-    public func putOrder(asset : T.AssetInfo, kind : { #ask; #bid }, orderId : T.OrderId, order : T.Order) {
+    public func putOrder(asset : T.AssetInfo, kind : { #ask; #bid }, orderId : T.OrderId, order : T.Order) : Nat {
       AssetOrderBook.insert(getOrderBook(asset, kind, order.orderBookType), orderId, order);
     };
 
