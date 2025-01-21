@@ -535,9 +535,9 @@ module {
           switch (order.orderBookType, ordersService.place(userInfo, chargeAcc, assetInfo, orderId, order)) {
             case (#immediate, 0) {
               let ?executeFunc = executeImmediateOrderBooks else Prim.trap("execute function was not set");
-              let (price, volume) = executeFunc(order.assetId);
-              if (volume > 0) {
-                (orderId, #executed(price, Nat.min(volume, order.volume)));
+              let (price, clearingVolume) = executeFunc(order.assetId);
+              if (clearingVolume > 0) {
+                (orderId, #executed(price, Nat.min(volume, clearingVolume)));
               } else {
                 (orderId, #placed);
               };

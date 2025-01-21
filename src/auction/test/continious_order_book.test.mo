@@ -1,7 +1,6 @@
 import Iter "mo:base/Iter";
 import Prim "mo:prim";
 import Principal "mo:base/Principal";
-import Debug "mo:base/Debug";
 
 import U "../../utils";
 import { init; createFt } "./test.util";
@@ -68,6 +67,48 @@ do {
 };
 
 do {
+  Prim.debugPrint("immediate orders execution should fulfil as many orders as possible...");
+  let (auction, buyer) = init(0, 3, 5);
+  let ft = createFt(auction);
+  ignore auction.appendCredit(buyer, 0, 500_000_000);
+
+  let seller0 = Principal.fromText("sqez4-4bl6d-ymcv2-npdsk-p3xpk-zlwzb-isfiz-estoh-ioiez-rogoj-yqe");
+  ignore auction.appendCredit(seller0, ft, 500_000_000);
+  let seller1 = Principal.fromText("dkkzx-rn4st-jpxtx-c2q6z-wy2k7-uyffr-ks7hq-azcmt-zjwxi-btxoi-mqe");
+  ignore auction.appendCredit(seller1, ft, 500_000_000);
+
+  let (_, result0) = U.requireOk(auction.placeOrder(seller0, #ask, ft, #immediate, 2_000, 15_000, null));
+  switch (result0) {
+    case (#placed) {};
+    case (#executed _) assert false;
+  };
+  let (_, result1) = U.requireOk(auction.placeOrder(seller1, #ask, ft, #immediate, 2_000, 16_000, null));
+  switch (result1) {
+    case (#placed) {};
+    case (#executed _) assert false;
+  };
+
+  assert auction.getOrders(seller0, #ask, ?ft).size() == 1;
+  assert auction.getOrders(seller1, #ask, ?ft).size() == 1;
+
+  let (oid, result2) = U.requireOk(auction.placeOrder(buyer, #bid, ft, #immediate, 5_000, 18_000, null));
+  switch (result2) {
+    case (#placed) assert false;
+    case (#executed(price, volume)) {
+      assert price == 16_000;
+      assert volume == 4_000;
+    };
+  };
+  let ?order = auction.getOrder(buyer, #bid, oid) else Prim.trap("order not found");
+  assert order.volume == 1_000;
+  assert order.price == 18_000;
+
+  assert auction.getOrders(seller0, #ask, ?ft).size() == 0;
+  assert auction.getOrders(seller1, #ask, ?ft).size() == 0;
+
+};
+
+do {
   Prim.debugPrint("delayed orders should not be fulfilled by immediate order...");
   let (auction, buyer) = init(0, 3, 5);
   let ft = createFt(auction);
@@ -125,7 +166,7 @@ do {
 };
 
 do {
-  Prim.debugPrint("immediate and delayed orders should preserve priority (1)...");
+  Prim.debugPrint("immediate and delayed orders should preserve priority (2)...");
   let (auction, buyer) = init(0, 3, 5);
   let ft = createFt(auction);
   ignore auction.appendCredit(buyer, 0, 500_000_000);
