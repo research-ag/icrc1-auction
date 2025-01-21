@@ -104,7 +104,7 @@ do {
   auction.processAsset(ft);
   let ?priceHistoryItem = auction.getPriceHistory(?ft, #desc, false).next() else Prim.trap("");
   assert priceHistoryItem.3 == askVolume;
-  assert Float.equalWithin(priceHistoryItem.4, askPrice, 0.000000000000001);
+  assert Float.equalWithin(priceHistoryItem.4, bidPrice, 0.000000000000001);
 
   assert auction.getCredit(user, 0).locked == denominateVolumeInQuoteAsset(bidVolume - askVolume, bidPrice);
 

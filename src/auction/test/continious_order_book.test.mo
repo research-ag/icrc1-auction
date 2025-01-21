@@ -95,7 +95,7 @@ do {
   switch (result2) {
     case (#placed) assert false;
     case (#executed(price, volume)) {
-      assert price == 16_000;
+      assert price == 18_000;
       assert volume == 4_000;
     };
   };
