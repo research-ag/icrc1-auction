@@ -226,9 +226,30 @@ service : (opt principal, opt principal) -> {
         };
         NoNewUtxos : record {
           current_confirmations : opt nat32;
-          pending_utxos : opt vec PendingUtxo;
+          pending_utxos : opt vec record {
+            confirmations : nat32;
+            outpoint : record {
+              txid : vec nat8;
+              vout : nat32;
+            };
+            value : nat64;
+          };
           required_confirmations : nat32;
-          suspended_utxos : opt vec SuspendedUtxo;
+          suspended_utxos : opt vec record {
+            earliest_retry : nat64;
+            reason : variant {
+              Quarantined;
+              ValueTooSmall;
+            };
+            utxo : record {
+              height : nat32;
+              outpoint : record {
+                txid : vec nat8;
+                vout : nat32;
+              };
+              value : nat64;
+            };
+          };
         };
         NotAvailable : record { message : text };
         TemporarilyUnavailable : text;
