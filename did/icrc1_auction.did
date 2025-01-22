@@ -253,7 +253,7 @@ service : (opt principal, opt principal) -> {
         };
         NotAvailable : record { message : text };
         TemporarilyUnavailable : text;
-        TooManyRetries;
+        NotMinted;
       };
     }
   );

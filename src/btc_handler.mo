@@ -27,7 +27,7 @@ module {
     earliest_retry : Nat64;
   };
 
-  public type UtxoStatus = {
+  type UtxoStatus = {
     #ValueTooSmall : Utxo;
     #Tainted : Utxo;
     #Checked : Utxo;
@@ -58,7 +58,7 @@ module {
     };
   };
 
-  public type NotifyError = UpdateBalanceError or { #TooManyRetries };
+  public type NotifyError = UpdateBalanceError or { #NotMinted };
 
   public class BtcHandler(auctionPrincipal : Principal, ckbtcMinterPrincipal : Principal) {
 
@@ -72,28 +72,23 @@ module {
     };
 
     public func notify(p : Principal) : async* R.Result<(), NotifyError> {
-      var retriesLeft = 5;
-      label l while (retriesLeft > 0) {
-        retriesLeft -= 1;
-        let resp = await ckbtcMinter.update_balance({
-          owner = ?auctionPrincipal;
-          subaccount = ?TokenHandler.toSubaccount(p);
-        });
-        switch (resp) {
-          case (#Err err) return #err(err);
-          case (#Ok utxos) {
-            for (utxo in utxos.vals()) {
-              switch (utxo) {
-                case (#Minted _) {};
-                case (_) continue l;
-              };
+      let resp = await ckbtcMinter.update_balance({
+        owner = ?auctionPrincipal;
+        subaccount = ?TokenHandler.toSubaccount(p);
+      });
+      switch (resp) {
+        case (#Err err) return #err(err);
+        case (#Ok utxos) {
+          for (utxo in utxos.vals()) {
+            switch (utxo) {
+              case (#Minted _) {};
+              case (_) return #err(#NotMinted);
             };
           };
         };
       };
-      #err(#TooManyRetries);
+      #ok();
     };
-
   };
 
 };
