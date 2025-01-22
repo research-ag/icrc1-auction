@@ -207,6 +207,36 @@ service : (opt principal, opt principal) -> {
   icrc84_deposit : (DepositArgs) -> (DepositResponse);
   icrc84_withdraw : (WithdrawArgs) -> (WithdrawResponse);
 
+  // BTC API
+
+  btc_depositAddress : () -> (text);
+  btc_notify : () -> (
+    variant {
+      Ok : record {
+        credit : int;
+        credit_inc : nat;
+        deposit_inc : nat;
+      };
+      Err : variant {
+        AlreadyProcessing;
+        CallLedgerError : record { message : text };
+        GenericError : record {
+          error_code : nat64;
+          error_message : text;
+        };
+        NoNewUtxos : record {
+          current_confirmations : opt nat32;
+          pending_utxos : opt vec PendingUtxo;
+          required_confirmations : nat32;
+          suspended_utxos : opt vec SuspendedUtxo;
+        };
+        NotAvailable : record { message : text };
+        TemporarilyUnavailable : text;
+        TooManyRetries;
+      };
+    }
+  );
+
   // auction API
 
   // system queries
