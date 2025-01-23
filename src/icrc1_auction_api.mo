@@ -63,9 +63,14 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   // constants
   let AUCTION_INTERVAL_SECONDS : Nat64 = 120;
-  // TODO put ckbtc minter principal here
-  let CKBTC_MINTER_PRINCIPAL = Principal.fromText("aaaaa-aa");
+
+  // Bitcoin mainnet
+  let CKBTC_MINTER_PRINCIPAL = Principal.fromText("mqygn-kiaaa-aaaar-qaadq-cai");
   let CKBTC_LEDGER_PRINCIPAL = Principal.fromText("mxzaz-hqaaa-aaaar-qaada-cai");
+
+  // Bitcoin testnet
+  // let CKBTC_MINTER_PRINCIPAL = Principal.fromText("ml52i-qqaaa-aaaar-qaaba-cai");
+  // let CKBTC_LEDGER_PRINCIPAL = Principal.fromText("mc6ru-gyaaa-aaaar-qaaaq-cai");
 
   type AssetInfo = {
     ledgerPrincipal : Principal;
