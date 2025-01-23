@@ -27,7 +27,7 @@ module {
     earliest_retry : Nat64;
   };
 
-  type UtxoStatus = {
+  public type UtxoStatus = {
     #ValueTooSmall : Utxo;
     #Tainted : Utxo;
     #Checked : Utxo;
@@ -38,7 +38,7 @@ module {
     };
   };
 
-  type UpdateBalanceError = {
+  public type UpdateBalanceError = {
     #NoNewUtxos : {
       current_confirmations : ?Nat32;
       required_confirmations : Nat32;

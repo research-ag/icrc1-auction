@@ -266,6 +266,39 @@ export const useNotify = () => {
   });
 };
 
+export const useBtcAddress = (p: Principal) => {
+  const { auction } = useAuction();
+  return useQuery(
+    'btc_addrr_' + p.toText(),
+    async () => auction.btc_depositAddress([p]),
+    {
+      onError: () => {
+        useQueryClient().removeQueries('btc_addrr_' + p.toText());
+      },
+    },
+  );
+};
+
+export const useBtcNotify = () => {
+  const { auction } = useAuction();
+  const queryClient = useQueryClient();
+  const { enqueueSnackbar } = useSnackbar();
+  return useMutation(() => auction.btc_notify(), {
+    onSuccess: res => {
+      if ('Err' in res) {
+        enqueueSnackbar(`Failed to deposit: ${JSON.stringify(res.Err, bigIntReplacer)}`, { variant: 'error' });
+      } else {
+        queryClient.invalidateQueries('myCredits');
+        queryClient.invalidateQueries('deposit-history');
+        enqueueSnackbar(`Deposited ${Number(res.Ok.credit_inc)} tokens successfully`, { variant: 'success' });
+      }
+    },
+    onError: err => {
+      enqueueSnackbar(`Failed to deposit: ${err}`, { variant: 'error' });
+    },
+  });
+};
+
 export const useDeposit = () => {
   const { auction } = useAuction();
   const queryClient = useQueryClient();

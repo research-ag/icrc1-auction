@@ -64,9 +64,13 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   // constants
   let AUCTION_INTERVAL_SECONDS : Nat64 = 120;
 
+  // Bitcoin mocked ledger + minter
+  let CKBTC_MINTER_PRINCIPAL = Principal.fromText("lja6v-5iaaa-aaaap-anwia-cai");
+  let CKBTC_LEDGER_PRINCIPAL = Principal.fromText("lja6v-5iaaa-aaaap-anwia-cai");
+
   // Bitcoin mainnet
-  let CKBTC_MINTER_PRINCIPAL = Principal.fromText("mqygn-kiaaa-aaaar-qaadq-cai");
-  let CKBTC_LEDGER_PRINCIPAL = Principal.fromText("mxzaz-hqaaa-aaaar-qaada-cai");
+  // let CKBTC_MINTER_PRINCIPAL = Principal.fromText("mqygn-kiaaa-aaaar-qaadq-cai");
+  // let CKBTC_LEDGER_PRINCIPAL = Principal.fromText("mxzaz-hqaaa-aaaar-qaada-cai");
 
   // Bitcoin testnet
   // let CKBTC_MINTER_PRINCIPAL = Principal.fromText("ml52i-qqaaa-aaaar-qaaba-cai");
@@ -508,9 +512,9 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   let btcHandler : BtcHandler.BtcHandler = BtcHandler.BtcHandler(Principal.fromActor(self), CKBTC_MINTER_PRINCIPAL);
 
-  public shared ({ caller }) func btc_depositAddress() : async Text {
+  public shared ({ caller }) func btc_depositAddress(p : ?Principal) : async Text {
     let ?_ = getAssetId(CKBTC_LEDGER_PRINCIPAL) else throw Error.reject("BTC is not supported");
-    await* btcHandler.getDepositAddress(caller);
+    await* btcHandler.getDepositAddress(Option.get(p, caller));
   };
 
   public shared ({ caller }) func btc_notify() : async BtcNotifyResult {

@@ -1,15 +1,18 @@
 {
+  "ckbtc_ledger_minter_mock": {
+    "ic": "lja6v-5iaaa-aaaap-anwia-cai"
+  },
   "frontend": {
     "ic": "scenk-2qaaa-aaaao-a3o7q-cai"
+  },
+  "icrc1_auction_development": {
+    "ic": "z4s7u-byaaa-aaaao-a3paa-cai"
   },
   "icrc1_auction_production": {
     "ic": "g2mgr-byaaa-aaaai-actsq-cai"
   },
   "icrc1_auction_production_2": {
     "ic": "3gvau-pyaaa-aaaao-qa7kq-cai"
-  },
-  "icrc1_auction_development": {
-    "ic": "z4s7u-byaaa-aaaao-a3paa-cai"
   },
   "icrc1_ledger_mock": {
     "ic": "arufl-lyaaa-aaaao-a3n4a-cai"

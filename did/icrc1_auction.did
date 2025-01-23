@@ -209,7 +209,7 @@ service : (opt principal, opt principal) -> {
 
   // BTC API
 
-  btc_depositAddress : () -> (text);
+  btc_depositAddress : (opt principal) -> (text);
   btc_notify : () -> (
     variant {
       Ok : record {
