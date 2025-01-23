@@ -325,11 +325,9 @@ const DepositModal = ({ isOpen, onClose }: AddModalProps) => {
           {tabValue === 2 &&
               <div style={{ display: 'contents' }}>
                   <Typography level="body-xs">
-                      WARNING: mock BTC network is used, do not transfer anything in BTC mainnet
-                      <br/>
                       1. Transfer BTC to this address:
                       <br/>
-                      <b>{btcAddr.data}</b>
+                      <b>{btcAddr.data || '...loading...'}</b>
                       <br/>
                       2. Click "Notify"
                       <br/>
