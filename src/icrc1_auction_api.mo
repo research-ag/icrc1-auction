@@ -68,10 +68,6 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   let CKBTC_MINTER_PRINCIPAL = Principal.fromText("mqygn-kiaaa-aaaar-qaadq-cai");
   let CKBTC_LEDGER_PRINCIPAL = Principal.fromText("mxzaz-hqaaa-aaaar-qaada-cai");
 
-  // Bitcoin mocked ledger + minter
-  // let CKBTC_MINTER_PRINCIPAL = Principal.fromText("lja6v-5iaaa-aaaap-anwia-cai");
-  // let CKBTC_LEDGER_PRINCIPAL = Principal.fromText("lja6v-5iaaa-aaaap-anwia-cai");
-
   // Bitcoin testnet
   // let CKBTC_MINTER_PRINCIPAL = Principal.fromText("ml52i-qqaaa-aaaar-qaaba-cai");
   // let CKBTC_LEDGER_PRINCIPAL = Principal.fromText("mc6ru-gyaaa-aaaar-qaaaq-cai");

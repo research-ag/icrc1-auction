@@ -55,11 +55,6 @@
       "candid": "./.dfx/local/canisters/icrc1_auction_development/icrc1_auction_development.did",
       "type": "custom",
       "init_arg": "(opt principal \"cngnf-vqaaa-aaaar-qag4q-cai\", opt principal \"2vxsx-fae\")"
-    },
-    "ckbtc_ledger_minter_mock": {
-      "main": "test/mocks/mock_ckbtc_ledger_minter.mo",
-      "type": "motoko",
-      "optimize": "cycles"
     }
   },
   "defaults": {
@@ -68,6 +63,6 @@
       "packtool": "mops sources"
     }
   },
-  "dfx": "0.20.0",
+  "dfx": "0.24.3",
   "version": 1
 }
