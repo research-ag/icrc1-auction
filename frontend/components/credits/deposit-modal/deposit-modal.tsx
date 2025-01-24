@@ -327,7 +327,7 @@ const DepositModal = ({ isOpen, onClose }: AddModalProps) => {
                   <Typography level="body-xs">
                       1. Transfer BTC to this address:
                       <br/>
-                      <b>{btcAddr.data || '...loading...'}</b>
+                      <b style={{ fontVariantLigatures: "none" }}>{btcAddr.data || '...loading...'}</b>
                       <br/>
                       2. Click "Notify"
                       <br/>
