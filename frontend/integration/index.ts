@@ -456,7 +456,7 @@ export const useWithdrawBtc = () => {
         } else if ('Ok' in res) {
           queryClient.invalidateQueries('myCredits');
           queryClient.invalidateQueries('deposit-history');
-          enqueueSnackbar(`BTC withdraw request sent. Block index: ${res['Ok'].pending_block_index}`, { variant: 'success' });
+          enqueueSnackbar(`BTC withdraw request sent. Block index: ${res['Ok'].block_index}`, { variant: 'success' });
         }
       },
       onError: err => {
