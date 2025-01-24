@@ -141,18 +141,6 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     };
   };
 
-  type BtcNotifyResult = {
-    #Ok : {
-      deposit_inc : Nat;
-      credit_inc : Nat;
-      credit : Int;
-    };
-    #Err : {
-      #CallLedgerError : { message : Text };
-      #NotAvailable : { message : Text };
-    } or BtcHandler.NotifyError;
-  };
-
   type DepositResult = UpperResult<{ txid : Nat; credit_inc : Nat; credit : Int }, { #AmountBelowMinimum : {}; #CallLedgerError : { message : Text }; #TransferError : { message : Text }; #BadFee : { expected_fee : Nat } }>;
 
   type WithdrawResult = {
@@ -166,6 +154,25 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       #InsufficientCredit : {};
       #AmountBelowMinimum : {};
     };
+  };
+
+  type BtcNotifyResult = {
+    #Ok : {
+      deposit_inc : Nat;
+      credit_inc : Nat;
+      credit : Int;
+    };
+    #Err : {
+      #CallLedgerError : { message : Text };
+      #NotAvailable : { message : Text };
+    } or BtcHandler.NotifyError;
+  };
+
+  type BtcWithdrawResult = {
+    #Ok : { pending_block_index : Nat64 };
+    #Err : {
+      #InsufficientCredit : {};
+    } or BtcHandler.ApproveError or BtcHandler.RetrieveBtcWithApprovalError;
   };
 
   let quoteAssetId : Auction.AssetId = 0;
@@ -510,7 +517,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     };
   };
 
-  let btcHandler : BtcHandler.BtcHandler = BtcHandler.BtcHandler(Principal.fromActor(self), CKBTC_MINTER_PRINCIPAL);
+  let btcHandler : BtcHandler.BtcHandler = BtcHandler.BtcHandler(Principal.fromActor(self), CKBTC_LEDGER_PRINCIPAL, CKBTC_MINTER_PRINCIPAL);
 
   public shared ({ caller }) func btc_depositAddress(p : ?Principal) : async Text {
     let ?_ = getAssetId(CKBTC_LEDGER_PRINCIPAL) else throw Error.reject("BTC is not supported");
@@ -522,6 +529,28 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     switch (await* btcHandler.notify(caller)) {
       case (#ok) await* notify(caller, ckbtcAssetId);
       case (#err err) #Err(err);
+    };
+  };
+
+  public shared ({ caller }) func btc_withdraw(args : { to : Text; amount : Nat; expected_fee : ?Nat }) : async BtcWithdrawResult {
+    let ?ckbtcAssetId = getAssetId(CKBTC_LEDGER_PRINCIPAL) else throw Error.reject("BTC is not supported");
+
+    let (rollbackCredit, doneCallback) = switch (auction.deductCredit(caller, ckbtcAssetId, args.amount)) {
+      case (#err _) return #Err(#InsufficientCredit({}));
+      case (#ok(_, r, d)) (r, d);
+    };
+    switch (
+      await* btcHandler.withdraw(args.to, args.amount, args.expected_fee)
+    ) {
+      case (#Err err) {
+        rollbackCredit();
+        #Err(err);
+      };
+      case (#Ok { block_index }) {
+        doneCallback();
+        assert auction.appendLoyaltyPoints(caller, #wallet);
+        #Ok({ pending_block_index = block_index });
+      };
     };
   };
 
