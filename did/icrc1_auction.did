@@ -296,7 +296,13 @@ service : (opt principal, opt principal) -> {
         };
         amount : nat64;
         mint_block_index : nat64;
-        reason : ReimbursementReason;
+        reason : variant {
+          CallFailed;
+          TaintedDestination : record {
+            kyt_fee : nat64;
+            kyt_provider : principal;
+          };
+        };
       };
       Sending : record { txid : blob };
       Signing;
@@ -308,7 +314,13 @@ service : (opt principal, opt principal) -> {
           subaccount : opt blob;
         };
         amount : nat64;
-        reason : ReimbursementReason;
+        reason : variant {
+          CallFailed;
+          TaintedDestination : record {
+            kyt_fee : nat64;
+            kyt_provider : principal;
+          };
+        };
       };
     }
   );
