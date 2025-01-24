@@ -257,6 +257,33 @@ service : (opt principal, opt principal) -> {
       };
     }
   );
+  btc_withdraw : (
+    record {
+      amount : nat;
+      expected_fee : opt nat;
+      to : text;
+    }
+  ) -> (
+    variant {
+      Ok : record { pending_block_index : nat64 };
+      Err : variant {
+        AllowanceChanged : record { current_allowance : nat };
+        AlreadyProcessing;
+        AmountTooLow : nat64;
+        BadFee : record { expected_fee : nat };
+        CreatedInFuture : record { ledger_time : nat64 };
+        Duplicate : record { duplicate_of : nat };
+        Expired : record { ledger_time : nat64 };
+        GenericError : record { error_code : reserved };
+        InsufficientAllowance : record { allowance : nat64 };
+        InsufficientCredit : record {};
+        InsufficientFunds : record { balance : reserved };
+        MalformedAddress : text;
+        TemporarilyUnavailable : reserved;
+        TooOld;
+      };
+    }
+  );
 
   // auction API
 
