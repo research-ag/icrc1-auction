@@ -435,6 +435,37 @@ export const usePriceHistory = (limit: number, offset: number) => {
   );
 };
 
+export const useWithdrawBtc = () => {
+  const { auction } = useAuction();
+  const queryClient = useQueryClient();
+  const { enqueueSnackbar } = useSnackbar();
+  const { identity } = useIdentity();
+  return useMutation(
+    (formObj: { address: string; amount: number }) =>
+      auction.btc_withdraw({
+        to: formObj.address,
+        amount: BigInt(formObj.amount),
+        expected_fee: [],
+      }),
+    {
+      onSuccess: res => {
+        if ('Err' in res) {
+          enqueueSnackbar(`Failed to withdraw BTC: ${JSON.stringify(res.Err, bigIntReplacer)}`, {
+            variant: 'error',
+          });
+        } else if ('Ok' in res) {
+          queryClient.invalidateQueries('myCredits');
+          queryClient.invalidateQueries('deposit-history');
+          enqueueSnackbar(`BTC withdraw request sent. Block index: ${res['Ok'].pending_block_index}`, { variant: 'success' });
+        }
+      },
+      onError: err => {
+        enqueueSnackbar(`Failed to withdraw credit: ${err}`, { variant: 'error' });
+      },
+    },
+  );
+};
+
 export const useWithdrawCredit = () => {
   const { auction } = useAuction();
   const queryClient = useQueryClient();

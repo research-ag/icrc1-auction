@@ -195,6 +195,10 @@ module {
         };
       };
     };
+
+    public func getWithdrawalStatus(arg : { block_index : Nat64 }) : async* RetrieveBtcStatusV2 {
+      await ckbtcMinter.retrieve_btc_status_v2(arg);
+    };
   };
 
 };

@@ -2,6 +2,7 @@ import { Box, Button, Table } from '@mui/joy';
 
 import { useListCredits, useTokenInfoMap } from '@fe/integration';
 import WithdrawCreditModal from '../withdraw-credit-modal';
+import WithdrawBtcModal from '../withdraw-btc-modal';
 import { useState } from 'react';
 import InfoItem from '../../root/info-item';
 import { Principal } from '@dfinity/principal';
@@ -17,6 +18,11 @@ const CreditsTable = () => {
     setIsWithdrawModalOpen(true);
   };
   const closeWithdrawModal = () => setIsWithdrawModalOpen(false);
+  const [isWithdrawBtcModalOpen, setIsWithdrawBtcModalOpen] = useState(false);
+  const openWithdrawBtcModal = () => {
+    setIsWithdrawBtcModalOpen(true);
+  };
+  const closeWithdrawBtcModal = () => setIsWithdrawBtcModalOpen(false);
 
   const { data: symbols } = useTokenInfoMap();
   const getTokenInfo = (ledger: Principal): { symbol: string, decimals: number } => {
@@ -28,10 +34,10 @@ const CreditsTable = () => {
     <Box sx={{ width: '100%', overflow: 'auto' }}>
       <Table>
         <colgroup>
-          <col style={{ width: '200px' }} />
-          <col style={{ width: '120px' }} />
-          <col style={{ width: '120px' }} />
-          <col style={{ width: '60px' }} />
+          <col style={{ width: '200px' }}/>
+          <col style={{ width: '120px' }}/>
+          <col style={{ width: '120px' }}/>
+          <col style={{ width: '60px' }}/>
         </colgroup>
         <thead>
         <tr>
@@ -46,11 +52,17 @@ const CreditsTable = () => {
           return (
             <tr key={i}>
               <td>
-                {symbols && <InfoItem content={getTokenInfo(ledger).symbol} withCopy={true} />}
+                {symbols && <InfoItem content={getTokenInfo(ledger).symbol} withCopy={true}/>}
               </td>
               <td>{displayWithDecimals(credit.available, getTokenInfo(ledger).decimals, 6)}</td>
               <td>{displayWithDecimals(credit.total, getTokenInfo(ledger).decimals, 6)}</td>
               <td>
+                {getTokenInfo(ledger).symbol === 'ckBTC' &&
+                    <Button onClick={() => openWithdrawBtcModal()} color="danger" size="sm"
+                            style={{ whiteSpace: "nowrap", marginBottom: "0.5rem" }}>
+                        Withdraw BTC
+                    </Button>
+                }
                 <Button onClick={() => openWithdrawModal(ledger)} color="danger" size="sm">
                   Withdraw
                 </Button>
@@ -60,7 +72,8 @@ const CreditsTable = () => {
         })}
         </tbody>
       </Table>
-      <WithdrawCreditModal isOpen={isWithdrawModalOpen} onClose={closeWithdrawModal} ledger={withdrawLedger} />
+      <WithdrawCreditModal isOpen={isWithdrawModalOpen} onClose={closeWithdrawModal} ledger={withdrawLedger}/>
+      <WithdrawBtcModal isOpen={isWithdrawBtcModalOpen} onClose={closeWithdrawBtcModal}/>
     </Box>
   );
 };

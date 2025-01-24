@@ -265,7 +265,7 @@ service : (opt principal, opt principal) -> {
     }
   ) -> (
     variant {
-      Ok : record { pending_block_index : nat64 };
+      Ok : record { block_index : nat64 };
       Err : variant {
         AllowanceChanged : record { current_allowance : nat };
         AlreadyProcessing;
@@ -281,6 +281,34 @@ service : (opt principal, opt principal) -> {
         MalformedAddress : text;
         TemporarilyUnavailable : reserved;
         TooOld;
+      };
+    }
+  );
+  btc_withdrawal_status : (record { block_index : nat64 }) -> (
+    variant {
+      AmountTooLow;
+      Confirmed : record { txid : blob };
+      Pending;
+      Reimbursed : record {
+        account : record {
+          owner : principal;
+          subaccount : opt blob;
+        };
+        amount : nat64;
+        mint_block_index : nat64;
+        reason : ReimbursementReason;
+      };
+      Sending : record { txid : blob };
+      Signing;
+      Submitted : record { txid : blob };
+      Unknown;
+      WillReimburse : record {
+        account : record {
+          owner : principal;
+          subaccount : opt blob;
+        };
+        amount : nat64;
+        reason : ReimbursementReason;
       };
     }
   );

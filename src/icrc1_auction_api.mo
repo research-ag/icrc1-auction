@@ -165,7 +165,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   };
 
   type BtcWithdrawResult = {
-    #Ok : { pending_block_index : Nat64 };
+    #Ok : { block_index : Nat64 };
     #Err : {
       #InsufficientCredit : {};
     } or BtcHandler.ApproveError or BtcHandler.RetrieveBtcWithApprovalError;
@@ -545,9 +545,12 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       case (#Ok { block_index }) {
         doneCallback();
         assert auction.appendLoyaltyPoints(caller, #wallet);
-        #Ok({ pending_block_index = block_index });
+        #Ok({ block_index });
       };
     };
+  };
+  public shared func btc_withdrawal_status(arg : { block_index : Nat64 }) : async BtcHandler.RetrieveBtcStatusV2 {
+    await* btcHandler.getWithdrawalStatus(arg);
   };
 
   public shared query func getQuoteLedger() : async Principal = async quoteLedgerPrincipal;
