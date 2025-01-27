@@ -4,7 +4,7 @@ import { useSnackbar } from 'notistack';
 import { useIdentity } from './identity';
 import { Principal } from '@dfinity/principal';
 import { useMemo } from 'react';
-import { createActor } from '@declarations/icrc1_auction';
+import { createActor } from '@declarations/icrc1_auction_continous';
 import { createActor as createLedgerActor } from '@declarations/icrc1_ledger_mock';
 
 // Custom replacer function for JSON.stringify
@@ -15,7 +15,7 @@ const bigIntReplacer = (key: string, value: any): any => {
   return value;
 };
 
-export const defaultAuctionCanisterId = "3gvau-pyaaa-aaaao-qa7kq-cai";
+export const defaultAuctionCanisterId = "kkmxt-jqaaa-aaaap-anwoq-cai";
 
 export const useAuctionCanisterId = () => {
   return localStorage.getItem('auctionCanisterId') || defaultAuctionCanisterId;
@@ -304,9 +304,9 @@ export const usePlaceOrder = (kind: 'ask' | 'bid') => {
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
   return useMutation(
-    (formObj: { ledger: string; volume: number; price: number }) =>
+    (formObj: { ledger: string; volume: number; price: number; orderBookType: 'delayed' | 'immediate' }) =>
       (kind === 'bid' ? auction.placeBids : auction.placeAsks).bind(auction)(
-        [[Principal.fromText(formObj.ledger), { delayed: null }, BigInt(formObj.volume), Number(formObj.price)]],
+        [[Principal.fromText(formObj.ledger), { [formObj.orderBookType]: null } as any, BigInt(formObj.volume), Number(formObj.price)]],
         [],
       ),
     {
@@ -315,9 +315,15 @@ export const usePlaceOrder = (kind: 'ask' | 'bid') => {
           enqueueSnackbar(`Failed to place a ${kind}: ${JSON.stringify(res.Err, bigIntReplacer)}`, {
             variant: 'error',
           });
-        } else {
+        } else if ('Ok' in res) {
           queryClient.invalidateQueries(kind === 'bid' ? 'myBids' : 'myAsks');
-          enqueueSnackbar(`${kind} placed`, { variant: 'success' });
+          let orderId = res['Ok'][0];
+          if ('placed' in res['Ok'][1]) {
+            enqueueSnackbar(`${kind} placed, order ID: ${orderId}`, { variant: 'success' });
+          } else if ('executed' in res['Ok'][1]) {
+            let [price, volumeExecuted] = res['Ok'][1]['executed'];
+            enqueueSnackbar(`${kind} executed with price ${price}, volume executed: ${volumeExecuted}`, { variant: 'success' });
+          }
         }
       },
       onError: err => {
