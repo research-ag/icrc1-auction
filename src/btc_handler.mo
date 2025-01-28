@@ -170,7 +170,7 @@ module {
       #ok();
     };
 
-    public func withdraw(address : Text, amount : Nat, expected_fee : ?Nat) : async* {
+    public func withdraw(address : Text, amount : Nat, expected_fee : Nat) : async* {
       #Ok : { block_index : Nat64 };
       #Err : ApproveError or RetrieveBtcWithApprovalError;
     } {
@@ -178,7 +178,7 @@ module {
         from_subaccount = null;
         amount;
         spender = { owner = ckbtcMinterPrincipal; subaccount = null };
-        fee = expected_fee;
+        fee = ?expected_fee;
         expected_allowance = null;
         created_at_time = null;
         expires_at = null;
@@ -186,10 +186,10 @@ module {
       });
       switch (approveRes) {
         case (#Err err) #Err(err);
-        case (#Ok allowanceAmount) {
+        case (#Ok _) {
           await ckbtcMinter.retrieve_btc_with_approval({
             address;
-            amount = Nat64.fromNat(allowanceAmount);
+            amount = Nat64.fromNat(amount - expected_fee);
             from_subaccount = null;
           });
         };

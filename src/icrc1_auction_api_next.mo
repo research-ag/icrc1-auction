@@ -420,7 +420,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
           let inc = Int.abs(userCredit);
           assert assetInfo.handler.debitUser(p, inc);
           ignore auction.appendCredit(p, assetId, inc);
-          assert auction.appendLoyaltyPoints(p, #wallet);
+          ignore auction.appendLoyaltyPoints(p, #wallet);
           #Ok({
             deposit_inc = depositInc;
             credit_inc = creditInc;
@@ -452,7 +452,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
           let credited = Int.abs(userCredit);
           assert assetInfo.handler.debitUser(caller, credited);
           ignore auction.appendCredit(caller, assetId, credited);
-          assert auction.appendLoyaltyPoints(caller, #wallet);
+          ignore auction.appendLoyaltyPoints(caller, #wallet);
           #Ok({
             credit_inc = creditInc;
             txid = txid;
@@ -492,7 +492,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     switch (res) {
       case (#ok(txid, amount)) {
         doneCallback();
-        assert auction.appendLoyaltyPoints(caller, #wallet);
+        ignore auction.appendLoyaltyPoints(caller, #wallet);
         #Ok({ txid; amount });
       };
       case (#err err) {
@@ -524,21 +524,36 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   public shared ({ caller }) func btc_withdraw(args : { to : Text; amount : Nat; expected_fee : ?Nat }) : async BtcWithdrawResult {
     let ?ckbtcAssetId = getAssetId(CKBTC_LEDGER_PRINCIPAL) else throw Error.reject("BTC is not supported");
+    let handler = Vec.get(assets, ckbtcAssetId).handler;
 
     let (rollbackCredit, doneCallback) = switch (auction.deductCredit(caller, ckbtcAssetId, args.amount)) {
       case (#err _) return #Err(#InsufficientCredit({}));
       case (#ok(_, r, d)) (r, d);
     };
-    switch (
-      await* btcHandler.withdraw(args.to, args.amount, args.expected_fee)
+    let withdrawalResult = switch (
+      await* btcHandler.withdraw(
+        args.to,
+        args.amount,
+        Option.get<Nat>(args.expected_fee, handler.fee(#allowance)),
+      ),
+      args.expected_fee,
     ) {
+      case (#Err(#BadFee(_)), null) {
+        // if user provided expected fee null, and we got BadFee error, update fees in token handler and try again
+        ignore await* handler.fetchFee();
+        await* btcHandler.withdraw(args.to, args.amount, handler.fee(#allowance));
+      };
+      case (#Err(x), _) #Err(x);
+      case (#Ok(x), _) #Ok(x);
+    };
+    switch (withdrawalResult) {
       case (#Err err) {
         rollbackCredit();
         #Err(err);
       };
       case (#Ok { block_index }) {
         doneCallback();
-        assert auction.appendLoyaltyPoints(caller, #wallet);
+        ignore auction.appendLoyaltyPoints(caller, #wallet);
         #Ok({ block_index });
       };
     };
