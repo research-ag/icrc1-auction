@@ -823,6 +823,19 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     (history, Option.get(sessionNumber, 0), auctionInProgress);
   };
 
+  public shared query func queryPriceHistory(token : ?Principal, limit : Nat, skip : Nat, skipEmpty : Bool) : async [PriceHistoryItem] {
+    let assetIds : [Auction.AssetId] = switch (token) {
+      case (null) [];
+      case (?p) {
+        let ?aid = getAssetId(p) else throw Error.reject("Unknown token " # Principal.toText(p));
+        [aid];
+      };
+    };
+    auction.getPriceHistory(assetIds, #desc, skipEmpty)
+    |> U.sliceIter(_, limit, skip)
+    |> Array.map<Auction.PriceHistoryItem, PriceHistoryItem>(_, func(x) = (x.0, x.1, Vec.get(assets, x.2).ledgerPrincipal, x.3, x.4));
+  };
+
   public shared ({ caller }) func manageOrders(
     cancellations : ?{
       #all : ?[Principal];
