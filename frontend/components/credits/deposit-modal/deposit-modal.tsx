@@ -19,6 +19,8 @@ import {
 import ErrorAlert from '../../error-alert';
 import {
   useAuctionCanisterId,
+  useBtcAddress,
+  useBtcNotify,
   useDeposit,
   useNotify,
   usePrincipalToSubaccount,
@@ -165,6 +167,8 @@ const DepositModal = ({ isOpen, onClose }: AddModalProps) => {
     });
   };
 
+  const { mutate: btcSubmit, isLoading: isBtcLoading } = useBtcNotify();
+
   useEffect(() => {
     resetForm(defaultValues);
     resetApi();
@@ -174,6 +178,7 @@ const DepositModal = ({ isOpen, onClose }: AddModalProps) => {
 
   const { identity } = useIdentity();
   const subaccount = usePrincipalToSubaccount(identity.getPrincipal());
+  const btcAddr = useBtcAddress(identity.getPrincipal());
 
   const subaccountToText = (subaccount: [] | [Uint8Array | number[]] | undefined) => {
     if (!subaccount || !subaccount[0]) return '';
@@ -195,126 +200,146 @@ const DepositModal = ({ isOpen, onClose }: AddModalProps) => {
           sx={{ backgroundColor: 'transparent' }}
           value={tabValue}
           onChange={(_, value) => setTabValue(value as number)}>
-          <ModalClose />
+          <ModalClose/>
           <Typography level="h4">Deposit</Typography>
           <TabList sx={{ marginRight: 1, flexGrow: 1 }} style={{ margin: '16px 0' }} variant="plain">
             <Tab color="neutral">Transfer</Tab>
             <Tab color="neutral">Allowance</Tab>
+            <Tab color="neutral">BTC direct</Tab>
           </TabList>
 
           {tabValue === 0 &&
-            <div style={{ display: 'contents' }}>
-              <Typography level="body-xs">
-                1. Find out ICRC1 ledger principal to be used
-                <br />
-                2. Make a transfer to account <b>{auctionId}</b>, subaccount{' '}
-                <b>{subaccountToText(subaccount.data)}</b> using ledger API
-                <br />
-                3. Put token symbol in the input below and click "Notify"
-                <br />
-              </Typography>
-              <form onSubmit={handleSubmit(submit)} autoComplete="off">
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                  <Controller
-                    name="symbol"
-                    control={control}
-                    render={({ field, fieldState }) => (
-                      <FormControl>
-                        <FormLabel>Token symbol</FormLabel>
-                        <Input
-                          type="text"
-                          variant="outlined"
-                          name={field.name}
-                          value={field.value}
-                          onChange={field.onChange}
-                          autoComplete="off"
-                          error={!!fieldState.error}
-                        />
-                      </FormControl>
-                    )} />
-                </Box>
-                {!!error && <ErrorAlert errorMessage={(error as Error).message} />}
-                <Button
-                  sx={{ marginTop: 2 }}
-                  variant="solid"
-                  loading={isLoading}
-                  type="submit"
-                  disabled={!isValid || !isDirty}>
-                  Notify
-                </Button>
-              </form>
-            </div>}
+              <div style={{ display: 'contents' }}>
+                  <Typography level="body-xs">
+                      1. Find out ICRC1 ledger principal to be used
+                      <br/>
+                      2. Make a transfer to account <b>{auctionId}</b>, subaccount{' '}
+                      <b>{subaccountToText(subaccount.data)}</b> using ledger API
+                      <br/>
+                      3. Put token symbol in the input below and click "Notify"
+                      <br/>
+                  </Typography>
+                  <form onSubmit={handleSubmit(submit)} autoComplete="off">
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                          <Controller
+                              name="symbol"
+                              control={control}
+                              render={({ field, fieldState }) => (
+                                <FormControl>
+                                  <FormLabel>Token symbol</FormLabel>
+                                  <Input
+                                    type="text"
+                                    variant="outlined"
+                                    name={field.name}
+                                    value={field.value}
+                                    onChange={field.onChange}
+                                    autoComplete="off"
+                                    error={!!fieldState.error}
+                                  />
+                                </FormControl>
+                              )}/>
+                      </Box>
+                    {!!error && <ErrorAlert errorMessage={(error as Error).message}/>}
+                      <Button
+                          sx={{ marginTop: 2 }}
+                          variant="solid"
+                          loading={isLoading}
+                          type="submit"
+                          disabled={!isValid || !isDirty}>
+                          Notify
+                      </Button>
+                  </form>
+              </div>}
 
           {tabValue === 1 &&
-            <div style={{ display: 'contents' }}>
-              <form onSubmit={handleAllowanceSubmit(submitAllowance)} autoComplete="off">
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                  <Controller
-                    name="symbol"
-                    control={allowanceControl}
-                    render={({ field, fieldState }) => (
-                      <FormControl>
-                        <FormLabel>Token symbol</FormLabel>
-                        <Input
-                          type="text"
-                          variant="outlined"
-                          name={field.name}
-                          value={field.value}
-                          onChange={field.onChange}
-                          autoComplete="off"
-                          error={!!fieldState.error}
-                        />
-                      </FormControl>
-                    )} />
-                  <Controller
-                    name="amount"
-                    control={allowanceControl}
-                    render={({ field, fieldState }) => (
-                      <FormControl>
-                        <FormLabel>Amount</FormLabel>
-                        <Input
-                          type="number"
-                          variant="outlined"
-                          name={field.name}
-                          value={field.value}
-                          onChange={field.onChange}
-                          autoComplete="off"
-                          error={!!fieldState.error}
-                        />
-                      </FormControl>
-                    )} />
-                  <Controller
-                    name="account"
-                    control={allowanceControl}
-                    render={({ field, fieldState }) => (
-                      <FormControl>
-                        <FormLabel>Account</FormLabel>
-                        <Typography level="body-xs">
-                          Type encoded ICRC-1 account
-                        </Typography>
-                        <Input
-                          type="text"
-                          variant="outlined"
-                          name={field.name}
-                          value={field.value}
-                          onChange={field.onChange}
-                          autoComplete="off"
-                          error={!!fieldState.error}
-                        />
-                      </FormControl>
-                    )} />
-                </Box>
-                {!!allowanceError && <ErrorAlert errorMessage={(allowanceError as Error).message} />}
-                <Button
-                  sx={{ marginTop: 2 }}
-                  variant="solid"
-                  loading={isAllowanceLoading}
-                  type="submit"
-                  disabled={!isAllowanceValid || !isAllowanceDirty}>
-                  Deposit
-                </Button>
-              </form>
-            </div>}
+              <div style={{ display: 'contents' }}>
+                  <form onSubmit={handleAllowanceSubmit(submitAllowance)} autoComplete="off">
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                          <Controller
+                              name="symbol"
+                              control={allowanceControl}
+                              render={({ field, fieldState }) => (
+                                <FormControl>
+                                  <FormLabel>Token symbol</FormLabel>
+                                  <Input
+                                    type="text"
+                                    variant="outlined"
+                                    name={field.name}
+                                    value={field.value}
+                                    onChange={field.onChange}
+                                    autoComplete="off"
+                                    error={!!fieldState.error}
+                                  />
+                                </FormControl>
+                              )}/>
+                          <Controller
+                              name="amount"
+                              control={allowanceControl}
+                              render={({ field, fieldState }) => (
+                                <FormControl>
+                                  <FormLabel>Amount</FormLabel>
+                                  <Input
+                                    type="number"
+                                    variant="outlined"
+                                    name={field.name}
+                                    value={field.value}
+                                    onChange={field.onChange}
+                                    autoComplete="off"
+                                    error={!!fieldState.error}
+                                  />
+                                </FormControl>
+                              )}/>
+                          <Controller
+                              name="account"
+                              control={allowanceControl}
+                              render={({ field, fieldState }) => (
+                                <FormControl>
+                                  <FormLabel>Account</FormLabel>
+                                  <Typography level="body-xs">
+                                    Type encoded ICRC-1 account
+                                  </Typography>
+                                  <Input
+                                    type="text"
+                                    variant="outlined"
+                                    name={field.name}
+                                    value={field.value}
+                                    onChange={field.onChange}
+                                    autoComplete="off"
+                                    error={!!fieldState.error}
+                                  />
+                                </FormControl>
+                              )}/>
+                      </Box>
+                    {!!allowanceError && <ErrorAlert errorMessage={(allowanceError as Error).message}/>}
+                      <Button
+                          sx={{ marginTop: 2 }}
+                          variant="solid"
+                          loading={isAllowanceLoading}
+                          type="submit"
+                          disabled={!isAllowanceValid || !isAllowanceDirty}>
+                          Deposit
+                      </Button>
+                  </form>
+              </div>}
+
+          {tabValue === 2 &&
+              <div style={{ display: 'contents' }}>
+                  <Typography level="body-xs">
+                      1. Transfer BTC to this address:
+                      <br/>
+                      <b style={{ fontVariantLigatures: "none" }}>{btcAddr.data || '...loading...'}</b>
+                      <br/>
+                      2. Click "Notify"
+                      <br/>
+                  </Typography>
+                  <Button
+                      sx={{ marginTop: 2 }}
+                      variant="solid"
+                      onClick={() => btcSubmit()}
+                      loading={isBtcLoading}>
+                      Notify
+                  </Button>
+              </div>}
 
         </Tabs>
       </ModalDialog>

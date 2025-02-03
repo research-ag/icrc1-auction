@@ -22,6 +22,7 @@ import PT "mo:promtracker";
 import TokenHandler "mo:token_handler_legacy";
 import Vec "mo:vector";
 
+import BtcHandler "./btc_handler";
 import HTTP "./http";
 import U "./utils";
 
@@ -59,6 +60,17 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   stable var tokenHandlersJournal : Vec.Vector<(ledger : Principal, p : Principal, logEvent : TokenHandler.LogEvent)> = Vec.new();
 
   stable var consolidationTimerEnabled : Bool = true;
+
+  // constants
+  let AUCTION_INTERVAL_SECONDS : Nat64 = 120;
+
+  // Bitcoin mainnet
+  let CKBTC_MINTER_PRINCIPAL = Principal.fromText("mqygn-kiaaa-aaaar-qaadq-cai");
+  let CKBTC_LEDGER_PRINCIPAL = Principal.fromText("mxzaz-hqaaa-aaaar-qaada-cai");
+
+  // Bitcoin testnet
+  // let CKBTC_MINTER_PRINCIPAL = Principal.fromText("ml52i-qqaaa-aaaar-qaaba-cai");
+  // let CKBTC_LEDGER_PRINCIPAL = Principal.fromText("mc6ru-gyaaa-aaaar-qaaaq-cai");
 
   type AssetInfo = {
     ledgerPrincipal : Principal;
@@ -161,6 +173,25 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     };
   };
 
+  type BtcNotifyResult = {
+    #Ok : {
+      deposit_inc : Nat;
+      credit_inc : Nat;
+      credit : Int;
+    };
+    #Err : {
+      #CallLedgerError : { message : Text };
+      #NotAvailable : { message : Text };
+    } or BtcHandler.NotifyError;
+  };
+
+  type BtcWithdrawResult = {
+    #Ok : { block_index : Nat64 };
+    #Err : {
+      #InsufficientCredit : {};
+    } or BtcHandler.ApproveError or BtcHandler.RetrieveBtcWithApprovalError;
+  };
+
   let quoteAssetId : Auction.AssetId = 0;
 
   func createAssetInfo_(ledgerPrincipal : Principal, minAskVolume : Nat, decimals : Nat, symbol : Text, tokenHandlerStableData : ?TokenHandler.StableData) : AssetInfo {
@@ -206,9 +237,6 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     },
   );
   auction.unshare(auctionDataV8);
-
-  // each 2 minutes
-  let AUCTION_INTERVAL_SECONDS : Nat64 = 120;
 
   // will be set in startAuctionTimer_
   // this timestamp is set right before starting auction execution
@@ -405,30 +433,25 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     Vec.toArray(ret);
   };
 
-  public shared ({ caller }) func icrc84_notify(args : { token : Principal }) : async NotifyResult {
-    notifyCounter.add(1);
-    let assetId = switch (getAssetId(args.token)) {
-      case (?aid) aid;
-      case (_) return #Err(#NotAvailable({ message = "Unknown token" }));
-    };
+  private func notify(p : Principal, assetId : Auction.AssetId) : async* NotifyResult {
     let assetInfo = Vec.get(assets, assetId);
     let result = try {
-      await* assetInfo.handler.notify(caller);
+      await* assetInfo.handler.notify(p);
     } catch (err) {
       return #Err(#CallLedgerError({ message = Error.message(err) }));
     };
     switch (result) {
       case (?(depositInc, creditInc)) {
-        let userCredit = assetInfo.handler.userCredit(caller);
+        let userCredit = assetInfo.handler.userCredit(p);
         if (userCredit > 0) {
           let inc = Int.abs(userCredit);
-          assert assetInfo.handler.debitUser(caller, inc);
-          ignore auction.appendCredit(caller, assetId, inc);
-          assert auction.appendLoyaltyPoints(caller, #wallet);
+          assert assetInfo.handler.debitUser(p, inc);
+          ignore auction.appendCredit(p, assetId, inc);
+          ignore auction.appendLoyaltyPoints(p, #wallet);
           #Ok({
             deposit_inc = depositInc;
             credit_inc = creditInc;
-            credit = auction.getCredit(caller, assetId).available;
+            credit = auction.getCredit(p, assetId).available;
           });
         } else {
           #Err(#NotAvailable({ message = "Deposit was not detected" }));
@@ -436,6 +459,12 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       };
       case (null) #Err(#NotAvailable({ message = "Deposit was not detected" }));
     };
+  };
+
+  public shared ({ caller }) func icrc84_notify(args : { token : Principal }) : async NotifyResult {
+    notifyCounter.add(1);
+    let ?assetId = getAssetId(args.token) else return #Err(#NotAvailable({ message = "Unknown token" }));
+    await* notify(caller, assetId);
   };
 
   public shared ({ caller }) func icrc84_deposit(args : { token : Principal; amount : Nat; from : { owner : Principal; subaccount : ?Blob }; expected_fee : ?Nat }) : async DepositResult {
@@ -450,7 +479,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
           let credited = Int.abs(userCredit);
           assert assetInfo.handler.debitUser(caller, credited);
           ignore auction.appendCredit(caller, assetId, credited);
-          assert auction.appendLoyaltyPoints(caller, #wallet);
+          ignore auction.appendLoyaltyPoints(caller, #wallet);
           #Ok({
             credit_inc = creditInc;
             txid = txid;
@@ -490,7 +519,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     switch (res) {
       case (#ok(txid, amount)) {
         doneCallback();
-        assert auction.appendLoyaltyPoints(caller, #wallet);
+        ignore auction.appendLoyaltyPoints(caller, #wallet);
         #Ok({ txid; amount });
       };
       case (#err err) {
@@ -503,6 +532,56 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
         };
       };
     };
+  };
+
+  let btcHandler : BtcHandler.BtcHandler = BtcHandler.BtcHandler(Principal.fromActor(self), CKBTC_LEDGER_PRINCIPAL, CKBTC_MINTER_PRINCIPAL);
+
+  public shared ({ caller }) func btc_depositAddress(p : ?Principal) : async Text {
+    let ?_ = getAssetId(CKBTC_LEDGER_PRINCIPAL) else throw Error.reject("BTC is not supported");
+    await* btcHandler.getDepositAddress(Option.get(p, caller));
+  };
+
+  public shared ({ caller }) func btc_notify() : async BtcNotifyResult {
+    let ?ckbtcAssetId = getAssetId(CKBTC_LEDGER_PRINCIPAL) else throw Error.reject("BTC is not supported");
+    switch (await* btcHandler.notify(caller)) {
+      case (#ok) await* notify(caller, ckbtcAssetId);
+      case (#err err) #Err(err);
+    };
+  };
+
+  public shared ({ caller }) func btc_withdraw(args : { to : Text; amount : Nat }) : async BtcWithdrawResult {
+    let ?ckbtcAssetId = getAssetId(CKBTC_LEDGER_PRINCIPAL) else throw Error.reject("BTC is not supported");
+    let handler = Vec.get(assets, ckbtcAssetId).handler;
+
+    let (rollbackCredit, doneCallback) = switch (auction.deductCredit(caller, ckbtcAssetId, args.amount)) {
+      case (#err _) return #Err(#InsufficientCredit({}));
+      case (#ok(_, r, d)) (r, d);
+    };
+    let withdrawalResult = switch (
+      await* btcHandler.withdraw(args.to, args.amount, handler.ledgerFee())
+    ) {
+      case (#Err(#BadFee(_))) {
+        // update fees in token handler and try again
+        ignore await* handler.fetchFee();
+        await* btcHandler.withdraw(args.to, args.amount, handler.ledgerFee());
+      };
+      case (#Err(x)) #Err(x);
+      case (#Ok(x)) #Ok(x);
+    };
+    switch (withdrawalResult) {
+      case (#Err err) {
+        rollbackCredit();
+        #Err(err);
+      };
+      case (#Ok { block_index }) {
+        doneCallback();
+        ignore auction.appendLoyaltyPoints(caller, #wallet);
+        #Ok({ block_index });
+      };
+    };
+  };
+  public shared func btc_withdrawal_status(arg : { block_index : Nat64 }) : async BtcHandler.RetrieveBtcStatusV2 {
+    await* btcHandler.getWithdrawalStatus(arg);
   };
 
   public shared query func getQuoteLedger() : async Principal = async quoteLedgerPrincipal;
