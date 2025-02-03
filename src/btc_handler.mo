@@ -1,3 +1,4 @@
+import Int "mo:base/Int";
 import Nat64 "mo:base/Nat64";
 import Principal "mo:base/Principal";
 import R "mo:base/Result";
@@ -174,9 +175,13 @@ module {
       #Ok : { block_index : Nat64 };
       #Err : ApproveError or RetrieveBtcWithApprovalError;
     } {
+      if (amount < expected_fee * 2) {
+        return #Err(#GenericError({ error_code = 0; message = "Amount is too low" }));
+      };
+      let allowanceAmount = Int.abs(amount - expected_fee); // take allowance creation fee into account
       let approveRes = await ckbtcLedger.icrc2_approve({
         from_subaccount = null;
-        amount;
+        amount = allowanceAmount;
         spender = { owner = ckbtcMinterPrincipal; subaccount = null };
         fee = ?expected_fee;
         expected_allowance = null;
@@ -189,7 +194,7 @@ module {
         case (#Ok _) {
           await ckbtcMinter.retrieve_btc_with_approval({
             address;
-            amount = Nat64.fromNat(amount - expected_fee);
+            amount = Nat64.fromNat(allowanceAmount - expected_fee);
             from_subaccount = null;
           });
         };
