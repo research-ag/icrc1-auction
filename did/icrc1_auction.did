@@ -225,6 +225,123 @@ service : (opt principal, opt principal) -> {
   icrc84_deposit : (DepositArgs) -> (DepositResponse);
   icrc84_withdraw : (WithdrawArgs) -> (WithdrawResponse);
 
+  // BTC API
+
+  btc_depositAddress : (opt principal) -> (text);
+  btc_notify : () -> (
+    variant {
+      Ok : record {
+        credit : int;
+        credit_inc : nat;
+        deposit_inc : nat;
+      };
+      Err : variant {
+        AlreadyProcessing;
+        CallLedgerError : record { message : text };
+        GenericError : record {
+          error_code : nat64;
+          error_message : text;
+        };
+        NoNewUtxos : record {
+          current_confirmations : opt nat32;
+          pending_utxos : opt vec record {
+            confirmations : nat32;
+            outpoint : record {
+              txid : vec nat8;
+              vout : nat32;
+            };
+            value : nat64;
+          };
+          required_confirmations : nat32;
+          suspended_utxos : opt vec record {
+            earliest_retry : nat64;
+            reason : variant {
+              Quarantined;
+              ValueTooSmall;
+            };
+            utxo : record {
+              height : nat32;
+              outpoint : record {
+                txid : vec nat8;
+                vout : nat32;
+              };
+              value : nat64;
+            };
+          };
+        };
+        NotAvailable : record { message : text };
+        TemporarilyUnavailable : text;
+        NotMinted;
+      };
+    }
+  );
+  btc_withdraw : (
+    record {
+      amount : nat;
+      to : text;
+    }
+  ) -> (
+    variant {
+      Ok : record { block_index : nat64 };
+      Err : variant {
+        AllowanceChanged : record { current_allowance : nat };
+        AlreadyProcessing;
+        AmountTooLow : nat64;
+        BadFee : record { expected_fee : nat };
+        CreatedInFuture : record { ledger_time : nat64 };
+        Duplicate : record { duplicate_of : nat };
+        Expired : record { ledger_time : nat64 };
+        GenericError : record { error_code : reserved };
+        InsufficientAllowance : record { allowance : nat64 };
+        InsufficientCredit : record {};
+        InsufficientFunds : record { balance : reserved };
+        MalformedAddress : text;
+        TemporarilyUnavailable : reserved;
+        TooOld;
+      };
+    }
+  );
+  btc_withdrawal_status : (record { block_index : nat64 }) -> (
+    variant {
+      AmountTooLow;
+      Confirmed : record { txid : blob };
+      Pending;
+      Reimbursed : record {
+        account : record {
+          owner : principal;
+          subaccount : opt blob;
+        };
+        amount : nat64;
+        mint_block_index : nat64;
+        reason : variant {
+          CallFailed;
+          TaintedDestination : record {
+            kyt_fee : nat64;
+            kyt_provider : principal;
+          };
+        };
+      };
+      Sending : record { txid : blob };
+      Signing;
+      Submitted : record { txid : blob };
+      Unknown;
+      WillReimburse : record {
+        account : record {
+          owner : principal;
+          subaccount : opt blob;
+        };
+        amount : nat64;
+        reason : variant {
+          CallFailed;
+          TaintedDestination : record {
+            kyt_fee : nat64;
+            kyt_provider : principal;
+          };
+        };
+      };
+    }
+  );
+
   // auction API
 
   // system queries
