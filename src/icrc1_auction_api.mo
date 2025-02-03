@@ -528,7 +528,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     };
   };
 
-  public shared ({ caller }) func btc_withdraw(args : { to : Text; amount : Nat; expected_fee : ?Nat }) : async BtcWithdrawResult {
+  public shared ({ caller }) func btc_withdraw(args : { to : Text; amount : Nat }) : async BtcWithdrawResult {
     let ?ckbtcAssetId = getAssetId(CKBTC_LEDGER_PRINCIPAL) else throw Error.reject("BTC is not supported");
     let handler = Vec.get(assets, ckbtcAssetId).handler;
 
@@ -537,20 +537,15 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       case (#ok(_, r, d)) (r, d);
     };
     let withdrawalResult = switch (
-      await* btcHandler.withdraw(
-        args.to,
-        args.amount,
-        Option.get<Nat>(args.expected_fee, handler.ledgerFee()),
-      ),
-      args.expected_fee,
+      await* btcHandler.withdraw(args.to, args.amount, handler.ledgerFee())
     ) {
-      case (#Err(#BadFee(_)), null) {
-        // if user provided expected fee null, and we got BadFee error, update fees in token handler and try again
+      case (#Err(#BadFee(_))) {
+        // update fees in token handler and try again
         ignore await* handler.fetchFee();
         await* btcHandler.withdraw(args.to, args.amount, handler.ledgerFee());
       };
-      case (#Err(x), _) #Err(x);
-      case (#Ok(x), _) #Ok(x);
+      case (#Err(x)) #Err(x);
+      case (#Ok(x)) #Ok(x);
     };
     switch (withdrawalResult) {
       case (#Err err) {

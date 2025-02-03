@@ -445,7 +445,6 @@ export const useWithdrawBtc = () => {
       auction.btc_withdraw({
         to: formObj.address,
         amount: BigInt(formObj.amount),
-        expected_fee: [],
       }),
     {
       onSuccess: res => {

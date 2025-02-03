@@ -260,7 +260,6 @@ service : (opt principal, opt principal) -> {
   btc_withdraw : (
     record {
       amount : nat;
-      expected_fee : opt nat;
       to : text;
     }
   ) -> (

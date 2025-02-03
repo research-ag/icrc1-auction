@@ -171,19 +171,19 @@ module {
       #ok();
     };
 
-    public func withdraw(address : Text, amount : Nat, expected_fee : Nat) : async* {
+    public func withdraw(address : Text, amount : Nat, ledgerFee : Nat) : async* {
       #Ok : { block_index : Nat64 };
       #Err : ApproveError or RetrieveBtcWithApprovalError;
     } {
-      if (amount < expected_fee * 2) {
+      if (amount < ledgerFee * 2) {
         return #Err(#GenericError({ error_code = 0; message = "Amount is too low" }));
       };
-      let allowanceAmount = Int.abs(amount - expected_fee); // take allowance creation fee into account
+      let allowanceAmount = Int.abs(amount - ledgerFee); // take allowance creation fee into account
       let approveRes = await ckbtcLedger.icrc2_approve({
         from_subaccount = null;
         amount = allowanceAmount;
         spender = { owner = ckbtcMinterPrincipal; subaccount = null };
-        fee = ?expected_fee;
+        fee = ?ledgerFee;
         expected_allowance = null;
         created_at_time = null;
         expires_at = null;
@@ -194,7 +194,7 @@ module {
         case (#Ok _) {
           await ckbtcMinter.retrieve_btc_with_approval({
             address;
-            amount = Nat64.fromNat(allowanceAmount - expected_fee);
+            amount = Nat64.fromNat(allowanceAmount - ledgerFee);
             from_subaccount = null;
           });
         };
