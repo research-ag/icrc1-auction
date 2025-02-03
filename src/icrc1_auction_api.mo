@@ -540,14 +540,14 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       await* btcHandler.withdraw(
         args.to,
         args.amount,
-        Option.get<Nat>(args.expected_fee, handler.fee(#allowance)),
+        Option.get<Nat>(args.expected_fee, handler.ledgerFee()),
       ),
       args.expected_fee,
     ) {
       case (#Err(#BadFee(_)), null) {
         // if user provided expected fee null, and we got BadFee error, update fees in token handler and try again
         ignore await* handler.fetchFee();
-        await* btcHandler.withdraw(args.to, args.amount, handler.fee(#allowance));
+        await* btcHandler.withdraw(args.to, args.amount, handler.ledgerFee());
       };
       case (#Err(x), _) #Err(x);
       case (#Ok(x), _) #Ok(x);
