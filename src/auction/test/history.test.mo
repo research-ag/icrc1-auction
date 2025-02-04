@@ -27,7 +27,7 @@ do {
   auction.processAsset(ft2);
   auction.processAsset(ft3);
 
-  let history = Iter.toArray(auction.getPriceHistory(null, #asc, false));
+  let history = Iter.toArray(auction.getPriceHistory([], #asc, false));
   assert history.size() == 3;
   assert history[0].2 == ft1;
   assert history[0].3 == 1_000;
@@ -63,7 +63,7 @@ do {
   auction.processAsset(ft2);
   auction.processAsset(ft3);
 
-  let history = Iter.toArray(auction.getPriceHistory(null, #desc, false));
+  let history = Iter.toArray(auction.getPriceHistory([], #desc, false));
   assert history.size() == 3;
   assert history[0].2 == ft3;
   assert history[0].3 == 0;
@@ -99,7 +99,7 @@ do {
   auction.processAsset(ft2);
   auction.processAsset(ft3);
 
-  let history = Iter.toArray(auction.getPriceHistory(null, #desc, true));
+  let history = Iter.toArray(auction.getPriceHistory([], #desc, true));
   assert history.size() == 2;
   assert history[0].2 == ft2;
   assert history[0].3 == 1_000;
@@ -129,7 +129,7 @@ do {
   auction.processAsset(ft1);
   auction.processAsset(ft2);
 
-  let history = Iter.toArray(auction.getTransactionHistory(user, null, #asc));
+  let history = Iter.toArray(auction.getTransactionHistory(user, [], #asc));
   assert history[0].3 == ft1;
   assert history[1].3 == ft2;
 };
@@ -154,7 +154,7 @@ do {
   auction.processAsset(ft1);
   auction.processAsset(ft2);
 
-  let history = Iter.toArray(auction.getTransactionHistory(user, null, #desc));
+  let history = Iter.toArray(auction.getTransactionHistory(user, [], #desc));
   assert history[0].3 == ft2;
   assert history[1].3 == ft1;
 };

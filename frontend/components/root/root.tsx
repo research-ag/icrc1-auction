@@ -16,6 +16,7 @@ import {
   useQuoteLedger,
   useSessionsCounter,
   useTokenInfoMap,
+  useAuctionQuery,
 } from '@fe/integration';
 import { useEffect, useState } from 'react';
 import Credits from '../credits';
@@ -42,7 +43,8 @@ const Root = () => {
   const { data: quoteLedger } = useQuoteLedger();
   const { data: symbols } = useTokenInfoMap();
   const { data: minimumOrder } = useMinimumOrder();
-  const { data: points } = usePoints();
+  const { data: auctionQuery } = useAuctionQuery();
+  const { data: points } = usePoints(auctionQuery);
   const getInfo = (ledger: Principal): { symbol: string, decimals: number } => {
     try {
       const mapItem = (symbols || []).find(([p, s]) => p.toText() == ledger.toText());
@@ -84,9 +86,7 @@ const Root = () => {
       setIdentity(newIdentity);
       const queryClient = useQueryClient();
       await Promise.all([
-        queryClient.invalidateQueries('myCredits'),
-        queryClient.invalidateQueries('myBids'),
-        queryClient.invalidateQueries('myAsks'),
+        queryClient.invalidateQueries('auctionQuery'),
         queryClient.invalidateQueries('transaction-history'),
         queryClient.invalidateQueries('deposit-history'),
       ]);

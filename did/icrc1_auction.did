@@ -1,6 +1,7 @@
 type Token = principal;
 type Amount = nat;
 type AccountRevision = nat;
+type SessionNumber = nat;
 
 type TokenInfo = record {
   allowance_fee : Amount;
@@ -374,6 +375,45 @@ service : (opt principal, opt principal) -> {
   // return values are: timestamp in nanoseconds; number of auction session; ICRC1 ledger principal; volume sold; price
   queryPriceHistory : (opt Token, nat, nat, bool) -> (vec record { nat64; nat; Token; nat; float64 }) query;
   queryImmediatePriceHistory : (opt Token, nat, nat) -> (vec record { nat64; nat; Token; nat; float64 }) query;
+
+  auction_query : (
+    vec Token,
+    record {
+      session_numbers : opt bool;
+      asks : opt bool;
+      bids : opt bool;
+      credits : opt bool;
+      deposit_history : opt record { nat; nat };
+      transaction_history : opt record { nat; nat };
+      price_history : opt record { nat; nat; bool };
+    },
+  ) -> (
+    record {
+      session_numbers : vec record { Token; SessionNumber };
+      asks : vec record { OrderId; Order };
+      bids : vec record { OrderId; Order };
+      credits : vec record {
+        Token;
+        record { total : nat; available : nat; locked : nat };
+      };
+      deposit_history : vec record {
+        nat64;
+        variant { deposit; withdrawal };
+        Token;
+        nat;
+      };
+      transaction_history : vec record {
+        nat64;
+        nat;
+        variant { ask; bid };
+        Token;
+        nat;
+        float64;
+      };
+      price_history : vec record { nat64; nat; Token; nat; float64 };
+      points : nat;
+    }
+  ) query;
 
   // update
   manageOrders : (opt CancellationArg, PlaceArg, opt AccountRevision) -> (ManageOrdersResponse);

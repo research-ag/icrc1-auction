@@ -5,6 +5,7 @@ import { useIdentity } from './identity';
 import { Principal } from '@dfinity/principal';
 import { useMemo } from 'react';
 import { createActor } from '@declarations/icrc1_auction_continous';
+import { AuctionQueryResponse } from "@declarations/icrc1_auction/icrc1_auction_development.did";
 import { createActor as createLedgerActor } from '@declarations/icrc1_ledger_mock';
 
 // Custom replacer function for JSON.stringify
@@ -14,6 +15,19 @@ const bigIntReplacer = (key: string, value: any): any => {
   }
   return value;
 };
+
+const replaceBigInts = <T>(obj: T): T => {
+  if (typeof obj === 'bigint') {
+    return Number(obj) as any;
+  } else if (Array.isArray(obj)) {
+    return obj.map(replaceBigInts) as any;
+  } else if (obj !== null && typeof obj === 'object' && !(obj instanceof Principal)) {
+    return Object.fromEntries(
+      Object.entries(obj).map(([key, value]) => [key, replaceBigInts(value)])
+    ) as any;
+  }
+  return obj;
+}
 
 export const defaultAuctionCanisterId = "kkmxt-jqaaa-aaaap-anwoq-cai";
 
@@ -28,10 +42,8 @@ export const updateAuctionCanisterId = (ps: string) => {
     queryClient.invalidateQueries('admins'),
     queryClient.invalidateQueries('assets'),
     queryClient.invalidateQueries('assetInfos'),
-    queryClient.invalidateQueries('myCredits'),
     queryClient.invalidateQueries('deposit-history'),
-    queryClient.invalidateQueries('myBids'),
-    queryClient.invalidateQueries('myAsks'),
+    queryClient.invalidateQueries('auctionQuery'),
   ]).then();
 };
 
@@ -195,56 +207,52 @@ export const useTokenInfoMap = () => {
   );
 };
 
-export const useListOrders = (kind: 'ask' | 'bid') => {
+export const useAuctionQuery = () => {
   const { auction } = useAuction();
   const { enqueueSnackbar } = useSnackbar();
   return useQuery(
-    kind === 'bid' ? 'myBids' : 'myAsks',
+    'auctionQuery',
     async () => {
-      const [res, accountRev] = await (kind === 'bid' ? auction.queryBids() : auction.queryAsks());
-      return res;
+      return replaceBigInts(await auction.auction_query([], {
+        asks: [true],
+        bids: [true],
+        credits: [true],
+        session_numbers: [],
+        deposit_history: [[BigInt(10000), BigInt(0)]],
+        transaction_history: [[BigInt(10000), BigInt(0)]],
+        price_history: []
+      }));
     },
     {
       onError: err => {
-        enqueueSnackbar(`Failed to fetch ${kind}s: ${err}`, { variant: 'error' });
-        useQueryClient().removeQueries('bid' ? 'myBids' : 'myAsks');
+        enqueueSnackbar(`Failed to query auction: ${err}`, { variant: 'error' });
+        useQueryClient().removeQueries('auctionQuery');
       },
     },
   );
 };
 
-export const useListCredits = () => {
-  const { auction } = useAuction();
-  const { enqueueSnackbar } = useSnackbar();
+export const useListOrders = (auctionQueryData: AuctionQueryResponse | undefined, kind: 'ask' | 'bid') => {
   return useQuery(
-    'myCredits',
-    async () => {
-      const [res, accountRev] = await auction.queryCredits();
-      return res;
-    },
-    {
-      onError: err => {
-        enqueueSnackbar(`Failed to fetch credits: ${err}`, { variant: 'error' });
-        useQueryClient().removeQueries('myCredits');
-      },
-    },
+    [kind === 'bid' ? 'myBids' : 'myAsks', auctionQueryData],
+    async () => (kind === 'ask' ? auctionQueryData?.asks : auctionQueryData?.bids) || [],
+    { enabled: !!auctionQueryData }
   );
 };
 
-export const usePoints = () => {
-  const { auction } = useAuction();
-  const { enqueueSnackbar } = useSnackbar();
+export const useListCredits = (auctionQueryData: AuctionQueryResponse | undefined) => {
   return useQuery(
-    'points',
-    async () => {
-      return auction.queryPoints();
-    },
-    {
-      onError: err => {
-        enqueueSnackbar(`Failed to fetch points: ${err}`, { variant: 'error' });
-        useQueryClient().removeQueries('points');
-      },
-    },
+    ['myCredits', auctionQueryData],
+    async () => auctionQueryData?.credits || [],
+    { enabled: !!auctionQueryData }
+  );
+};
+
+export const usePoints = (auctionQueryData: AuctionQueryResponse | undefined) => {
+  return useQuery(
+    ['myPoints', auctionQueryData],
+    async () => auctionQueryData?.points || 0,
+    { enabled: !!auctionQueryData }
   );
 };
 
@@ -257,7 +265,7 @@ export const useNotify = () => {
       if ('Err' in res) {
         enqueueSnackbar(`Failed to deposit: ${JSON.stringify(res.Err, bigIntReplacer)}`, { variant: 'error' });
       } else {
-        queryClient.invalidateQueries('myCredits');
+        queryClient.invalidateQueries('auctionQuery');
         queryClient.invalidateQueries('deposit-history');
         enqueueSnackbar(`Deposited ${Number(res.Ok.credit_inc)} tokens successfully`, { variant: 'success' });
       }
@@ -321,7 +329,7 @@ export const useDeposit = () => {
         if ('Err' in res) {
           enqueueSnackbar(`Failed to deposit: ${JSON.stringify(res.Err, bigIntReplacer)}`, { variant: 'error' });
         } else {
-          queryClient.invalidateQueries('myCredits');
+          queryClient.invalidateQueries('auctionQuery');
           enqueueSnackbar(`Deposited ${Number(res.Ok.credit_inc)} tokens successfully`, { variant: 'success' });
         }
       },
@@ -349,7 +357,7 @@ export const usePlaceOrder = (kind: 'ask' | 'bid') => {
             variant: 'error',
           });
         } else if ('Ok' in res) {
-          queryClient.invalidateQueries(kind === 'bid' ? 'myBids' : 'myAsks');
+          queryClient.invalidateQueries('auctionQuery');
           let orderId = res['Ok'][0];
           if ('placed' in res['Ok'][1]) {
             enqueueSnackbar(`${kind} placed, order ID: ${orderId}`, { variant: 'success' });
@@ -379,7 +387,7 @@ export const useCancelOrder = (kind: 'ask' | 'bid') => {
             variant: 'error',
           });
         } else {
-          queryClient.invalidateQueries(kind === 'bid' ? 'myBids' : 'myAsks');
+          queryClient.invalidateQueries('auctionQuery');
           enqueueSnackbar(`${kind} cancelled`, { variant: 'success' });
         }
       },
@@ -390,37 +398,19 @@ export const useCancelOrder = (kind: 'ask' | 'bid') => {
   );
 };
 
-export const useDepositHistory = () => {
-  const { auction } = useAuction();
-  const { enqueueSnackbar } = useSnackbar();
+export const useDepositHistory = (auctionQueryData: AuctionQueryResponse | undefined) => {
   return useQuery(
-    'deposit-history',
-    async () => {
-      return auction.queryDepositHistory([], BigInt(10000), BigInt(0));
-    },
-    {
-      onError: err => {
-        enqueueSnackbar(`Failed to fetch deposit history: ${err}`, { variant: 'error' });
-        useQueryClient().removeQueries('deposit-history');
-      },
-    },
+    ['deposit-history', auctionQueryData],
+    async () => auctionQueryData?.deposit_history || [],
+    { enabled: !!auctionQueryData }
   );
 };
 
-export const useTransactionHistory = () => {
-  const { auction } = useAuction();
-  const { enqueueSnackbar } = useSnackbar();
+export const useTransactionHistory = (auctionQueryData: AuctionQueryResponse | undefined) => {
   return useQuery(
-    'transaction-history',
-    async () => {
-      return auction.queryTransactionHistory([], BigInt(10000), BigInt(0));
-    },
-    {
-      onError: err => {
-        enqueueSnackbar(`Failed to fetch transaction history: ${err}`, { variant: 'error' });
-        useQueryClient().removeQueries('transaction-history');
-      },
-    },
+    ['transaction-history', auctionQueryData],
+    async () => auctionQueryData?.transaction_history || [],
+    { enabled: !!auctionQueryData }
   );
 };
 
@@ -431,7 +421,16 @@ export const usePriceHistory = (limit: number, offset: number) => {
   return useQuery(
     ['price-history', offset],
     async () => {
-      return auction.queryPriceHistory([], BigInt(limit), BigInt(offset), false);
+      const res = await auction.auction_query([], {
+        asks: [],
+        bids: [],
+        credits: [],
+        session_numbers: [],
+        deposit_history: [],
+        transaction_history: [],
+        price_history: [[BigInt(limit), BigInt(offset), false]]
+      });
+      return res.price_history;
     },
     {
       keepPreviousData: true,
@@ -493,7 +492,7 @@ export const useWithdrawCredit = () => {
             variant: 'error',
           });
         } else {
-          queryClient.invalidateQueries('myCredits');
+          queryClient.invalidateQueries('auctionQuery');
           queryClient.invalidateQueries('deposit-history');
           enqueueSnackbar(`Credit withdrawn successfully`, { variant: 'success' });
         }

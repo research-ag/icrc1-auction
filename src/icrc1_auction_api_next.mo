@@ -126,6 +126,27 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   type UpperResult<Ok, Err> = { #Ok : Ok; #Err : Err };
 
+  type AuctionQuerySelection = {
+    session_numbers : ?Bool;
+    asks : ?Bool;
+    bids : ?Bool;
+    credits : ?Bool;
+    deposit_history : ?(limit : Nat, skip : Nat);
+    transaction_history : ?(limit : Nat, skip : Nat);
+    price_history : ?(limit : Nat, skip : Nat, skipEmpty : Bool);
+  };
+
+  type AuctionQueryResponse = {
+    session_numbers : [(Principal, Nat)];
+    asks : [(Auction.OrderId, Order)];
+    bids : [(Auction.OrderId, Order)];
+    credits : [(Principal, Auction.CreditInfo)];
+    deposit_history : [DepositHistoryItem];
+    transaction_history : [TransactionHistoryItem];
+    price_history : [PriceHistoryItem];
+    points : Nat;
+  };
+
   type PriceHistoryItem = (timestamp : Nat64, sessionNumber : Nat, ledgerPrincipal : Principal, volume : Nat, price : Float);
   type DepositHistoryItem = (timestamp : Nat64, kind : { #deposit; #withdrawal }, ledgerPrincipal : Principal, volume : Nat);
   type TransactionHistoryItem = (timestamp : Nat64, sessionNumber : Nat, kind : { #ask; #bid }, ledgerPrincipal : Principal, volume : Nat, price : Float);
@@ -333,7 +354,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     ignore metrics.addPullValue(
       "last_price",
       labels,
-      func() = auction.getPriceHistory(?assetId, #desc, false).next()
+      func() = auction.getPriceHistory([assetId], #desc, false).next()
       |> (
         switch (_) {
           case (?item) renderPrice(item.4);
@@ -344,7 +365,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     ignore metrics.addPullValue(
       "last_volume",
       labels,
-      func() = auction.getPriceHistory(?assetId, #desc, false).next()
+      func() = auction.getPriceHistory([assetId], #desc, false).next()
       |> (
         switch (_) {
           case (?item) item.3;
@@ -652,31 +673,178 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   };
 
   public shared query ({ caller }) func queryDepositHistory(token : ?Principal, limit : Nat, skip : Nat) : async [DepositHistoryItem] {
-    let assetId : ?Auction.AssetId = switch (token) {
-      case (null) null;
-      case (?aid) getAssetId(aid);
+    let assetIds : [Auction.AssetId] = switch (token) {
+      case (null) [];
+      case (?p) {
+        let ?aid = getAssetId(p) else throw Error.reject("Unknown token " # Principal.toText(p));
+        [aid];
+      };
     };
-    auction.getDepositHistory(caller, assetId, #desc)
+    auction.getDepositHistory(caller, assetIds, #desc)
     |> U.sliceIter(_, limit, skip)
     |> Array.map<Auction.DepositHistoryItem, DepositHistoryItem>(_, func(x) = (x.0, x.1, Vec.get(assets, x.2).ledgerPrincipal, x.3));
   };
 
   public shared query ({ caller }) func queryTransactionHistory(token : ?Principal, limit : Nat, skip : Nat) : async [TransactionHistoryItem] {
-    let assetId : ?Auction.AssetId = switch (token) {
-      case (null) null;
-      case (?aid) getAssetId(aid);
+    let assetIds : [Auction.AssetId] = switch (token) {
+      case (null) [];
+      case (?p) {
+        let ?aid = getAssetId(p) else throw Error.reject("Unknown token " # Principal.toText(p));
+        [aid];
+      };
     };
-    auction.getTransactionHistory(caller, assetId, #desc)
+    auction.getTransactionHistory(caller, assetIds, #desc)
     |> U.sliceIter(_, limit, skip)
     |> Array.map<Auction.TransactionHistoryItem, TransactionHistoryItem>(_, func(x) = (x.0, x.1, x.2, Vec.get(assets, x.3).ledgerPrincipal, x.4, x.5));
   };
 
-  public shared query func queryPriceHistory(token : ?Principal, limit : Nat, skip : Nat, skipEmpty : Bool) : async [PriceHistoryItem] {
-    let assetId : ?Auction.AssetId = switch (token) {
-      case (null) null;
-      case (?aid) getAssetId(aid);
+  private func _auction_query(p : Principal, tokens : [Principal], selection : AuctionQuerySelection) : R.Result<AuctionQueryResponse, Principal> {
+
+    func retrieveElements<T>(select : ?Bool, getFunc : (?Auction.AssetId) -> [T]) : R.Result<[T], Principal> {
+      switch (select) {
+        case (?true) {};
+        case (_) return #ok([]);
+      };
+      switch (tokens.size()) {
+        case (0) #ok(getFunc(null));
+        case (_) {
+          let v : Vec.Vector<T> = Vec.new();
+          for (p in tokens.vals()) {
+            let ?assetId = getAssetId(p) else return #err(p);
+            Vec.addFromIter(v, getFunc(?assetId).vals());
+          };
+          #ok(Vec.toArray(v));
+        };
+      };
     };
-    auction.getPriceHistory(assetId, #desc, skipEmpty)
+
+    func mapLedgersToAssetIds(tokens : [Principal]) : R.Result<[Nat], Principal> {
+      let res = Array.init<Nat>(tokens.size(), 0);
+      for (i in tokens.keys()) {
+        let ?assetId = getAssetId(tokens[i]) else return #err(tokens[i]);
+        res[i] := assetId;
+      };
+      #ok(Array.freeze(res));
+    };
+
+    let (sessionNumbers, asks, bids, credits) = switch (
+      retrieveElements<(Auction.AssetId, Nat)>(
+        selection.session_numbers,
+        func(assetId) = switch (assetId) {
+          case (null) Array.tabulate<(Auction.AssetId, Nat)>(auction.assets.nAssets(), func(i) = (i, auction.getAssetSessionNumber(i)));
+          case (?aid) [(aid, auction.getAssetSessionNumber(aid))];
+        },
+      ),
+      retrieveElements<(Auction.OrderId, Auction.Order)>(selection.asks, func(assetId) = auction.getOrders(p, #ask, assetId)),
+      retrieveElements<(Auction.OrderId, Auction.Order)>(selection.bids, func(assetId) = auction.getOrders(p, #bid, assetId)),
+      retrieveElements<(Auction.AssetId, Auction.CreditInfo)>(
+        selection.credits,
+        func(assetId) = switch (assetId) {
+          case (null) auction.getCredits(p);
+          case (?aid) [(aid, auction.getCredit(p, aid))];
+        },
+      ),
+    ) {
+      case (#ok sn, #ok a, #ok b, #ok c) (sn, a, b, c);
+      case ((#err p, _, _, _) or (_, #err p, _, _) or (_, _, #err p, _) or (_, _, _, #err p)) return #err(p);
+    };
+    #ok({
+      session_numbers = sessionNumbers |> Array.tabulate<(Principal, Nat)>(_.size(), func(i) = (getIcrc1Ledger(_ [i].0), _ [i].1));
+      asks = asks |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = (_ [i].0, mapOrder(_ [i].1)));
+      bids = bids |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = (_ [i].0, mapOrder(_ [i].1)));
+      credits = credits |> Array.tabulate<(Principal, Auction.CreditInfo)>(_.size(), func(i) = (getIcrc1Ledger(_ [i].0), _ [i].1));
+      deposit_history = switch (selection.deposit_history) {
+        case (?(limit, skip)) {
+          (
+            switch (mapLedgersToAssetIds(tokens)) {
+              case (#ok aids) aids;
+              case (#err p) return #err(p);
+            }
+          )
+          |> auction.getDepositHistory(p, _, #desc)
+          |> U.sliceIter(_, limit, skip)
+          |> Array.map<Auction.DepositHistoryItem, DepositHistoryItem>(_, func(x) = (x.0, x.1, Vec.get(assets, x.2).ledgerPrincipal, x.3));
+        };
+        case (null) [];
+      };
+      transaction_history = switch (selection.transaction_history) {
+        case (?(limit, skip)) {
+          (
+            switch (mapLedgersToAssetIds(tokens)) {
+              case (#ok aids) aids;
+              case (#err p) return #err(p);
+            }
+          )
+          |> auction.getTransactionHistory(p, _, #desc)
+          |> U.sliceIter(_, limit, skip)
+          |> Array.map<Auction.TransactionHistoryItem, TransactionHistoryItem>(_, func(x) = (x.0, x.1, x.2, Vec.get(assets, x.3).ledgerPrincipal, x.4, x.5));
+        };
+        case (null) [];
+      };
+      price_history = switch (selection.price_history) {
+        case (?(limit, skip, skipEmpty)) {
+          (
+            switch (mapLedgersToAssetIds(tokens)) {
+              case (#ok aids) aids;
+              case (#err p) return #err(p);
+            }
+          )
+          |> auction.getPriceHistory(_, #desc, skipEmpty)
+          |> U.sliceIter(_, limit, skip)
+          |> Array.map<Auction.PriceHistoryItem, PriceHistoryItem>(_, func(x) = (x.0, x.1, Vec.get(assets, x.2).ledgerPrincipal, x.3, x.4));
+        };
+        case (null) [];
+      };
+      points = auction.getLoyaltyPoints(p);
+    });
+  };
+
+  public shared query ({ caller }) func auction_query(tokens : [Principal], selection : AuctionQuerySelection) : async AuctionQueryResponse {
+    switch (_auction_query(caller, tokens, selection)) {
+      case (#ok ret) ret;
+      case (#err p) throw Error.reject("Unknown token " # Principal.toText(p));
+    };
+  };
+
+  public shared query ({ caller }) func queryTransactionHistoryForward(token : ?Principal, limit : Nat, skip : Nat) : async ([TransactionHistoryItem], Nat, Bool) {
+    let assetIds : [Auction.AssetId] = switch (token) {
+      case (null) [];
+      case (?p) {
+        let ?aid = getAssetId(p) else throw Error.reject("Unknown token " # Principal.toText(p));
+        [aid];
+      };
+    };
+    let history = auction.getTransactionHistory(caller, assetIds, #asc)
+    |> U.sliceIter(_, limit, skip)
+    |> Array.map<Auction.TransactionHistoryItem, TransactionHistoryItem>(_, func(x) = (x.0, x.1, x.2, Vec.get(assets, x.3).ledgerPrincipal, x.4, x.5));
+
+    var sessionNumber : ?Nat = null;
+    var auctionInProgress : Bool = false;
+    for (aid in Vec.keys(assets)) {
+      let asn = auction.getAssetSessionNumber(aid);
+      switch (sessionNumber) {
+        case (null) sessionNumber := ?asn;
+        case (?sn) {
+          if (sn != asn) {
+            auctionInProgress := true;
+            sessionNumber := ?Nat.min(sn, asn);
+          };
+        };
+      };
+    };
+
+    (history, Option.get(sessionNumber, 0), auctionInProgress);
+  };
+
+  public shared query func queryPriceHistory(token : ?Principal, limit : Nat, skip : Nat, skipEmpty : Bool) : async [PriceHistoryItem] {
+    let assetIds : [Auction.AssetId] = switch (token) {
+      case (null) [];
+      case (?p) {
+        let ?aid = getAssetId(p) else throw Error.reject("Unknown token " # Principal.toText(p));
+        [aid];
+      };
+    };
+    auction.getPriceHistory(assetIds, #desc, skipEmpty)
     |> U.sliceIter(_, limit, skip)
     |> Array.map<Auction.PriceHistoryItem, PriceHistoryItem>(_, func(x) = (x.0, x.1, Vec.get(assets, x.2).ledgerPrincipal, x.3, x.4));
   };
@@ -912,21 +1080,12 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     };
   };
 
-  public shared query ({ caller }) func queryUserCredits(p : Principal) : async [(Principal, Auction.CreditInfo)] {
+  public shared query ({ caller }) func user_auction_query(user : Principal, tokens : [Principal], selection : AuctionQuerySelection) : async AuctionQueryResponse {
     assertAdminAccessSync(caller);
-    auction.getCredits(p) |> Array.tabulate<(Principal, Auction.CreditInfo)>(_.size(), func(i) = (getIcrc1Ledger(_ [i].0), _ [i].1));
-  };
-
-  public shared query ({ caller }) func queryUserBids(p : Principal) : async [(Auction.OrderId, Order)] {
-    assertAdminAccessSync(caller);
-    auction.getOrders(p, #bid, null)
-    |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = (_ [i].0, mapOrder(_ [i].1)));
-  };
-
-  public shared query ({ caller }) func queryUserAsks(p : Principal) : async [(Auction.OrderId, Order)] {
-    assertAdminAccessSync(caller);
-    auction.getOrders(p, #ask, null)
-    |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = (_ [i].0, mapOrder(_ [i].1)));
+    switch (_auction_query(user, tokens, selection)) {
+      case (#ok ret) ret;
+      case (#err p) throw Error.reject("Unknown token " # Principal.toText(p));
+    };
   };
 
   public shared query ({ caller }) func queryOrderBook(icrc1Ledger : Principal) : async {
@@ -952,28 +1111,6 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
         delayed = mapOrdersList(auction.listAssetOrders(assetId, #bid, #delayed));
       };
     };
-  };
-
-  public shared query ({ caller }) func queryUserDepositHistory(p : Principal, token : ?Principal, limit : Nat, skip : Nat) : async [DepositHistoryItem] {
-    assertAdminAccessSync(caller);
-    let assetId : ?Auction.AssetId = switch (token) {
-      case (null) null;
-      case (?aid) getAssetId(aid);
-    };
-    auction.getDepositHistory(p, assetId, #desc)
-    |> U.sliceIter(_, limit, skip)
-    |> Array.map<Auction.DepositHistoryItem, DepositHistoryItem>(_, func(x) = (x.0, x.1, Vec.get(assets, x.2).ledgerPrincipal, x.3));
-  };
-
-  public shared query ({ caller }) func queryUserTransactionHistory(p : Principal, token : ?Principal, limit : Nat, skip : Nat) : async [TransactionHistoryItem] {
-    assertAdminAccessSync(caller);
-    let assetId : ?Auction.AssetId = switch (token) {
-      case (null) null;
-      case (?aid) getAssetId(aid);
-    };
-    auction.getTransactionHistory(p, assetId, #desc)
-    |> U.sliceIter(_, limit, skip)
-    |> Array.map<Auction.TransactionHistoryItem, TransactionHistoryItem>(_, func(x) = (x.0, x.1, x.2, Vec.get(assets, x.3).ledgerPrincipal, x.4, x.5));
   };
 
   // Auction processing functionality
