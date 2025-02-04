@@ -213,13 +213,13 @@ export const useAuctionQuery = () => {
   return useQuery(
     'auctionQuery',
     async () => {
-      return replaceBigInts(await auction.auction_query({
-        asks: [[]],
-        bids: [[]],
-        credits: [[]],
-        session_numbers: [],
-        deposit_history: [[[], BigInt(10000), BigInt(0)]],
-        transaction_history: [[[], BigInt(10000), BigInt(0)]],
+      return replaceBigInts(await auction.auction_query([], {
+        asks: true,
+        bids: true,
+        credits: true,
+        session_numbers: false,
+        deposit_history: [[BigInt(10000), BigInt(0)]],
+        transaction_history: [[BigInt(10000), BigInt(0)]],
         price_history: []
       }));
     },
@@ -415,14 +415,14 @@ export const usePriceHistory = (limit: number, offset: number) => {
   return useQuery(
     ['price-history', offset],
     async () => {
-      const res = await auction.auction_query({
-        asks: [],
-        bids: [],
-        credits: [],
-        session_numbers: [],
+      const res = await auction.auction_query([], {
+        asks: false,
+        bids: false,
+        credits: false,
+        session_numbers: false,
         deposit_history: [],
         transaction_history: [],
-        price_history: [[[], BigInt(limit), BigInt(offset), false]]
+        price_history: [[BigInt(limit), BigInt(offset), false]]
       });
       return res.price_history;
     },

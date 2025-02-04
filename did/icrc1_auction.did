@@ -357,15 +357,16 @@ service : (opt principal, opt principal) -> {
   queryPriceHistory : (opt Token, nat, nat, bool) -> (vec record { nat64; nat; Token; nat; float64 }) query;
 
   auction_query : (
+    vec Token,
     record {
-      session_numbers : opt vec Token;
-      asks : opt vec Token;
-      bids : opt vec Token;
-      credits : opt vec Token;
-      deposit_history : opt record { opt vec Token; nat; nat };
-      transaction_history : opt record { opt vec Token; nat; nat };
-      price_history : opt record { opt vec Token; nat; nat; bool };
-    }
+      session_numbers : bool;
+      asks : bool;
+      bids : bool;
+      credits : bool;
+      deposit_history : opt record { nat; nat };
+      transaction_history : opt record { nat; nat };
+      price_history : opt record { nat; nat; bool };
+    },
   ) -> (
     record {
       session_numbers : vec record { Token; SessionNumber };

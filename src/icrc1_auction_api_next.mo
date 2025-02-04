@@ -124,14 +124,14 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   type UpperResult<Ok, Err> = { #Ok : Ok; #Err : Err };
 
-  type AuctionQueryArgs = {
-    session_numbers : ?[Principal];
-    asks : ?[Principal];
-    bids : ?[Principal];
-    credits : ?[Principal];
-    deposit_history : ?(tokens : [Principal], limit : Nat, skip : Nat);
-    transaction_history : ?(tokens : [Principal], limit : Nat, skip : Nat);
-    price_history : ?(tokens : [Principal], limit : Nat, skip : Nat, skipEmpty : Bool);
+  type AuctionQuerySelection = {
+    session_numbers : Bool;
+    asks : Bool;
+    bids : Bool;
+    credits : Bool;
+    deposit_history : ?(limit : Nat, skip : Nat);
+    transaction_history : ?(limit : Nat, skip : Nat);
+    price_history : ?(limit : Nat, skip : Nat, skipEmpty : Bool);
   };
 
   type AuctionQueryResponse = {
@@ -683,23 +683,23 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     |> Array.map<Auction.TransactionHistoryItem, TransactionHistoryItem>(_, func(x) = (x.0, x.1, x.2, Vec.get(assets, x.3).ledgerPrincipal, x.4, x.5));
   };
 
-  private func _auction_query(p : Principal, arg : AuctionQueryArgs) : R.Result<AuctionQueryResponse, Principal> {
-    func retrieveElements<T>(selection : ?[Principal], getFunc : (?Auction.AssetId) -> [T]) : R.Result<[T], Principal> {
-      switch (selection) {
-        case (?tokens) switch (tokens.size()) {
-          case (0) #ok(getFunc(null));
-          case (_) {
-            let v : Vec.Vector<T> = Vec.new();
-            for (p in tokens.vals()) {
-              let ?assetId = getAssetId(p) else return #err(p);
-              Vec.addFromIter(v, getFunc(?assetId).vals());
-            };
-            #ok(Vec.toArray(v));
+  private func _auction_query(p : Principal, tokens : [Principal], selection : AuctionQuerySelection) : R.Result<AuctionQueryResponse, Principal> {
+
+    func retrieveElements<T>(select : Bool, getFunc : (?Auction.AssetId) -> [T]) : R.Result<[T], Principal> {
+      if (not select) return #ok([]);
+      switch (tokens.size()) {
+        case (0) #ok(getFunc(null));
+        case (_) {
+          let v : Vec.Vector<T> = Vec.new();
+          for (p in tokens.vals()) {
+            let ?assetId = getAssetId(p) else return #err(p);
+            Vec.addFromIter(v, getFunc(?assetId).vals());
           };
+          #ok(Vec.toArray(v));
         };
-        case (null) #ok([]);
       };
     };
+
     func mapLedgersToAssetIds(tokens : [Principal]) : R.Result<[Nat], Principal> {
       let res = Array.init<Nat>(tokens.size(), 0);
       for (i in tokens.keys()) {
@@ -708,18 +708,19 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       };
       #ok(Array.freeze(res));
     };
+
     let (sessionNumbers, asks, bids, credits) = switch (
       retrieveElements<(Auction.AssetId, Nat)>(
-        arg.session_numbers,
+        selection.session_numbers,
         func(assetId) = switch (assetId) {
           case (null) Array.tabulate<(Auction.AssetId, Nat)>(auction.assets.nAssets(), func(i) = (i, auction.getAssetSessionNumber(i)));
           case (?aid) [(aid, auction.getAssetSessionNumber(aid))];
         },
       ),
-      retrieveElements<(Auction.OrderId, Auction.Order)>(arg.asks, func(assetId) = auction.getOrders(p, #ask, assetId)),
-      retrieveElements<(Auction.OrderId, Auction.Order)>(arg.bids, func(assetId) = auction.getOrders(p, #bid, assetId)),
+      retrieveElements<(Auction.OrderId, Auction.Order)>(selection.asks, func(assetId) = auction.getOrders(p, #ask, assetId)),
+      retrieveElements<(Auction.OrderId, Auction.Order)>(selection.bids, func(assetId) = auction.getOrders(p, #bid, assetId)),
       retrieveElements<(Auction.AssetId, Auction.CreditInfo)>(
-        arg.credits,
+        selection.credits,
         func(assetId) = switch (assetId) {
           case (null) auction.getCredits(p);
           case (?aid) [(aid, auction.getCredit(p, aid))];
@@ -734,8 +735,8 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       asks = asks |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = (_ [i].0, mapOrder(_ [i].1)));
       bids = bids |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = (_ [i].0, mapOrder(_ [i].1)));
       credits = credits |> Array.tabulate<(Principal, Auction.CreditInfo)>(_.size(), func(i) = (getIcrc1Ledger(_ [i].0), _ [i].1));
-      deposit_history = switch (arg.deposit_history) {
-        case (?(tokens, limit, skip)) {
+      deposit_history = switch (selection.deposit_history) {
+        case (?(limit, skip)) {
           (
             switch (mapLedgersToAssetIds(tokens)) {
               case (#ok aids) aids;
@@ -748,8 +749,8 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
         };
         case (null) [];
       };
-      transaction_history = switch (arg.transaction_history) {
-        case (?(tokens, limit, skip)) {
+      transaction_history = switch (selection.transaction_history) {
+        case (?(limit, skip)) {
           (
             switch (mapLedgersToAssetIds(tokens)) {
               case (#ok aids) aids;
@@ -762,8 +763,8 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
         };
         case (null) [];
       };
-      price_history = switch (arg.price_history) {
-        case (?(tokens, limit, skip, skipEmpty)) {
+      price_history = switch (selection.price_history) {
+        case (?(limit, skip, skipEmpty)) {
           (
             switch (mapLedgersToAssetIds(tokens)) {
               case (#ok aids) aids;
@@ -780,8 +781,8 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     });
   };
 
-  public shared query ({ caller }) func auction_query(arg : AuctionQueryArgs) : async AuctionQueryResponse {
-    switch (_auction_query(caller, arg)) {
+  public shared query ({ caller }) func auction_query(tokens : [Principal], selection : AuctionQuerySelection) : async AuctionQueryResponse {
+    switch (_auction_query(caller, tokens, selection)) {
       case (#ok ret) ret;
       case (#err p) throw Error.reject("Unknown token " # Principal.toText(p));
     };
@@ -1053,9 +1054,9 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     };
   };
 
-  public shared query ({ caller }) func user_auction_query(user : Principal, arg : AuctionQueryArgs) : async AuctionQueryResponse {
+  public shared query ({ caller }) func user_auction_query(user : Principal, tokens : [Principal], selection : AuctionQuerySelection) : async AuctionQueryResponse {
     assertAdminAccessSync(caller);
-    switch (_auction_query(user, arg)) {
+    switch (_auction_query(user, tokens, selection)) {
       case (#ok ret) ret;
       case (#err p) throw Error.reject("Unknown token " # Principal.toText(p));
     };

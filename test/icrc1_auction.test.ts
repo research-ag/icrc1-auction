@@ -186,15 +186,17 @@ describe('ICRC1 Auction', () => {
       expect(await auction.nextSession().then(({ counter }) => counter)).toEqual(3n);
       expect(await queryCredit(quoteLedgerPrincipal)).toEqual(340_000_000n); // 500m - 150m paid - 10m locked
       expect(await queryCredit(ledger1Principal)).toEqual(1_500n);
-      expect((await auction.auction_query({
-        bids: [[ledger2Principal]],
-        credits: [],
-        asks: [],
-        deposit_history: [],
-        price_history: [],
-        transaction_history: [],
-        session_numbers: []
-      })).bids).toHaveLength(1);
+      expect((await auction.auction_query(
+        [ledger2Principal],
+        {
+          bids: true,
+          credits: false,
+          asks: false,
+          deposit_history: [],
+          price_history: [],
+          transaction_history: [],
+          session_numbers: false
+        })).bids).toHaveLength(1);
       let metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
@@ -212,14 +214,14 @@ describe('ICRC1 Auction', () => {
       expect(await auction.nextSession().then(({ counter }) => counter)).toEqual(3n);
       expect(await queryCredit(quoteLedgerPrincipal)).toEqual(340_000_000n);
       expect(await queryCredit(ledger1Principal)).toEqual(1_500n);
-      expect((await auction.auction_query({
-        bids: [[ledger2Principal]],
-        credits: [],
-        asks: [],
+      expect((await auction.auction_query([ledger2Principal], {
+        bids: true,
+        credits: false,
+        asks: false,
         deposit_history: [],
         price_history: [],
         transaction_history: [],
-        session_numbers: []
+        session_numbers: false
       })).bids).toHaveLength(1);
       metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
@@ -310,28 +312,28 @@ describe('ICRC1 Auction', () => {
     test('should be able to manage orders via single query', async () => {
       await prepareDeposit(user);
       await auction.placeBids([[ledger1Principal, 1_000n, 15_000]], []);
-      expect((await auction.auction_query({
-        bids: [[]],
-        credits: [],
-        asks: [],
+      expect((await auction.auction_query([], {
+        bids: true,
+        credits: false,
+        asks: false,
         deposit_history: [],
         price_history: [],
         transaction_history: [],
-        session_numbers: []
+        session_numbers: false
       })).bids).toHaveLength(1);
       let res2 = await auction.manageOrders([{ all: [] }], [
         { bid: [ledger1Principal, 1_000n, 15_100] },
         { bid: [ledger1Principal, 1_000n, 15_200] },
       ], []);
       expect(res2).toHaveProperty('Ok');
-      expect((await auction.auction_query({
-        bids: [[]],
-        credits: [],
-        asks: [],
+      expect((await auction.auction_query([], {
+        bids: true,
+        credits: false,
+        asks: false,
         deposit_history: [],
         price_history: [],
         transaction_history: [],
-        session_numbers: []
+        session_numbers: false
       })).bids).toHaveLength(2);
     });
 
@@ -340,14 +342,14 @@ describe('ICRC1 Auction', () => {
       const res = await auction.placeBids([[ledger1Principal, 1_000n, 15_000]], [1005n]);
       expect(res[0]).toHaveProperty('Err');
       expect((res[0] as any)['Err']).toHaveProperty('SessionNumberMismatch');
-      expect((await auction.auction_query({
-        bids: [[]],
-        credits: [],
-        asks: [],
+      expect((await auction.auction_query([], {
+        bids: true,
+        credits: false,
+        asks: false,
         deposit_history: [],
         price_history: [],
         transaction_history: [],
-        session_numbers: []
+        session_numbers: false
       })).bids).toHaveLength(0);
     });
 
@@ -355,14 +357,14 @@ describe('ICRC1 Auction', () => {
       await prepareDeposit(user);
       const res = await auction.placeBids([[ledger1Principal, 1_000n, 15_000]], [1n]);
       expect(res[0]).toHaveProperty('Ok');
-      expect((await auction.auction_query({
-        bids: [[]],
-        credits: [],
-        asks: [],
+      expect((await auction.auction_query([], {
+        bids: true,
+        credits: false,
+        asks: false,
         deposit_history: [],
         price_history: [],
         transaction_history: [],
-        session_numbers: []
+        session_numbers: false
       })).bids).toHaveLength(1);
     });
 
@@ -383,14 +385,14 @@ describe('ICRC1 Auction', () => {
       auction.setIdentity(user);
       await startNewAuctionSession();
 
-      expect((await auction.auction_query({
-        bids: [[ledger1Principal]],
-        credits: [],
-        asks: [],
+      expect((await auction.auction_query([ledger1Principal], {
+        bids: true,
+        credits: false,
+        asks: false,
         deposit_history: [],
         price_history: [],
         transaction_history: [],
-        session_numbers: []
+        session_numbers: false
       })).bids).toHaveLength(0);
       metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
@@ -419,14 +421,14 @@ describe('ICRC1 Auction', () => {
 
       await startNewAuctionSession();
 
-      expect((await auction.auction_query({
-        bids: [],
-        credits: [],
-        asks: [[ledger1Principal]],
+      expect((await auction.auction_query([ledger1Principal], {
+        bids: false,
+        credits: false,
+        asks: true,
         deposit_history: [],
         price_history: [],
         transaction_history: [],
-        session_numbers: []
+        session_numbers: false
       })).asks).toHaveLength(0);
       metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
@@ -564,14 +566,14 @@ describe('ICRC1 Auction', () => {
       await startNewAuctionSession();
       await auction.placeAsks([[ledger1Principal, 1_500n, 102_000]], []);
 
-      const res = await auction.auction_query({
-        credits: [[]],
-        bids: [[]],
-        asks: [[]],
-        session_numbers: [[]],
-        transaction_history: [[[], 1000n, 0n]],
-        price_history: [[[], 1000n, 0n, true]],
-        deposit_history: [[[], 1000n, 0n]],
+      const res = await auction.auction_query([], {
+        credits: true,
+        bids: true,
+        asks: true,
+        session_numbers: true,
+        transaction_history: [[1000n, 0n]],
+        price_history: [[1000n, 0n, true]],
+        deposit_history: [[1000n, 0n]],
       });
 
       expect(res.credits).toEqual([
