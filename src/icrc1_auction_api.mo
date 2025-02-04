@@ -116,10 +116,10 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   type UpperResult<Ok, Err> = { #Ok : Ok; #Err : Err };
 
   type AuctionQuerySelection = {
-    session_numbers : Bool;
-    asks : Bool;
-    bids : Bool;
-    credits : Bool;
+    session_numbers : ?Bool;
+    asks : ?Bool;
+    bids : ?Bool;
+    credits : ?Bool;
     deposit_history : ?(limit : Nat, skip : Nat);
     transaction_history : ?(limit : Nat, skip : Nat);
     price_history : ?(limit : Nat, skip : Nat, skipEmpty : Bool);
@@ -691,8 +691,11 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   private func _auction_query(p : Principal, tokens : [Principal], selection : AuctionQuerySelection) : R.Result<AuctionQueryResponse, Principal> {
 
-    func retrieveElements<T>(select : Bool, getFunc : (?Auction.AssetId) -> [T]) : R.Result<[T], Principal> {
-      if (not select) return #ok([]);
+    func retrieveElements<T>(select : ?Bool, getFunc : (?Auction.AssetId) -> [T]) : R.Result<[T], Principal> {
+      switch (select) {
+        case (?true) {};
+        case (_) return #ok([]);
+      };
       switch (tokens.size()) {
         case (0) #ok(getFunc(null));
         case (_) {

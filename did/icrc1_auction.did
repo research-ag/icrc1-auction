@@ -359,10 +359,10 @@ service : (opt principal, opt principal) -> {
   auction_query : (
     vec Token,
     record {
-      session_numbers : bool;
-      asks : bool;
-      bids : bool;
-      credits : bool;
+      session_numbers : opt bool;
+      asks : opt bool;
+      bids : opt bool;
+      credits : opt bool;
       deposit_history : opt record { nat; nat };
       transaction_history : opt record { nat; nat };
       price_history : opt record { nat; nat; bool };
