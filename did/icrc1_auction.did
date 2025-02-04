@@ -412,6 +412,7 @@ service : (opt principal, opt principal) -> {
       };
       price_history : vec record { nat64; nat; Token; nat; float64 };
       points : nat;
+      account_revision : nat;
     }
   ) query;
 

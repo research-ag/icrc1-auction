@@ -145,6 +145,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     transaction_history : [TransactionHistoryItem];
     price_history : [PriceHistoryItem];
     points : Nat;
+    account_revision : Nat;
   };
 
   type PriceHistoryItem = (timestamp : Nat64, sessionNumber : Nat, ledgerPrincipal : Principal, volume : Nat, price : Float);
@@ -796,6 +797,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
         case (null) [];
       };
       points = auction.getLoyaltyPoints(p);
+      account_revision = auction.getAccountRevision(p);
     });
   };
 
