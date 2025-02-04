@@ -1,6 +1,6 @@
 import { Box, Button, Table } from '@mui/joy';
 
-import { useListCredits, useTokenInfoMap } from '@fe/integration';
+import { useAuctionQuery, useListCredits, useTokenInfoMap } from '@fe/integration';
 import WithdrawCreditModal from '../withdraw-credit-modal';
 import WithdrawBtcModal from '../withdraw-btc-modal';
 import { useState } from 'react';
@@ -9,7 +9,8 @@ import { Principal } from '@dfinity/principal';
 import { displayWithDecimals } from '@fe/utils';
 
 const CreditsTable = () => {
-  const { data: credits } = useListCredits();
+  const { data: auctionQuery } = useAuctionQuery();
+  const { data: credits } = useListCredits(auctionQuery);
 
   const [withdrawLedger, setWithdrawLedger] = useState('');
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);

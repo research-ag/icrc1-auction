@@ -530,37 +530,37 @@ module {
     // ============= orders interface =============
 
     // ============ history interface =============
-    public func getDepositHistory(p : Principal, assetId : ?AssetId, order : { #asc; #desc }) : Iter.Iter<T.DepositHistoryItem> {
+    public func getDepositHistory(p : Principal, assetIds : [AssetId], order : { #asc; #desc }) : Iter.Iter<T.DepositHistoryItem> {
       let ?userInfo = users.get(p) else return { next = func() = null };
-      let iter = userInfo.depositHistory
+      var iter = userInfo.depositHistory
       |> (
         switch (order) {
           case (#asc) Vec.vals(_);
           case (#desc) Vec.valsRev(_);
         }
       );
-      switch (assetId) {
-        case (?aid) Iter.filter<T.DepositHistoryItem>(iter, func x = x.2 == aid);
-        case (_) iter;
+      if (assetIds.size() > 0) {
+        iter := Iter.filter<T.DepositHistoryItem>(iter, func x = not Option.isNull(Array.indexOf(x.2, assetIds, Nat.equal)));
       };
+      iter;
     };
 
-    public func getTransactionHistory(p : Principal, assetId : ?AssetId, order : { #asc; #desc }) : Iter.Iter<T.TransactionHistoryItem> {
+    public func getTransactionHistory(p : Principal, assetIds : [AssetId], order : { #asc; #desc }) : Iter.Iter<T.TransactionHistoryItem> {
       let ?userInfo = users.get(p) else return { next = func() = null };
-      let iter = userInfo.transactionHistory
+      var iter = userInfo.transactionHistory
       |> (
         switch (order) {
           case (#asc) Vec.vals(_);
           case (#desc) Vec.valsRev(_);
         }
       );
-      switch (assetId) {
-        case (?aid) Iter.filter<T.TransactionHistoryItem>(iter, func x = x.3 == aid);
-        case (_) iter;
+      if (assetIds.size() > 0) {
+        iter := Iter.filter<T.TransactionHistoryItem>(iter, func x = not Option.isNull(Array.indexOf(x.3, assetIds, Nat.equal)));
       };
+      iter;
     };
 
-    public func getPriceHistory(assetId : ?AssetId, order : { #asc; #desc }, skipEmpty : Bool) : Iter.Iter<T.PriceHistoryItem> {
+    public func getPriceHistory(assetIds : [AssetId], order : { #asc; #desc }, skipEmpty : Bool) : Iter.Iter<T.PriceHistoryItem> {
       var iter = assets.history
       |> (
         switch (order) {
@@ -568,9 +568,8 @@ module {
           case (#desc) Vec.valsRev(_);
         }
       );
-      switch (assetId) {
-        case (?aid) iter := Iter.filter<T.PriceHistoryItem>(iter, func x = x.2 == aid);
-        case (_) {};
+      if (assetIds.size() > 0) {
+        iter := Iter.filter<T.PriceHistoryItem>(iter, func x = not Option.isNull(Array.indexOf(x.2, assetIds, Nat.equal)));
       };
       if (skipEmpty) {
         iter := Iter.filter<T.PriceHistoryItem>(iter, func x = x.3 > 0);
