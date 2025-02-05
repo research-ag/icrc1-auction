@@ -29,7 +29,7 @@ const replaceBigInts = <T>(obj: T): T => {
   return obj;
 }
 
-export const defaultAuctionCanisterId = "3gvau-pyaaa-aaaao-qa7kq-cai";
+export const defaultAuctionCanisterId = "farwr-jqaaa-aaaao-qj4ya-cai";
 
 export const useAuctionCanisterId = () => {
   return localStorage.getItem('auctionCanisterId') || defaultAuctionCanisterId;

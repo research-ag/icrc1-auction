@@ -17,9 +17,8 @@ import Timer "mo:base/Timer";
 
 import Auction "./auction/src";
 import ICRC84Auction "./icrc84_auction";
-import ICRC1 "mo:token_handler_legacy/ICRC1";
 import PT "mo:promtracker";
-import TokenHandler "mo:token_handler_legacy";
+import TokenHandler "mo:token_handler";
 import Vec "mo:vector";
 
 import BtcHandler "./btc_handler";
@@ -45,15 +44,9 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   let adminsMap = RBTree.RBTree<Principal, ()>(Principal.compare);
   adminsMap.unshare(stableAdminsMap);
 
-  stable var assetsDataV2 : Vec.Vector<{ ledgerPrincipal : Principal; minAskVolume : Nat; handler : TokenHandler.StableData; decimals : Nat }> = Vec.new();
-  stable var assetsDataV3 : Vec.Vector<StableAssetInfo> = Vec.map<{ ledgerPrincipal : Principal; minAskVolume : Nat; handler : TokenHandler.StableData; decimals : Nat }, StableAssetInfo>(assetsDataV2, func(ad) = { ad with symbol = "" });
+  stable var assetsDataV1 : Vec.Vector<StableAssetInfoV1> = Vec.new();
 
-  stable var auctionDataV3 : Auction.StableDataV3 = Auction.defaultStableDataV3();
-  stable var auctionDataV4 : Auction.StableDataV4 = Auction.migrateStableDataV4(auctionDataV3);
-  stable var auctionDataV5 : Auction.StableDataV5 = Auction.migrateStableDataV5(auctionDataV4);
-  stable var auctionDataV6 : Auction.StableDataV6 = Auction.migrateStableDataV6(auctionDataV5);
-  stable var auctionDataV7 : Auction.StableDataV7 = Auction.migrateStableDataV7(auctionDataV6);
-  stable var auctionDataV8 : Auction.StableDataV8 = Auction.migrateStableDataV8(auctionDataV7);
+  stable var auctionDataV1 : Auction.StableDataV1 = Auction.defaultStableDataV1();
 
   stable var ptData : PT.StableData = null;
 
@@ -79,7 +72,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     symbol : Text;
     decimals : Nat;
   };
-  type StableAssetInfo = {
+  type StableAssetInfoV1 = {
     ledgerPrincipal : Principal;
     minAskVolume : Nat;
     handler : TokenHandler.StableData;
@@ -195,13 +188,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   let quoteAssetId : Auction.AssetId = 0;
 
   func createAssetInfo_(ledgerPrincipal : Principal, minAskVolume : Nat, decimals : Nat, symbol : Text, tokenHandlerStableData : ?TokenHandler.StableData) : AssetInfo {
-    let ai = (actor (Principal.toText(ledgerPrincipal)) : ICRC1.ICRC1Ledger)
-    |> {
-      balance_of = _.icrc1_balance_of;
-      fee = _.icrc1_fee;
-      transfer = _.icrc1_transfer;
-      transfer_from = _.icrc2_transfer_from;
-    }
+    let ai = TokenHandler.buildLedgerApi(ledgerPrincipal)
     |> {
       ledgerPrincipal = ledgerPrincipal;
       minAskVolume = minAskVolume;
@@ -222,8 +209,8 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     ai;
   };
 
-  let assets : Vec.Vector<AssetInfo> = Vec.map<StableAssetInfo, AssetInfo>(
-    assetsDataV3,
+  let assets : Vec.Vector<AssetInfo> = Vec.map<StableAssetInfoV1, AssetInfo>(
+    assetsDataV1,
     func(x) = createAssetInfo_(x.ledgerPrincipal, x.minAskVolume, x.decimals, x.symbol, ?x.handler),
   );
   let auction : Auction.Auction = Auction.Auction(
@@ -236,7 +223,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       performanceCounter = Prim.performanceCounter;
     },
   );
-  auction.unshare(auctionDataV8);
+  auction.unshare(auctionDataV1);
 
   // will be set in startAuctionTimer_
   // this timestamp is set right before starting auction execution
@@ -365,16 +352,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     ignore metrics.addPullValue(
       "token_handler_locks",
       labels,
-      func() {
-        let tree = tokenHandler.share().0.0.0;
-        var nLocks = 0;
-        for ((_, x) in RBTree.iter(tree, #fwd)) {
-          if (x.lock) {
-            nLocks += 1;
-          };
-        };
-        nLocks;
-      },
+      func() = tokenHandler.state().users.locked,
     );
     ignore metrics.addPullValue(
       "token_handler_frozen",
@@ -942,14 +920,12 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   };
 
   public query func queryTokenHandlerState(ledger : Principal) : async {
-    ledger : {
-      fee : Nat;
-    };
     balance : {
       deposited : Nat;
       underway : Nat;
       queued : Nat;
       consolidated : Nat;
+      usableDeposit : (deposit : Int, correct : Bool);
     };
     flow : {
       consolidated : Nat;
@@ -961,6 +937,28 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     };
     users : {
       queued : Nat;
+      locked : Nat;
+      total : Nat;
+    };
+    depositManager : {
+      paused : Bool;
+      totalConsolidated : Nat;
+      totalCredited : Nat;
+      funds : {
+        deposited : Nat;
+        underway : Nat;
+        queued : Nat;
+      };
+    };
+    withdrawalManager : {
+      totalWithdrawn : Nat;
+      lockedFunds : Nat;
+    };
+    feeManager : {
+      ledger : Nat;
+      deposit : Nat;
+      surcharge : Nat;
+      outstandingFees : Nat;
     };
   } {
     let ?assetId = getAssetId(ledger) else throw Error.reject("Unknown asset");
@@ -975,36 +973,6 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   public query func queryTokenHandlerNotificationsOnPause(ledger : Principal) : async Bool {
     let ?assetId = getAssetId(ledger) else throw Error.reject("Unknown asset");
     Vec.get(assets, assetId) |> _.handler.notificationsOnPause();
-  };
-
-  public query func queryTokenHandlerDepositRegistry(ledger : Principal) : async (sum : Nat, size : Nat, minimum : Nat, [(Principal, { value : Nat; lock : Bool })]) {
-    let ?assetId = getAssetId(ledger) else throw Error.reject("Unknown asset");
-    let sharedData = Vec.get(assets, assetId) |> _.handler.share();
-    let locks = RBTree.RBTree<Principal, { var value : Nat; var lock : Bool }>(Principal.compare);
-    locks.unshare(sharedData.0.0.0);
-    let iter = locks.entries();
-    let items : Vec.Vector<(Principal, { value : Nat; lock : Bool })> = Vec.new();
-    label l while (true) {
-      switch (iter.next()) {
-        case (?x) Vec.add(items, (x.0, { value = x.1.value; lock = x.1.lock }));
-        case (null) break l;
-      };
-    };
-    (sharedData.0.0.1, sharedData.0.0.2, sharedData.0.0.3, Vec.toArray(items));
-  };
-
-  public query func queryTokenHandlerNotificationLock(ledger : Principal, user : Principal) : async ?{
-    value : Nat;
-    lock : Bool;
-  } {
-    let ?assetId = getAssetId(ledger) else throw Error.reject("Unknown asset");
-    let sharedData = Vec.get(assets, assetId) |> _.handler.share();
-    let locks = RBTree.RBTree<Principal, { var value : Nat; var lock : Bool }>(Principal.compare);
-    locks.unshare(sharedData.0.0.0);
-    switch (locks.get(user)) {
-      case (?v) ?{ value = v.value; lock = v.lock };
-      case (null) null;
-    };
   };
 
   public query func queryTokenHandlerJournal(ledger : Principal, limit : Nat, skip : Nat) : async [(Principal, TokenHandler.LogEvent)] {
@@ -1182,7 +1150,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   };
 
   system func preupgrade() {
-    assetsDataV3 := Vec.map<AssetInfo, StableAssetInfo>(
+    assetsDataV1 := Vec.map<AssetInfo, StableAssetInfoV1>(
       assets,
       func(x) = {
         ledgerPrincipal = x.ledgerPrincipal;
@@ -1192,7 +1160,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
         symbol = x.symbol;
       },
     );
-    auctionDataV8 := auction.share();
+    auctionDataV1 := auction.share();
     ptData := metrics.share();
     stableAdminsMap := adminsMap.share();
   };
