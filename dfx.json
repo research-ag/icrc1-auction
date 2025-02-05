@@ -21,7 +21,7 @@
           "js",
           "ts"
         ],
-        "output": "./declarations/icrc1_auction_continous"
+        "output": "./declarations/icrc1_auction_continuous"
       },
       "optimize": "cycles"
     }
