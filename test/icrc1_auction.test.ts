@@ -9,7 +9,7 @@ import {
   _SERVICE as AService,
   idlFactory as A_IDL,
   init as aInit,
-} from '../declarations/icrc1_auction/icrc1_auction_development.did';
+} from '../declarations/icrc1_auction_continuous/icrc1_auction_continuous.did';
 import { IDL } from '@dfinity/candid';
 import { resolve } from 'node:path';
 import { Principal } from '@dfinity/principal';
@@ -101,7 +101,7 @@ describe('ICRC1 Auction', () => {
     ledger2.setIdentity(user);
 
     f = await pic.setupCanister({
-      wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction_development/icrc1_auction_development.wasm'),
+      wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction_continuous/icrc1_auction_continuous.wasm'),
       arg: IDL.encode(aInit({ IDL }), [[quoteLedgerPrincipal], [admin.getPrincipal()]]),
       sender: controller.getPrincipal(),
       idlFactory: A_IDL,
@@ -131,7 +131,7 @@ describe('ICRC1 Auction', () => {
       });
       await expect(pic.installCode({
         canisterId: p,
-        wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction_development/icrc1_auction_development.wasm'),
+        wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction_continuous/icrc1_auction_continuous.wasm'),
         arg: IDL.encode(aInit({ IDL }), [[], []]),
         sender: controller.getPrincipal(),
       })).rejects.toThrow(`Canister ${p.toText()} trapped explicitly: Quote ledger principal not provided`);
@@ -147,7 +147,7 @@ describe('ICRC1 Auction', () => {
     test('should upgrade canister without arguments', async () => {
       await pic.upgradeCanister({
         canisterId: auctionPrincipal,
-        wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction_development/icrc1_auction_development.wasm'),
+        wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction_continuous/icrc1_auction_continuous.wasm'),
         arg: IDL.encode(aInit({ IDL }), [[], []]),
         sender: controller.getPrincipal(),
       });
@@ -161,7 +161,7 @@ describe('ICRC1 Auction', () => {
       const fakeLedger = createIdentity('fakeLedger');
       await pic.upgradeCanister({
         canisterId: auctionPrincipal,
-        wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction_development/icrc1_auction_development.wasm'),
+        wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction_continuous/icrc1_auction_continuous.wasm'),
         arg: IDL.encode(aInit({ IDL }), [[fakeLedger.getPrincipal()], []]),
         sender: controller.getPrincipal(),
       });
@@ -205,7 +205,7 @@ describe('ICRC1 Auction', () => {
 
       await pic.upgradeCanister({
         canisterId: auctionPrincipal,
-        wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction_development/icrc1_auction_development.wasm'),
+        wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction_continuous/icrc1_auction_continuous.wasm'),
         arg: IDL.encode(aInit({ IDL }), [[], []]),
         sender: controller.getPrincipal(),
       });
@@ -320,7 +320,7 @@ describe('ICRC1 Auction', () => {
         price_history: [],
         transaction_history: [],
         session_numbers: []
-      })).bids)[0]).toHaveLength(1);
+      })).bids).toHaveLength(1);
       let res2 = await auction.manageOrders([{ all: [] }], [
         { bid: [ledger1Principal, { delayed: null }, 1_000n, 15_100] },
         { bid: [ledger1Principal, { delayed: null }, 1_000n, 15_200] },
@@ -334,7 +334,7 @@ describe('ICRC1 Auction', () => {
         price_history: [],
         transaction_history: [],
         session_numbers: []
-      })).bids)[0]).toHaveLength(2);
+      })).bids).toHaveLength(2);
     });
 
     test('should reject changes if account revision is wrong', async () => {
@@ -351,7 +351,7 @@ describe('ICRC1 Auction', () => {
         price_history: [],
         transaction_history: [],
         session_numbers: []
-      })).bids)[0]).toHaveLength(0);
+      })).bids).toHaveLength(0);
     });
 
     test('should accept correct account revision', async () => {
@@ -367,7 +367,7 @@ describe('ICRC1 Auction', () => {
         price_history: [],
         transaction_history: [],
         session_numbers: []
-      })).bids)[0]).toHaveLength(1);
+      })).bids).toHaveLength(1);
     });
 
     test('bids should affect metrics', async () => {
@@ -556,17 +556,17 @@ describe('ICRC1 Auction', () => {
       await prepareDeposit(user);
       await prepareDeposit(user, ledger1Principal);
 
-      await auction.placeBids([[ledger1Principal, 1_500n, 100_000]], []);
-      await auction.placeAsks([[ledger1Principal, 1_500n, 101_000]], []);
+      await auction.placeBids([[ledger1Principal, { delayed: null }, 1_500n, 100_000]], []);
+      await auction.placeAsks([[ledger1Principal, { delayed: null }, 1_500n, 101_000]], []);
       const buyer = createIdentity('buyer');
       await prepareDeposit(buyer);
       auction.setIdentity(buyer);
-      await auction.placeBids([[ledger1Principal, 1_500n, 102_000]], []);
+      await auction.placeBids([[ledger1Principal, { delayed: null }, 1_500n, 102_000]], []);
       auction.setIdentity(user);
 
 
       await startNewAuctionSession();
-      await auction.placeAsks([[ledger1Principal, 1_500n, 102_000]], []);
+      await auction.placeAsks([[ledger1Principal, { delayed: null }, 1_500n, 102_000]], []);
 
       const res = await auction.auction_query([], {
         credits: [true],
@@ -583,10 +583,10 @@ describe('ICRC1 Auction', () => {
         [quoteLedgerPrincipal, { total: 651500000n, locked: 150000000n, available: 501500000n }],
       ]);
       expect(res.asks).toEqual([
-        [3n, { icrc1Ledger: ledger1Principal, volume: 1500n, price: 102000 }],
+        [3n, { icrc1Ledger: ledger1Principal, orderBookType: { delayed: null }, volume: 1500n, price: 102000 }],
       ]);
       expect(res.bids).toEqual([
-        [0n, { icrc1Ledger: ledger1Principal, volume: 1500n, price: 100000 }],
+        [0n, { icrc1Ledger: ledger1Principal, orderBookType: { delayed: null }, volume: 1500n, price: 100000 }],
       ]);
       expect(res.session_numbers).toEqual([
         [quoteLedgerPrincipal, 2n],
