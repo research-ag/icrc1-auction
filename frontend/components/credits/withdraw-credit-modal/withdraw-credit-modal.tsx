@@ -7,9 +7,11 @@ import { Box, Button, FormControl, FormLabel, Input, Modal, ModalClose, ModalDia
 import { useTokenInfoMap, useWithdrawCredit } from '@fe/integration';
 import ErrorAlert from '../../../components/error-alert';
 import { enqueueSnackbar } from 'notistack';
+import { validatePrincipal } from "@fe/utils";
 
 interface WithdrawCreditFormValues {
   amount: number;
+  owner?: string;
   subaccount: string;
 }
 
@@ -24,6 +26,9 @@ const schema = zod.object({
     .string()
     .min(0)
     .refine(value => !isNaN(Number(value))),
+  owner: zod
+    .string()
+    .refine(value => value === '' || validatePrincipal(value)),
   subaccount: zod.string(),
 });
 
@@ -31,6 +36,7 @@ const WithdrawCreditModal = ({ isOpen, onClose, ledger }: WithdrawCreditModalPro
   const defaultValues: WithdrawCreditFormValues = useMemo(
     () => ({
       amount: 0,
+      owner: '',
       subaccount: '',
     }),
     [],
@@ -77,7 +83,12 @@ const WithdrawCreditModal = ({ isOpen, onClose, ledger }: WithdrawCreditModalPro
     }
     let decimals = getTokenDecimals(ledger);
     withdraw(
-      { ledger, subaccount, amount: Math.round(data.amount * Math.pow(10, decimals)) },
+      {
+        ledger,
+        subaccount,
+        owner: data.owner === '' ? undefined : data.owner,
+        amount: Math.round(data.amount * Math.pow(10, decimals))
+      },
       {
         onSuccess: () => {
           onClose();
@@ -94,7 +105,7 @@ const WithdrawCreditModal = ({ isOpen, onClose, ledger }: WithdrawCreditModalPro
   return (
     <Modal open={isOpen} onClose={onClose}>
       <ModalDialog sx={{ width: 'calc(100% - 50px)', maxWidth: '450px' }}>
-        <ModalClose />
+        <ModalClose/>
         <Typography level="h4">Withdraw credit (ledger {ledger})</Typography>
         <form onSubmit={handleSubmit(submit)} autoComplete="off">
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -104,6 +115,24 @@ const WithdrawCreditModal = ({ isOpen, onClose, ledger }: WithdrawCreditModalPro
               render={({ field, fieldState }) => (
                 <FormControl>
                   <FormLabel>Amount</FormLabel>
+                  <Input
+                    type="text"
+                    variant="outlined"
+                    name={field.name}
+                    value={field.value}
+                    onChange={field.onChange}
+                    autoComplete="off"
+                    error={!!fieldState.error}
+                  />
+                </FormControl>
+              )}
+            />
+            <Controller
+              name="owner"
+              control={control}
+              render={({ field, fieldState }) => (
+                <FormControl>
+                  <FormLabel>Owner principal. Leave empty for using your principal</FormLabel>
                   <Input
                     type="text"
                     variant="outlined"
@@ -135,7 +164,7 @@ const WithdrawCreditModal = ({ isOpen, onClose, ledger }: WithdrawCreditModalPro
               )}
             />
           </Box>
-          {!!error && <ErrorAlert errorMessage={(error as Error).message} />}
+          {!!error && <ErrorAlert errorMessage={(error as Error).message}/>}
           <Button
             sx={{ marginTop: 2 }}
             variant="solid"
