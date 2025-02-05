@@ -2,7 +2,7 @@ import Int "mo:base/Int";
 import Nat64 "mo:base/Nat64";
 import Principal "mo:base/Principal";
 import R "mo:base/Result";
-import TokenHandler "mo:token_handler_legacy";
+import TokenHandler "mo:token_handler";
 
 module {
 

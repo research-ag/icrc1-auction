@@ -29,7 +29,7 @@ const replaceBigInts = <T>(obj: T): T => {
   return obj;
 }
 
-export const defaultAuctionCanisterId = "3gvau-pyaaa-aaaao-qa7kq-cai";
+export const defaultAuctionCanisterId = "farwr-jqaaa-aaaao-qj4ya-cai";
 
 export const useAuctionCanisterId = () => {
   return localStorage.getItem('auctionCanisterId') || defaultAuctionCanisterId;
@@ -472,10 +472,10 @@ export const useWithdrawCredit = () => {
   const { enqueueSnackbar } = useSnackbar();
   const { identity } = useIdentity();
   return useMutation(
-    (formObj: { ledger: string; amount: number; subaccount: Uint8Array | null }) =>
+    (formObj: { ledger: string; amount: number; owner?: string; subaccount: Uint8Array | null }) =>
       auction.icrc84_withdraw({
         token: Principal.fromText(formObj.ledger),
-        to: { owner: identity.getPrincipal(), subaccount: formObj.subaccount ? [formObj.subaccount] : [] },
+        to: { owner: formObj.owner ? Principal.fromText(formObj.owner) : identity.getPrincipal(), subaccount: formObj.subaccount ? [formObj.subaccount] : [] },
         amount: BigInt(formObj.amount),
         expected_fee: [],
       }),

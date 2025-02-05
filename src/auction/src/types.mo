@@ -1,5 +1,4 @@
 import AssocList "mo:base/AssocList";
-import List "mo:base/List";
 import RBTree "mo:base/RBTree";
 
 import Vec "mo:vector";
@@ -63,49 +62,17 @@ module {
   public type TransactionHistoryItem = (timestamp : Nat64, sessionNumber : Nat, kind : { #ask; #bid }, assetId : AssetId, volume : Nat, price : Float);
 
   // stable data types
-  public type StableDataV8 = StableDataV5_6_7<StableAssetInfoV3, StableUserInfoV6, { globalCounter : Nat }, { surplus : Nat }>;
-
-  // old stable data types
-  public type StableDataV7 = StableDataV5_6_7<StableAssetInfoV3, StableUserInfoV5, { globalCounter : Nat }, { surplus : Nat }>;
-  public type StableDataV6 = StableDataV5_6_7<StableAssetInfoV2, StableUserInfoV4, { globalCounter : Nat; fulfilledCounter : Nat }, { totalProcessedVolume : Nat; surplus : Nat }>;
-  public type StableDataV5 = StableDataV5_6_7<StableAssetInfoV2, StableUserInfoV3, { globalCounter : Nat; fulfilledCounter : Nat }, { totalProcessedVolume : Nat; surplus : Nat }>;
-  public type StableDataV5_6_7<SAI, SUI, O, Q> = {
-    assets : Vec.Vector<SAI>;
-    orders : O;
-    quoteToken : Q;
+  public type StableDataV1 = {
+    assets : Vec.Vector<StableAssetInfoV1>;
+    orders : { globalCounter : Nat };
+    quoteToken : { surplus : Nat };
     sessions : {
       counter : Nat;
       history : Vec.Vector<PriceHistoryItem>;
     };
     users : {
       registry : {
-        tree : RBTree.Tree<Principal, SUI>;
-        size : Nat;
-      };
-      participantsArchive : {
-        tree : RBTree.Tree<Principal, { lastOrderPlacement : Nat64 }>;
-        size : Nat;
-      };
-      accountsAmount : Nat;
-    };
-  };
-  public type StableDataV4 = {
-    assets : Vec.Vector<StableAssetInfoV2>;
-    orders : {
-      globalCounter : Nat;
-      fulfilledCounter : Nat;
-    };
-    quoteToken : {
-      totalProcessedVolume : Nat;
-      surplus : Nat;
-    };
-    sessions : {
-      counter : Nat;
-      history : List.List<PriceHistoryItem>;
-    };
-    users : {
-      registry : {
-        tree : RBTree.Tree<Principal, StableUserInfoV2>;
+        tree : RBTree.Tree<Principal, StableUserInfoV1>;
         size : Nat;
       };
       participantsArchive : {
@@ -116,65 +83,29 @@ module {
     };
   };
 
-  public type StableDataV3 = {
-    counters : (sessions : Nat, orders : Nat, users : Nat, accounts : Nat);
-    assets : Vec.Vector<StableAssetInfoV2>;
-    history : List.List<PriceHistoryItem>;
-    users : RBTree.Tree<Principal, StableUserInfoV2>;
-    quoteSurplus : Nat;
-  };
-
-  public type StableOrderDataV2 = {
-    user : Principal;
-    assetId : AssetId;
-    price : Float;
-    volume : Nat;
-  };
-  public type StableAssetInfoV3 = {
+  public type StableAssetInfoV1 = {
     lastRate : Float;
     lastProcessingInstructions : Nat;
     totalExecutedVolumeBase : Nat;
     totalExecutedVolumeQuote : Nat;
     totalExecutedOrders : Nat;
   };
-  public type StableAssetInfoV2 = {
-    lastRate : Float;
-    lastProcessingInstructions : Nat;
-  };
-  public type StableUserInfoV6 = {
-    asks : UserOrderBook_<StableOrderDataV2>;
-    bids : UserOrderBook_<StableOrderDataV2>;
+  public type StableUserInfoV1 = {
+    asks : UserOrderBook_<StableOrderDataV1>;
+    bids : UserOrderBook_<StableOrderDataV1>;
     credits : AssocList.AssocList<AssetId, Account>;
     loyaltyPoints : Nat;
     depositHistory : Vec.Vector<DepositHistoryItem>;
     transactionHistory : Vec.Vector<TransactionHistoryItem>;
   };
-  public type StableUserInfoV5 = {
-    asks : UserOrderBook_<StableOrderDataV2>;
-    bids : UserOrderBook_<StableOrderDataV2>;
-    credits : AssocList.AssocList<AssetId, Account>;
-    loyaltyPoints : Nat;
-    depositHistory : Vec.Vector<(timestamp : Nat64, kind : { #deposit; #withdrawal; #withdrawalRollback }, assetId : AssetId, volume : Nat)>;
-    transactionHistory : Vec.Vector<TransactionHistoryItem>;
+  public type StableOrderDataV1 = {
+    user : Principal;
+    assetId : AssetId;
+    price : Float;
+    volume : Nat;
   };
-  public type StableUserInfoV4 = {
-    asks : UserOrderBook_<StableOrderDataV2>;
-    bids : UserOrderBook_<StableOrderDataV2>;
-    credits : AssocList.AssocList<AssetId, Account>;
-    depositHistory : Vec.Vector<(timestamp : Nat64, kind : { #deposit; #withdrawal; #withdrawalRollback }, assetId : AssetId, volume : Nat)>;
-    transactionHistory : Vec.Vector<TransactionHistoryItem>;
-  };
-  public type StableUserInfoV3 = {
-    asks : UserOrderBook_<StableOrderDataV2>;
-    bids : UserOrderBook_<StableOrderDataV2>;
-    credits : AssocList.AssocList<AssetId, Account>;
-    history : Vec.Vector<TransactionHistoryItem>;
-  };
-  public type StableUserInfoV2 = {
-    asks : UserOrderBook_<StableOrderDataV2>;
-    bids : UserOrderBook_<StableOrderDataV2>;
-    credits : AssocList.AssocList<AssetId, Account>;
-    history : List.List<TransactionHistoryItem>;
-  };
+
+  // old stable data types
+  // .....
 
 };
