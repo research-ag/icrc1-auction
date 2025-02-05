@@ -23,14 +23,16 @@ const OrdersTable = ({ kind }: OrdersTableProps) => {
     <Box sx={{ width: '100%', overflow: 'auto' }}>
       <Table>
         <colgroup>
-          <col style={{ width: '200px' }}/>
-          <col style={{ width: '110px' }}/>
-          <col style={{ width: '110px' }}/>
+          <col style={{ width: '150px' }}/>
+          <col style={{ width: '80px' }}/>
+          <col style={{ width: '95px' }}/>
+          <col style={{ width: '95px' }}/>
           <col style={{ width: '80px' }}/>
         </colgroup>
         <thead>
         <tr>
           <th>Token symbol</th>
+          <th>Type</th>
           <th>Price</th>
           <th>Volume</th>
           <th></th>
@@ -43,6 +45,7 @@ const OrdersTable = ({ kind }: OrdersTableProps) => {
               <td>
                 <InfoItem content={getInfo(order.icrc1Ledger).symbol} withCopy={true}/>
               </td>
+              <td>{Object.keys(order.orderBookType)[0]}</td>
               <td>{displayWithDecimals(order.price, getInfo(quoteLedger!).decimals - getInfo(order.icrc1Ledger).decimals, 6)}</td>
               <td>{displayWithDecimals(order.volume, getInfo(order.icrc1Ledger).decimals)}</td>
               <td>
