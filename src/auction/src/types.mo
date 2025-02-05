@@ -104,21 +104,21 @@ module {
     totalExecutedOrders : Nat;
   };
   public type StableUserInfoV2 = {
-      asks : UserOrderBook_<StableOrderDataV2>;
-      bids : UserOrderBook_<StableOrderDataV2>;
-      credits : AssocList.AssocList<AssetId, Account>;
-      accountRevision : Nat;
-      loyaltyPoints : Nat;
-      depositHistory : Vec.Vector<DepositHistoryItem>;
-      transactionHistory : Vec.Vector<TransactionHistoryItem>;
-    };
-public type StableOrderDataV2 = {
-  user : Principal;
-  assetId : AssetId;
-  orderBookType : OrderBookType;
-  price : Float;
-  volume : Nat;
-};
+    asks : UserOrderBook_<StableOrderDataV2>;
+    bids : UserOrderBook_<StableOrderDataV2>;
+    credits : AssocList.AssocList<AssetId, Account>;
+    accountRevision : Nat;
+    loyaltyPoints : Nat;
+    depositHistory : Vec.Vector<DepositHistoryItem>;
+    transactionHistory : Vec.Vector<TransactionHistoryItem>;
+  };
+  public type StableOrderDataV2 = {
+    user : Principal;
+    assetId : AssetId;
+    orderBookType : OrderBookType;
+    price : Float;
+    volume : Nat;
+  };
 
   // old stable data types
   public type StableDataV1 = {
@@ -144,9 +144,10 @@ public type StableOrderDataV2 = {
   public type StableUserInfoV1 = {
     asks : UserOrderBook_<StableOrderDataV1>;
     bids : UserOrderBook_<StableOrderDataV1>;
-  public type StableAssetInfoV2 = {
-    lastRate : Float;
-    lastProcessingInstructions : Nat;
+    credits : AssocList.AssocList<AssetId, Account>;
+    loyaltyPoints : Nat;
+    depositHistory : Vec.Vector<DepositHistoryItem>;
+    transactionHistory : Vec.Vector<TransactionHistoryItem>;
   };
   public type StableOrderDataV1 = {
     user : Principal;

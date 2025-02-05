@@ -30,7 +30,7 @@ import T "./types";
 
 module {
 
-  public func defaultStableDataV9() : T.StableDataV9 = {
+  public func defaultStableDataV2() : T.StableDataV2 = {
     assets = Vec.new();
     orders = { globalCounter = 0 };
     quoteToken = { surplus = 0 };
@@ -53,11 +53,11 @@ module {
       accountsAmount = 0;
     };
   };
-  public type StableDataV9 = T.StableDataV9;
-  public func migrateStableDataV9(data : StableDataV8) : StableDataV9 {
-    let usersTree : RBTree.RBTree<Principal, T.StableUserInfoV7> = RBTree.RBTree(Principal.compare);
+  public type StableDataV2 = T.StableDataV2;
+  public func migrateStableDataV2(data : StableDataV1) : StableDataV2 {
+    let usersTree : RBTree.RBTree<Principal, T.StableUserInfoV2> = RBTree.RBTree(Principal.compare);
     for ((p, x) in RBTree.iter(data.users.registry.tree, #bwd)) {
-      func mapOrderBookEntry((oid : OrderId, x : T.StableOrderDataV2)) : ((OrderId, T.StableOrderDataV3)) = (
+      func mapOrderBookEntry((oid : OrderId, x : T.StableOrderDataV1)) : ((OrderId, T.StableOrderDataV2)) = (
         oid,
         { x with orderBookType = #delayed },
       );
@@ -66,10 +66,10 @@ module {
         {
           x with
           asks = {
-            var map = List.map<(OrderId, T.StableOrderDataV2), (OrderId, T.StableOrderDataV3)>(x.asks.map, mapOrderBookEntry);
+            var map = List.map<(OrderId, T.StableOrderDataV1), (OrderId, T.StableOrderDataV2)>(x.asks.map, mapOrderBookEntry);
           };
           bids = {
-            var map = List.map<(OrderId, T.StableOrderDataV2), (OrderId, T.StableOrderDataV3)>(x.bids.map, mapOrderBookEntry);
+            var map = List.map<(OrderId, T.StableOrderDataV1), (OrderId, T.StableOrderDataV2)>(x.bids.map, mapOrderBookEntry);
           };
           accountRevision = 0;
         },
