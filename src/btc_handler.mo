@@ -4,6 +4,8 @@ import Principal "mo:base/Principal";
 import R "mo:base/Result";
 import TokenHandler "mo:token_handler";
 
+import CkBTCAddress "./ckbtc_address";
+
 module {
 
   type Utxo = {
@@ -140,16 +142,32 @@ module {
 
   public type NotifyError = UpdateBalanceError or { #NotMinted };
 
-  public class BtcHandler(auctionPrincipal : Principal, ckbtcLedgerPrincipal : Principal, ckbtcMinterPrincipal : Principal) {
+  public class BtcHandler(
+    auctionPrincipal : Principal,
+    ckbtcLedgerPrincipal : Principal,
+    ckbtcMinterPrincipal : Principal,
+  ) {
 
     let ckbtcLedger : CkbtcLedger = actor (Principal.toText(ckbtcLedgerPrincipal));
     let ckbtcMinter : CkbtcMinter = actor (Principal.toText(ckbtcMinterPrincipal));
+    let btcAddress : CkBTCAddress.CkBTCAddress = CkBTCAddress.CkBTCAddress(ckbtcMinterPrincipal);
 
     public func getDepositAddress(p : Principal) : async* Text {
       await ckbtcMinter.get_btc_address({
         owner = ?auctionPrincipal;
         subaccount = ?TokenHandler.toSubaccount(p);
       });
+    };
+
+    public func calculateDepositAddress(p : Principal) : Text {
+      btcAddress.get_deposit_addr({
+        owner = auctionPrincipal;
+        subaccount = ?TokenHandler.toSubaccount(p);
+      });
+    };
+
+    public func fetchAddressKeys() : async* () {
+      await* btcAddress.fetchKeys();
     };
 
     public func notify(p : Principal) : async* R.Result<(), NotifyError> {
@@ -204,6 +222,7 @@ module {
     public func getWithdrawalStatus(arg : { block_index : Nat64 }) : async* RetrieveBtcStatusV2 {
       await ckbtcMinter.retrieve_btc_status_v2(arg);
     };
+
   };
 
 };

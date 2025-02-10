@@ -278,14 +278,22 @@ export const useNotify = () => {
 
 export const useBtcAddress = (p: Principal) => {
   const { auction } = useAuction();
+  const { enqueueSnackbar } = useSnackbar();
   return useQuery(
     'btc_addrr_' + p.toText(),
-    async () => auction.btc_depositAddress([p]),
-    {
-      onError: () => {
-        useQueryClient().removeQueries('btc_addrr_' + p.toText());
-      },
+    async () => {
+      try {
+        return await auction.btc_depositAddress2([p]);
+      } catch (err) {
+        return auction.btc_depositAddress([p])
+      }
     },
+    {
+      onError: (err) => {
+        useQueryClient().removeQueries('btc_addrr_' + p.toText());
+        enqueueSnackbar(`${err}`, { variant: 'error' });
+      },
+    }
   );
 };
 
@@ -475,7 +483,10 @@ export const useWithdrawCredit = () => {
     (formObj: { ledger: string; amount: number; owner?: string; subaccount: Uint8Array | null }) =>
       auction.icrc84_withdraw({
         token: Principal.fromText(formObj.ledger),
-        to: { owner: formObj.owner ? Principal.fromText(formObj.owner) : identity.getPrincipal(), subaccount: formObj.subaccount ? [formObj.subaccount] : [] },
+        to: {
+          owner: formObj.owner ? Principal.fromText(formObj.owner) : identity.getPrincipal(),
+          subaccount: formObj.subaccount ? [formObj.subaccount] : []
+        },
         amount: BigInt(formObj.amount),
         expected_fee: [],
       }),
