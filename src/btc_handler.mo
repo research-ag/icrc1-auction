@@ -4,7 +4,7 @@ import Principal "mo:base/Principal";
 import R "mo:base/Result";
 import TokenHandler "mo:token_handler";
 
-import CkBTCAddress "./ckbtc_address";
+import CkBtcAddress "mo:ckbtc_address";
 
 module {
 
@@ -145,12 +145,16 @@ module {
   public class BtcHandler(
     auctionPrincipal : Principal,
     ckbtcLedgerPrincipal : Principal,
-    ckbtcMinterPrincipal : Principal,
+    minter : {
+      principal : Principal;
+      xPubKey : CkBtcAddress.XPubKey;
+    },
   ) {
 
     let ckbtcLedger : CkbtcLedger = actor (Principal.toText(ckbtcLedgerPrincipal));
-    let ckbtcMinter : CkbtcMinter = actor (Principal.toText(ckbtcMinterPrincipal));
-    let btcAddress : CkBTCAddress.CkBTCAddress = CkBTCAddress.CkBTCAddress(ckbtcMinterPrincipal);
+    let ckbtcMinter : CkbtcMinter = actor (Principal.toText(minter.principal));
+
+    let btcAddrFunc = CkBtcAddress.Minter(minter.xPubKey).deposit_addr_func(auctionPrincipal);
 
     public func getDepositAddress(p : Principal) : async* Text {
       await ckbtcMinter.get_btc_address({
@@ -159,16 +163,7 @@ module {
       });
     };
 
-    public func calculateDepositAddress(p : Principal) : Text {
-      btcAddress.get_deposit_addr({
-        owner = auctionPrincipal;
-        subaccount = ?TokenHandler.toSubaccount(p);
-      });
-    };
-
-    public func fetchAddressKeys() : async* () {
-      await* btcAddress.fetchKeys();
-    };
+    public func calculateDepositAddress(p : Principal) : Text = btcAddrFunc(?TokenHandler.toSubaccount(p));
 
     public func notify(p : Principal) : async* R.Result<(), NotifyError> {
       let resp = await ckbtcMinter.update_balance({
@@ -200,7 +195,7 @@ module {
       let approveRes = await ckbtcLedger.icrc2_approve({
         from_subaccount = null;
         amount = allowanceAmount;
-        spender = { owner = ckbtcMinterPrincipal; subaccount = null };
+        spender = { owner = minter.principal; subaccount = null };
         fee = ?ledgerFee;
         expected_allowance = null;
         created_at_time = null;
