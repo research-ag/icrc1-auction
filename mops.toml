@@ -6,6 +6,7 @@ token_handler = "https://github.com/research-ag/token-handler#0c06f8e88ed1ed87eb
 mrr = "https://github.com/research-ag/motoko-lib#main"
 auction = "https://github.com/research-ag/auction#b14f446fdc5257699d8bb80d7771b5cb66591008"
 icrc84 = "https://github.com/research-ag/icrc-84#34a67ed2b16b3dd7cb2731e45708a32d49fe8c70"
+bitcoin = "0.1.1"
 ckbtc_address = "https://github.com/research-ag/ckbtc-address#595789d633c6f4a017d4166c7e17f4f9e2978953"
 
 [toolchain]
