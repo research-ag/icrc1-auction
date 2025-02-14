@@ -523,12 +523,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   let btcHandler : BtcHandler.BtcHandler = BtcHandler.BtcHandler(Principal.fromActor(self), CKBTC_LEDGER_PRINCIPAL, CKBTC_MINTER);
 
-  public shared ({ caller }) func btc_depositAddress(p : ?Principal) : async Text {
-    let ?_ = getAssetId(CKBTC_LEDGER_PRINCIPAL) else throw Error.reject("BTC is not supported");
-    await* btcHandler.getDepositAddress(Option.get(p, caller));
-  };
-
-  public shared query ({ caller }) func btc_depositAddress2(p : ?Principal) : async Text {
+  public shared query ({ caller }) func btc_depositAddress(p : ?Principal) : async Text {
     let ?_ = getAssetId(CKBTC_LEDGER_PRINCIPAL) else throw Error.reject("BTC is not supported");
     btcHandler.calculateDepositAddress(Option.get(p, caller));
   };

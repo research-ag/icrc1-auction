@@ -119,7 +119,6 @@ module {
   };
 
   type CkbtcMinter = actor {
-    get_btc_address : shared ({ owner : ?Principal; subaccount : ?Blob }) -> async Text;
     update_balance : shared ({ owner : ?Principal; subaccount : ?Blob }) -> async {
       #Ok : [UtxoStatus];
       #Err : UpdateBalanceError;
@@ -155,13 +154,6 @@ module {
     let ckbtcMinter : CkbtcMinter = actor (Principal.toText(minter.principal));
 
     let btcAddrFunc = CkBtcAddress.Minter(minter.xPubKey).deposit_addr_func(auctionPrincipal);
-
-    public func getDepositAddress(p : Principal) : async* Text {
-      await ckbtcMinter.get_btc_address({
-        owner = ?auctionPrincipal;
-        subaccount = ?TokenHandler.toSubaccount(p);
-      });
-    };
 
     public func calculateDepositAddress(p : Principal) : Text = btcAddrFunc(?TokenHandler.toSubaccount(p));
 

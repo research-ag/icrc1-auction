@@ -295,11 +295,6 @@ export const useBtcAddress = (p: Principal) => {
   return useQuery(
     'btc_addrr_' + p.toText(),
     async () => {
-      // try {
-      //   return await auction.btc_depositAddress2([p]);
-      // } catch (err) {
-      //   return auction.btc_depositAddress([p])
-      // }
       return ckBtcMinter.depositAddr({
         owner: canisterId,
         subaccount: userToSubaccount(p),
