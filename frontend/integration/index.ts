@@ -7,6 +7,7 @@ import { useMemo } from 'react';
 import { createActor } from '@declarations/icrc1_auction';
 import { AuctionQueryResponse } from "@declarations/icrc1_auction/icrc1_auction_development.did";
 import { createActor as createLedgerActor } from '@declarations/icrc1_ledger_mock';
+import { CKBTC_MINTER_MAINNET_XPUBKEY, Minter } from "@research-ag/ckbtc-address-js";
 
 // Custom replacer function for JSON.stringify
 const bigIntReplacer = (key: string, value: any): any => {
@@ -30,6 +31,17 @@ const replaceBigInts = <T>(obj: T): T => {
 }
 
 export const defaultAuctionCanisterId = "farwr-jqaaa-aaaao-qj4ya-cai";
+
+let ckBtcMinter = new Minter(CKBTC_MINTER_MAINNET_XPUBKEY);
+
+let userToSubaccount = (user: Principal): Uint8Array => {
+  let arr = Array.from(user.toUint8Array());
+  arr.unshift(arr.length);
+  while (arr.length < 32) {
+    arr.unshift(0);
+  }
+  return new Uint8Array(arr);
+};
 
 export const useAuctionCanisterId = () => {
   return localStorage.getItem('auctionCanisterId') || defaultAuctionCanisterId;
@@ -278,15 +290,20 @@ export const useNotify = () => {
 
 export const useBtcAddress = (p: Principal) => {
   const { auction } = useAuction();
+  const canisterId = useAuctionCanisterId();
   const { enqueueSnackbar } = useSnackbar();
   return useQuery(
     'btc_addrr_' + p.toText(),
     async () => {
-      try {
-        return await auction.btc_depositAddress2([p]);
-      } catch (err) {
-        return auction.btc_depositAddress([p])
-      }
+      // try {
+      //   return await auction.btc_depositAddress2([p]);
+      // } catch (err) {
+      //   return auction.btc_depositAddress([p])
+      // }
+      return ckBtcMinter.depositAddr({
+        owner: canisterId,
+        subaccount: userToSubaccount(p),
+      });
     },
     {
       onError: (err) => {
