@@ -4,6 +4,8 @@ import Principal "mo:base/Principal";
 import R "mo:base/Result";
 import TokenHandler "mo:token_handler";
 
+import CkBtcAddress "mo:ckbtc_address";
+
 module {
 
   type Utxo = {
@@ -117,7 +119,6 @@ module {
   };
 
   type CkbtcMinter = actor {
-    get_btc_address : shared ({ owner : ?Principal; subaccount : ?Blob }) -> async Text;
     update_balance : shared ({ owner : ?Principal; subaccount : ?Blob }) -> async {
       #Ok : [UtxoStatus];
       #Err : UpdateBalanceError;
@@ -140,17 +141,21 @@ module {
 
   public type NotifyError = UpdateBalanceError or { #NotMinted };
 
-  public class BtcHandler(auctionPrincipal : Principal, ckbtcLedgerPrincipal : Principal, ckbtcMinterPrincipal : Principal) {
+  public class BtcHandler(
+    auctionPrincipal : Principal,
+    ckbtcLedgerPrincipal : Principal,
+    minter : {
+      principal : Principal;
+      xPubKey : CkBtcAddress.XPubKey;
+    },
+  ) {
 
     let ckbtcLedger : CkbtcLedger = actor (Principal.toText(ckbtcLedgerPrincipal));
-    let ckbtcMinter : CkbtcMinter = actor (Principal.toText(ckbtcMinterPrincipal));
+    let ckbtcMinter : CkbtcMinter = actor (Principal.toText(minter.principal));
 
-    public func getDepositAddress(p : Principal) : async* Text {
-      await ckbtcMinter.get_btc_address({
-        owner = ?auctionPrincipal;
-        subaccount = ?TokenHandler.toSubaccount(p);
-      });
-    };
+    let btcAddrFunc = CkBtcAddress.Minter(minter.xPubKey).deposit_addr_func(auctionPrincipal);
+
+    public func calculateDepositAddress(p : Principal) : Text = btcAddrFunc(?TokenHandler.toSubaccount(p));
 
     public func notify(p : Principal) : async* R.Result<(), NotifyError> {
       let resp = await ckbtcMinter.update_balance({
@@ -182,7 +187,7 @@ module {
       let approveRes = await ckbtcLedger.icrc2_approve({
         from_subaccount = null;
         amount = allowanceAmount;
-        spender = { owner = ckbtcMinterPrincipal; subaccount = null };
+        spender = { owner = minter.principal; subaccount = null };
         fee = ?ledgerFee;
         expected_allowance = null;
         created_at_time = null;
@@ -204,6 +209,7 @@ module {
     public func getWithdrawalStatus(arg : { block_index : Nat64 }) : async* RetrieveBtcStatusV2 {
       await ckbtcMinter.retrieve_btc_status_v2(arg);
     };
+
   };
 
 };

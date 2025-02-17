@@ -58,12 +58,21 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   let AUCTION_INTERVAL_SECONDS : Nat64 = 120;
 
   // Bitcoin mainnet
-  let CKBTC_MINTER_PRINCIPAL = Principal.fromText("mqygn-kiaaa-aaaar-qaadq-cai");
   let CKBTC_LEDGER_PRINCIPAL = Principal.fromText("mxzaz-hqaaa-aaaar-qaada-cai");
+  let CKBTC_MINTER = {
+    principal = Principal.fromText("mqygn-kiaaa-aaaar-qaadq-cai");
+    xPubKey = {
+      public_key : Blob = "\02\22\04\7A\81\D4\F8\A0\67\03\1C\89\27\3D\24\1B\79\A5\A0\07\C0\4D\FA\F3\6D\07\96\3D\B0\B9\90\97\EB";
+      chain_code : Blob = "\82\1A\EB\B6\43\BD\97\D3\19\D2\FD\0B\2E\48\3D\4E\7D\E2\EA\90\39\FF\67\56\8B\69\3E\6A\BC\14\A0\3B";
+    };
+  };
 
   // Bitcoin testnet
-  // let CKBTC_MINTER_PRINCIPAL = Principal.fromText("ml52i-qqaaa-aaaar-qaaba-cai");
   // let CKBTC_LEDGER_PRINCIPAL = Principal.fromText("mc6ru-gyaaa-aaaar-qaaaq-cai");
+  // let CKBTC_MINTER = {
+  //   principal = Principal.fromText("ml52i-qqaaa-aaaar-qaaba-cai");
+  //   xPubKey = // load with "await* CkBtcAddress.fetchEcdsaKey(Principal.fromText("ml52i-qqaaa-aaaar-qaaba-cai"));"
+  // };
 
   type AssetInfo = {
     ledgerPrincipal : Principal;
@@ -512,11 +521,11 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     };
   };
 
-  let btcHandler : BtcHandler.BtcHandler = BtcHandler.BtcHandler(Principal.fromActor(self), CKBTC_LEDGER_PRINCIPAL, CKBTC_MINTER_PRINCIPAL);
+  let btcHandler : BtcHandler.BtcHandler = BtcHandler.BtcHandler(Principal.fromActor(self), CKBTC_LEDGER_PRINCIPAL, CKBTC_MINTER);
 
-  public shared ({ caller }) func btc_depositAddress(p : ?Principal) : async Text {
+  public shared query ({ caller }) func btc_depositAddress(p : ?Principal) : async Text {
     let ?_ = getAssetId(CKBTC_LEDGER_PRINCIPAL) else throw Error.reject("BTC is not supported");
-    await* btcHandler.getDepositAddress(Option.get(p, caller));
+    btcHandler.calculateDepositAddress(Option.get(p, caller));
   };
 
   public shared ({ caller }) func btc_notify() : async BtcNotifyResult {
