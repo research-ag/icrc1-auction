@@ -78,3 +78,14 @@ export const displayWithDecimals = (value: bigint | number, decimals: number, ma
   }
   return res;
 };
+
+export const subaccountToText = (subaccount: [] | [Uint8Array | number[]] | undefined) => {
+  if (!subaccount || !subaccount[0]) return 'null';
+  return (
+    '[0x' +
+    Array.from(subaccount[0])
+      .map(x => (x < 16 ? '0' : '') + x.toString(16))
+      .join(' ') +
+    ']'
+  );
+};

@@ -30,6 +30,7 @@ import { Principal } from '@dfinity/principal';
 import { useIdentity } from '@fe/integration/identity';
 import { decodeIcrcAccount } from '@dfinity/ledger-icrc';
 import { useSnackbar } from 'notistack';
+import { subaccountToText } from '@fe/utils';
 
 interface DepositFormValues {
   symbol: string;
@@ -179,17 +180,6 @@ const DepositModal = ({ isOpen, onClose }: AddModalProps) => {
   const { identity } = useIdentity();
   const subaccount = usePrincipalToSubaccount(identity.getPrincipal());
   const btcAddr = useBtcAddress(identity.getPrincipal());
-
-  const subaccountToText = (subaccount: [] | [Uint8Array | number[]] | undefined) => {
-    if (!subaccount || !subaccount[0]) return '';
-    return (
-      '[0x' +
-      Array.from(subaccount[0])
-        .map(x => (x < 16 ? '0' : '') + x.toString(16))
-        .join(' ') +
-      ']'
-    );
-  };
 
   const auctionId = useAuctionCanisterId();
 
