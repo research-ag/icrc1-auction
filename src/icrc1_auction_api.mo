@@ -195,7 +195,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     } or BtcHandler.ApproveError or BtcHandler.RetrieveBtcWithApprovalError;
   };
 
-  type TCyclesLedgerWithdrawError = {
+  type CyclesLedgerWithdrawError = {
     #FailedToWithdraw : {
       rejection_code : {
         #NoError;
@@ -219,11 +219,11 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     #InsufficientFunds : { balance : Nat };
   };
 
-  type TCyclesWithdrawResult = {
+  type DirectCyclesWithdrawResult = {
     #Ok : { amount : Nat };
     #Err : {
       #InsufficientCredit : {};
-    } or TCyclesLedgerWithdrawError;
+    } or CyclesLedgerWithdrawError;
   };
 
   let quoteAssetId : Auction.AssetId = 0;
@@ -603,9 +603,9 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     await* btcHandler.getWithdrawalStatus(arg);
   };
 
-  public shared ({ caller }) func tcycles_withdraw(args : { to : Principal; amount : Nat }) : async TCyclesWithdrawResult {
-    let ?tcyclesAssetId = getAssetId(TCYCLES_LEDGER_PRINCIPAL) else throw Error.reject("TCYCLES is not supported");
-    let (rollbackCredit, doneCallback) = switch (auction.deductCredit(caller, tcyclesAssetId, args.amount)) {
+  public shared ({ caller }) func cycles_withdraw(args : { to : Principal; amount : Nat }) : async DirectCyclesWithdrawResult {
+    let ?cyclesAssetId = getAssetId(TCYCLES_LEDGER_PRINCIPAL) else throw Error.reject("Cycles asset is not supported");
+    let (rollbackCredit, doneCallback) = switch (auction.deductCredit(caller, cyclesAssetId, args.amount)) {
       case (#err _) return #Err(#InsufficientCredit({}));
       case (#ok(_, r, d)) (r, d);
     };
@@ -618,7 +618,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
           amount : Nat;
         }) -> async ({
           #Ok : Nat;
-          #Err : TCyclesLedgerWithdrawError;
+          #Err : CyclesLedgerWithdrawError;
         });
       }
     ) = actor (Principal.toText(TCYCLES_LEDGER_PRINCIPAL));
