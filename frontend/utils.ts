@@ -16,25 +16,28 @@ const numberToString = (num: number): string => {
     let e = parseInt(num.toString().split('e-')[1]);
     if (e) {
       let negative = num < 0;
-      if (negative) num *= -1
+      if (negative) num *= -1;
       num *= Math.pow(10, e - 1);
-      numStr = '0.' + (new Array(e)).join('0') + num.toString().substring(2);
-      if (negative) numStr = "-" + numStr;
+      numStr = '0.' + new Array(e).join('0') + num.toString().substring(2);
+      if (negative) numStr = '-' + numStr;
     }
   } else {
     let e = parseInt(num.toString().split('+')[1]);
-    if (e > 20)
-    {
+    if (e > 20) {
       e -= 20;
       num /= Math.pow(10, e);
-      numStr = num.toString() + (new Array(e + 1)).join('0');
+      numStr = num.toString() + new Array(e + 1).join('0');
     }
   }
   return numStr;
-}
+};
 
 // string-based decimal point transformation
-export const displayWithDecimals = (value: bigint | number, decimals: number, maxSignificantDigits: number = 0): string => {
+export const displayWithDecimals = (
+  value: bigint | number,
+  decimals: number,
+  maxSignificantDigits: number = 0,
+): string => {
   if (value < 0) {
     throw new Error('Wrong natural number provided: ' + value.toString());
   }
@@ -67,14 +70,16 @@ export const displayWithDecimals = (value: bigint | number, decimals: number, ma
     let maxFracPartLength = Math.max(0, maxSignificantDigits - intPart.length);
     let fracSignificantPart = intPart.length ? fracPart : fracPart.replace(/^0+/, '');
     if (fracSignificantPart.length > maxFracPartLength) {
-      const fracFullLength = (fracPart.length - fracSignificantPart.length) + maxFracPartLength;
-      fracPart = (parseFloat('0.' + fracPart)).toFixed(fracFullLength).slice(2);
+      const fracFullLength = fracPart.length - fracSignificantPart.length + maxFracPartLength;
+      fracPart = parseFloat('0.' + fracPart)
+        .toFixed(fracFullLength)
+        .slice(2);
     }
   }
   fracPart = fracPart.replace(/0+$/, '');
-  res = intPart || "0";
+  res = intPart || '0';
   if (fracPart) {
-    res += "." + fracPart;
+    res += '.' + fracPart;
   }
   return res;
 };

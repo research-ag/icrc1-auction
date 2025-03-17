@@ -3,6 +3,7 @@ import { Box, Button, Table } from '@mui/joy';
 import { useAuctionQuery, useListCredits, useTokenInfoMap } from '@fe/integration';
 import WithdrawCreditModal from '../withdraw-credit-modal';
 import WithdrawBtcModal from '../withdraw-btc-modal';
+import WithdrawCyclesModal from '../withdraw-cycles-modal';
 import { useState } from 'react';
 import InfoItem from '../../root/info-item';
 import { Principal } from '@dfinity/principal';
@@ -24,6 +25,11 @@ const CreditsTable = () => {
     setIsWithdrawBtcModalOpen(true);
   };
   const closeWithdrawBtcModal = () => setIsWithdrawBtcModalOpen(false);
+  const [isWithdrawCyclesModalOpen, setIsWithdrawCyclesModalOpen] = useState(false);
+  const openWithdrawCyclesModal = () => {
+    setIsWithdrawCyclesModalOpen(true);
+  };
+  const closeWithdrawCyclesModal = () => setIsWithdrawCyclesModalOpen(false);
 
   const { data: symbols } = useTokenInfoMap();
   const getTokenInfo = (ledger: Principal): { symbol: string, decimals: number } => {
@@ -64,6 +70,12 @@ const CreditsTable = () => {
                         Withdraw BTC
                     </Button>
                 }
+                {getTokenInfo(ledger).symbol === 'TCYCLES' &&
+                    <Button onClick={() => openWithdrawCyclesModal()} color="danger" size="sm"
+                            style={{ whiteSpace: "nowrap", marginBottom: "0.5rem" }}>
+                        Withdraw cycles
+                    </Button>
+                }
                 <Button onClick={() => openWithdrawModal(ledger)} color="danger" size="sm">
                   Withdraw
                 </Button>
@@ -75,6 +87,7 @@ const CreditsTable = () => {
       </Table>
       <WithdrawCreditModal isOpen={isWithdrawModalOpen} onClose={closeWithdrawModal} ledger={withdrawLedger}/>
       <WithdrawBtcModal isOpen={isWithdrawBtcModalOpen} onClose={closeWithdrawBtcModal}/>
+      <WithdrawCyclesModal isOpen={isWithdrawCyclesModalOpen} onClose={closeWithdrawCyclesModal}/>
     </Box>
   );
 };
