@@ -223,6 +223,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     #Ok : { amount : Nat };
     #Err : {
       #InsufficientCredit : {};
+      #TooLowAmount : {};
     } or CyclesLedgerWithdrawError;
   };
 
@@ -605,6 +606,12 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   public shared ({ caller }) func cycles_withdraw(args : { to : Principal; amount : Nat }) : async DirectCyclesWithdrawResult {
     let ?cyclesAssetId = getAssetId(TCYCLES_LEDGER_PRINCIPAL) else throw Error.reject("Cycles asset is not supported");
+
+    let ledgerFee = 100_000_000;
+    if (args.amount <= ledgerFee) {
+      return #Err(#TooLowAmount {});
+    };
+
     let (rollbackCredit, doneCallback) = switch (auction.deductCredit(caller, cyclesAssetId, args.amount)) {
       case (#err _) return #Err(#InsufficientCredit({}));
       case (#ok(_, r, d)) (r, d);
@@ -622,7 +629,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
         });
       }
     ) = actor (Principal.toText(TCYCLES_LEDGER_PRINCIPAL));
-    switch (await ledger.withdraw({ to = args.to; amount = args.amount; from_subaccount = null; created_at_time = null })) {
+    switch (await ledger.withdraw({ to = args.to; amount = args.amount - ledgerFee; from_subaccount = null; created_at_time = null })) {
       case (#Err err) {
         rollbackCredit();
         #Err(err);

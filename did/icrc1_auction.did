@@ -348,6 +348,7 @@ service : (opt principal, opt principal) -> {
         TemporarilyUnavailable;
         Duplicate : record { duplicate_of : nat };
         InsufficientCredit : record {};
+        TooLowAmount : record {};
         BadFee : record { expected_fee : nat };
         InvalidReceiver : record { receiver : principal };
         CreatedInFuture : record { ledger_time : nat64 };
