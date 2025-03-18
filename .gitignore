@@ -16,3 +16,7 @@ dist/
 declarations/
 
 .mops
+
+# build files
+build/
+out/
