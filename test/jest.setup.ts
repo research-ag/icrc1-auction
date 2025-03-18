@@ -25,10 +25,12 @@ module.exports = async () => {
   let pic: PocketIc | null = null;
   let timeout = 300;
   try {
+    let failTimeout;
     pic = await Promise.race([
       PocketIc.create(picServer.getUrl()),
-      new Promise((_, rej) => setTimeout(rej, timeout*1000)) as Promise<PocketIc>
+      new Promise((_, rej) => failTimeout = setTimeout(rej, timeout*1000)) as Promise<PocketIc>
     ]);
+    clearTimeout(failTimeout);
   } catch (e) {
     throw new Error('Pocket IC instance was unable to start in ' + timeout + ' seconds. Aborting....');
   }
