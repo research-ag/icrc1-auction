@@ -72,7 +72,7 @@ const WithdrawCyclesModal = ({ isOpen, onClose }: WithdrawCyclesModalProps) => {
     <Modal open={isOpen} onClose={onClose}>
       <ModalDialog sx={{ width: 'calc(100% - 50px)', maxWidth: '450px' }}>
         <ModalClose/>
-        <Typography level="h4">Withdraw BTC directly</Typography>
+        <Typography level="h4">Withdraw cycles directly</Typography>
         <form onSubmit={handleSubmit(submit)} autoComplete="off">
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
             <Controller
