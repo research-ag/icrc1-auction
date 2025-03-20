@@ -153,8 +153,14 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     points : Nat;
   };
 
+  type WithdrawalMemo = {
+    #icrc1Address : (Principal, ?Blob);
+    #btcDirect : Text;
+    #cyclesDirect : Principal;
+  };
+
   type PriceHistoryItem = (timestamp : Nat64, sessionNumber : Nat, ledgerPrincipal : Principal, volume : Nat, price : Float);
-  type DepositHistoryItem = (timestamp : Nat64, kind : { #deposit; #withdrawal : ?{ #btcDirect : Text; #icrc1Address : (Principal, ?Blob) } }, ledgerPrincipal : Principal, volume : Nat);
+  type DepositHistoryItem = (timestamp : Nat64, kind : { #deposit; #withdrawal : ?WithdrawalMemo }, ledgerPrincipal : Principal, volume : Nat);
   type TransactionHistoryItem = (timestamp : Nat64, sessionNumber : Nat, kind : { #ask; #bid }, ledgerPrincipal : Principal, volume : Nat, price : Float);
 
   let mapDepositHistoryItem = func(x : Auction.DepositHistoryItem) : DepositHistoryItem = (
@@ -163,7 +169,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       case (#deposit _) #deposit;
       case (#withdrawal null) #withdrawal(null);
       case (#withdrawal(?memo)) {
-        let info : ?{ #btcDirect : Text; #icrc1Address : (Principal, ?Blob) } = from_candid memo;
+        let info : ?WithdrawalMemo = from_candid memo;
         #withdrawal(info);
       };
     },
@@ -559,7 +565,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     withdrawCounter.add(1);
     let ?assetId = getAssetId(args.token) else throw Error.reject("Unknown token");
     let handler = Vec.get(assets, assetId).handler;
-    let withdrawalMemo = to_candid (#icrc1Address(args.to.owner, args.to.subaccount) : { #btcDirect : Text; #icrc1Address : (Principal, ?Blob) });
+    let withdrawalMemo = to_candid (#icrc1Address(args.to.owner, args.to.subaccount) : WithdrawalMemo);
     let (rollbackCredit, doneCallback) = switch (auction.deductCredit(caller, assetId, args.amount, ?withdrawalMemo)) {
       case (#err _) return #Err(#InsufficientCredit({}));
       case (#ok(_, r, d)) (r, d);
@@ -601,7 +607,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   public shared ({ caller }) func btc_withdraw(args : { to : Text; amount : Nat }) : async BtcWithdrawResult {
     let ?ckbtcAssetId = getAssetId(CKBTC_LEDGER_PRINCIPAL) else throw Error.reject("BTC is not supported");
     let handler = Vec.get(assets, ckbtcAssetId).handler;
-    let withdrawalMemo = to_candid (#btcDirect(args.to) : { #btcDirect : Text; #icrc1Address : (Principal, ?Blob) });
+    let withdrawalMemo = to_candid (#btcDirect(args.to) : WithdrawalMemo);
 
     let (rollbackCredit, doneCallback) = switch (auction.deductCredit(caller, ckbtcAssetId, args.amount, ?withdrawalMemo)) {
       case (#err _) return #Err(#InsufficientCredit({}));
@@ -641,8 +647,9 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     if (args.amount <= ledgerFee) {
       return #Err(#TooLowAmount {});
     };
+    let withdrawalMemo = to_candid (#cyclesDirect(args.to) : WithdrawalMemo);
 
-    let (rollbackCredit, doneCallback) = switch (auction.deductCredit(caller, cyclesAssetId, args.amount)) {
+    let (rollbackCredit, doneCallback) = switch (auction.deductCredit(caller, cyclesAssetId, args.amount, ?withdrawalMemo)) {
       case (#err _) return #Err(#InsufficientCredit({}));
       case (#ok(_, r, d)) (r, d);
     };
