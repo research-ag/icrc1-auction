@@ -74,6 +74,19 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   // };
 
   let TCYCLES_LEDGER_PRINCIPAL = Principal.fromText("um5iw-rqaaa-aaaaq-qaaba-cai");
+  let tcyclesLedger : (
+    actor {
+      withdraw : shared ({
+        to : Principal;
+        from_subaccount : ?[Nat8];
+        created_at_time : ?Nat64;
+        amount : Nat;
+      }) -> async ({
+        #Ok : Nat;
+        #Err : CyclesLedgerWithdrawError;
+      });
+    }
+  ) = actor (Principal.toText(TCYCLES_LEDGER_PRINCIPAL));
 
   type AssetInfo = {
     ledgerPrincipal : Principal;
@@ -616,20 +629,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       case (#err _) return #Err(#InsufficientCredit({}));
       case (#ok(_, r, d)) (r, d);
     };
-    let ledger : (
-      actor {
-        withdraw : shared ({
-          to : Principal;
-          from_subaccount : ?[Nat8];
-          created_at_time : ?Nat64;
-          amount : Nat;
-        }) -> async ({
-          #Ok : Nat;
-          #Err : CyclesLedgerWithdrawError;
-        });
-      }
-    ) = actor (Principal.toText(TCYCLES_LEDGER_PRINCIPAL));
-    switch (await ledger.withdraw({ to = args.to; amount = args.amount - ledgerFee; from_subaccount = null; created_at_time = null })) {
+    switch (await tcyclesLedger.withdraw({ to = args.to; amount = args.amount - ledgerFee; from_subaccount = null; created_at_time = null })) {
       case (#Err err) {
         rollbackCredit();
         #Err(err);
