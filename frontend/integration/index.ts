@@ -5,9 +5,9 @@ import { useIdentity } from './identity';
 import { Principal } from '@dfinity/principal';
 import { useMemo } from 'react';
 import { createActor } from '@declarations/icrc1_auction';
-import { AuctionQueryResponse } from "@declarations/icrc1_auction/icrc1_auction_development.did";
+import { AuctionQueryResponse } from '@declarations/icrc1_auction/icrc1_auction_development.did';
 import { createActor as createLedgerActor } from '@declarations/icrc1_ledger_mock';
-import { CKBTC_MINTER_MAINNET_XPUBKEY, Minter } from "@research-ag/ckbtc-address-js";
+import { CKBTC_MINTER_MAINNET_XPUBKEY, Minter } from '@research-ag/ckbtc-address-js';
 
 // Custom replacer function for JSON.stringify
 const bigIntReplacer = (key: string, value: any): any => {
@@ -23,14 +23,12 @@ const replaceBigInts = <T>(obj: T): T => {
   } else if (Array.isArray(obj)) {
     return obj.map(replaceBigInts) as any;
   } else if (obj !== null && typeof obj === 'object' && !(obj instanceof Principal)) {
-    return Object.fromEntries(
-      Object.entries(obj).map(([key, value]) => [key, replaceBigInts(value)])
-    ) as any;
+    return Object.fromEntries(Object.entries(obj).map(([key, value]) => [key, replaceBigInts(value)])) as any;
   }
   return obj;
-}
+};
 
-export const defaultAuctionCanisterId = "farwr-jqaaa-aaaao-qj4ya-cai";
+export const defaultAuctionCanisterId = 'farwr-jqaaa-aaaao-qj4ya-cai';
 
 let ckBtcMinter = new Minter(CKBTC_MINTER_MAINNET_XPUBKEY);
 
@@ -72,7 +70,9 @@ export const useAuction = () => {
     return { auction };
   } catch (err) {
     const { enqueueSnackbar } = useSnackbar();
-    enqueueSnackbar(`Auction ${canisterId} cannot be used. Falling back to ${defaultAuctionCanisterId}`, { variant: 'warning' });
+    enqueueSnackbar(`Auction ${canisterId} cannot be used. Falling back to ${defaultAuctionCanisterId}`, {
+      variant: 'warning',
+    });
     updateAuctionCanisterId(defaultAuctionCanisterId);
     const auction = createActor(defaultAuctionCanisterId, {
       agentOptions: {
@@ -86,25 +86,20 @@ export const useAuction = () => {
 
 export const useQuoteLedger = () => {
   const { auction } = useAuction();
-  return useQuery(
-    'quoteLedger',
-    () => auction.getQuoteLedger(), {
-      onError: () => {
-        useQueryClient().removeQueries('quoteLedger');
-      },
-    });
+  return useQuery('quoteLedger', () => auction.getQuoteLedger(), {
+    onError: () => {
+      useQueryClient().removeQueries('quoteLedger');
+    },
+  });
 };
 
 export const useSessionsCounter = () => {
   const { auction } = useAuction();
-  return useQuery(
-    'sessionsCounter',
-    () => auction.nextSession().then(({ counter }) => counter),
-    {
-      onError: () => {
-        useQueryClient().removeQueries('sessionsCounter');
-      },
-    });
+  return useQuery('sessionsCounter', () => auction.nextSession().then(({ counter }) => counter), {
+    onError: () => {
+      useQueryClient().removeQueries('sessionsCounter');
+    },
+  });
 };
 
 export const useMinimumOrder = () => {
@@ -122,15 +117,11 @@ export const useMinimumOrder = () => {
 
 export const usePrincipalToSubaccount = (p: Principal) => {
   const { auction } = useAuction();
-  return useQuery(
-    'subaccount_' + p.toText(),
-    async () => auction.principalToSubaccount(p),
-    {
-      onError: () => {
-        useQueryClient().removeQueries('subaccount_' + p.toText());
-      },
+  return useQuery('subaccount_' + p.toText(), async () => auction.principalToSubaccount(p), {
+    onError: () => {
+      useQueryClient().removeQueries('subaccount_' + p.toText());
     },
-  );
+  });
 };
 
 export const useAddAsset = () => {
@@ -165,18 +156,14 @@ export const useListAssets = () => {
   const { enqueueSnackbar } = useSnackbar();
   const queryClient = useQueryClient();
 
-  return useQuery(
-    'assets',
-    async () => auction.icrc84_supported_tokens(),
-    {
-      onSettled: _ => queryClient.invalidateQueries('assetInfos'),
-      onError: err => {
-        enqueueSnackbar(`Failed to fetch credits: ${err}`, { variant: 'error' });
-        queryClient.removeQueries('assets');
-        queryClient.removeQueries('assetInfos');
-      },
+  return useQuery('assets', async () => auction.icrc84_supported_tokens(), {
+    onSettled: _ => queryClient.invalidateQueries('assetInfos'),
+    onError: err => {
+      enqueueSnackbar(`Failed to fetch credits: ${err}`, { variant: 'error' });
+      queryClient.removeQueries('assets');
+      queryClient.removeQueries('assetInfos');
     },
-  );
+  });
 };
 
 export const useTokenInfoMap = () => {
@@ -186,11 +173,13 @@ export const useTokenInfoMap = () => {
   return useQuery(
     'assetInfos',
     async () => {
-      const assets = queryClient.getQueryData('assets') as (Principal[] | undefined);
+      const assets = queryClient.getQueryData('assets') as Principal[] | undefined;
       const info = await Promise.all((assets || []).map(async p => createLedgerActor(p).icrc1_metadata()));
-      const mapInfo = (info: ['icrc1:decimals' | 'icrc1:symbol', { 'Nat': bigint } | { 'Text': string }][]): {
-        symbol: string,
-        decimals: number
+      const mapInfo = (
+        info: ['icrc1:decimals' | 'icrc1:symbol', { Nat: bigint } | { Text: string }][],
+      ): {
+        symbol: string;
+        decimals: number;
       } => {
         const ret = {
           symbol: '-',
@@ -205,10 +194,13 @@ export const useTokenInfoMap = () => {
         }
         return ret;
       };
-      return (assets || []).map((p, i) => ([p, mapInfo(info[i] as any)])) as [Principal, {
-        symbol: string,
-        decimals: number
-      }][];
+      return (assets || []).map((p, i) => [p, mapInfo(info[i] as any)]) as [
+        Principal,
+        {
+          symbol: string;
+          decimals: number;
+        },
+      ][];
     },
     {
       onError: err => {
@@ -225,15 +217,17 @@ export const useAuctionQuery = () => {
   return useQuery(
     'auctionQuery',
     async () => {
-      return replaceBigInts(await auction.auction_query([], {
-        asks: [true],
-        bids: [true],
-        credits: [true],
-        session_numbers: [],
-        deposit_history: [[BigInt(10000), BigInt(0)]],
-        transaction_history: [[BigInt(10000), BigInt(0)]],
-        price_history: []
-      }));
+      return replaceBigInts(
+        await auction.auction_query([], {
+          asks: [true],
+          bids: [true],
+          credits: [true],
+          session_numbers: [],
+          deposit_history: [[BigInt(10000), BigInt(0)]],
+          transaction_history: [[BigInt(10000), BigInt(0)]],
+          price_history: [],
+        }),
+      );
     },
     {
       onError: err => {
@@ -248,24 +242,20 @@ export const useListOrders = (auctionQueryData: AuctionQueryResponse | undefined
   return useQuery(
     [kind === 'bid' ? 'myBids' : 'myAsks', auctionQueryData],
     async () => (kind === 'ask' ? auctionQueryData?.asks : auctionQueryData?.bids) || [],
-    { enabled: !!auctionQueryData }
+    { enabled: !!auctionQueryData },
   );
 };
 
 export const useListCredits = (auctionQueryData: AuctionQueryResponse | undefined) => {
-  return useQuery(
-    ['myCredits', auctionQueryData],
-    async () => auctionQueryData?.credits || [],
-    { enabled: !!auctionQueryData }
-  );
+  return useQuery(['myCredits', auctionQueryData], async () => auctionQueryData?.credits || [], {
+    enabled: !!auctionQueryData,
+  });
 };
 
 export const usePoints = (auctionQueryData: AuctionQueryResponse | undefined) => {
-  return useQuery(
-    ['myPoints', auctionQueryData],
-    async () => auctionQueryData?.points || 0,
-    { enabled: !!auctionQueryData }
-  );
+  return useQuery(['myPoints', auctionQueryData], async () => auctionQueryData?.points || 0, {
+    enabled: !!auctionQueryData,
+  });
 };
 
 export const useNotify = () => {
@@ -301,11 +291,11 @@ export const useBtcAddress = (p: Principal) => {
       });
     },
     {
-      onError: (err) => {
+      onError: err => {
         useQueryClient().removeQueries('btc_addrr_' + p.toText());
         enqueueSnackbar(`${err}`, { variant: 'error' });
       },
-    }
+    },
   );
 };
 
@@ -334,7 +324,7 @@ export const useDeposit = () => {
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
   return useMutation(
-    (arg: { token: Principal; amount: number; owner: Principal, subaccount: Uint8Array | number[] | null }) =>
+    (arg: { token: Principal; amount: number; owner: Principal; subaccount: Uint8Array | number[] | null }) =>
       auction.icrc84_deposit({
         token: arg.token,
         amount: BigInt(arg.amount),
@@ -413,19 +403,15 @@ export const useCancelOrder = (kind: 'ask' | 'bid') => {
 };
 
 export const useDepositHistory = (auctionQueryData: AuctionQueryResponse | undefined) => {
-  return useQuery(
-    ['deposit-history', auctionQueryData],
-    async () => auctionQueryData?.deposit_history || [],
-    { enabled: !!auctionQueryData }
-  );
+  return useQuery(['deposit-history', auctionQueryData], async () => auctionQueryData?.deposit_history || [], {
+    enabled: !!auctionQueryData,
+  });
 };
 
 export const useTransactionHistory = (auctionQueryData: AuctionQueryResponse | undefined) => {
-  return useQuery(
-    ['transaction-history', auctionQueryData],
-    async () => auctionQueryData?.transaction_history || [],
-    { enabled: !!auctionQueryData }
-  );
+  return useQuery(['transaction-history', auctionQueryData], async () => auctionQueryData?.transaction_history || [], {
+    enabled: !!auctionQueryData,
+  });
 };
 
 export const usePriceHistory = (limit: number, offset: number) => {
@@ -442,7 +428,7 @@ export const usePriceHistory = (limit: number, offset: number) => {
         session_numbers: [],
         deposit_history: [],
         transaction_history: [],
-        price_history: [[BigInt(limit), BigInt(offset), false]]
+        price_history: [[BigInt(limit), BigInt(offset), false]],
       });
       return res.price_history;
     },
@@ -460,7 +446,6 @@ export const useWithdrawBtc = () => {
   const { auction } = useAuction();
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
-  const { identity } = useIdentity();
   return useMutation(
     (formObj: { address: string; amount: number }) =>
       auction.btc_withdraw({
@@ -486,6 +471,35 @@ export const useWithdrawBtc = () => {
   );
 };
 
+export const useWithdrawCycles = () => {
+  const { auction } = useAuction();
+  const queryClient = useQueryClient();
+  const { enqueueSnackbar } = useSnackbar();
+  return useMutation(
+    (formObj: { to: string; amount: number }) =>
+      auction.cycles_withdraw({
+        to: Principal.fromText(formObj.to),
+        amount: BigInt(formObj.amount),
+      }),
+    {
+      onSuccess: res => {
+        if ('Err' in res) {
+          enqueueSnackbar(`Failed to withdraw cycles: ${JSON.stringify(res.Err, bigIntReplacer)}`, {
+            variant: 'error',
+          });
+        } else if ('Ok' in res) {
+          queryClient.invalidateQueries('myCredits');
+          queryClient.invalidateQueries('deposit-history');
+          enqueueSnackbar(`Cycles withdrawn successfully`, { variant: 'success' });
+        }
+      },
+      onError: err => {
+        enqueueSnackbar(`Failed to withdraw credit: ${err}`, { variant: 'error' });
+      },
+    },
+  );
+};
+
 export const useWithdrawCredit = () => {
   const { auction } = useAuction();
   const queryClient = useQueryClient();
@@ -497,7 +511,7 @@ export const useWithdrawCredit = () => {
         token: Principal.fromText(formObj.ledger),
         to: {
           owner: formObj.owner ? Principal.fromText(formObj.owner) : identity.getPrincipal(),
-          subaccount: formObj.subaccount ? [formObj.subaccount] : []
+          subaccount: formObj.subaccount ? [formObj.subaccount] : [],
         },
         amount: BigInt(formObj.amount),
         expected_fee: [],

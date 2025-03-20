@@ -325,6 +325,39 @@ service : (opt principal, opt principal) -> {
     }
   );
 
+  // Cycles API
+
+  cycles_withdraw : (record { to : principal; amount : nat }) -> (
+    variant {
+      Ok : record { amount : nat };
+      Err : variant {
+        FailedToWithdraw : record {
+          rejection_code : variant {
+            NoError;
+            CanisterError;
+            SysTransient;
+            DestinationInvalid;
+            Unknown;
+            SysFatal;
+            CanisterReject;
+          };
+          fee_block : opt nat;
+          rejection_reason : text;
+        };
+        GenericError : record { message : text; error_code : nat };
+        TemporarilyUnavailable;
+        Duplicate : record { duplicate_of : nat };
+        InsufficientCredit : record {};
+        TooLowAmount : record {};
+        BadFee : record { expected_fee : nat };
+        InvalidReceiver : record { receiver : principal };
+        CreatedInFuture : record { ledger_time : nat64 };
+        TooOld;
+        InsufficientFunds : record { balance : nat };
+      };
+    }
+  );
+
   // auction API
 
   // system queries
