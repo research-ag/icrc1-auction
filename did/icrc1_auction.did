@@ -329,7 +329,7 @@ service : (opt principal, opt principal) -> {
 
   cycles_withdraw : (record { to : principal; amount : nat }) -> (
     variant {
-      Ok : record { amount : nat };
+      Ok : record { txid : nat; amount : nat };
       Err : variant {
         FailedToWithdraw : record {
           rejection_code : variant {

@@ -233,7 +233,10 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   };
 
   type DirectCyclesWithdrawResult = {
-    #Ok : { amount : Nat };
+    #Ok : {
+      txid : Nat;
+      amount : Nat;
+    };
     #Err : {
       #InsufficientCredit : {};
       #TooLowAmount : {};
@@ -629,15 +632,16 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       case (#err _) return #Err(#InsufficientCredit({}));
       case (#ok(_, r, d)) (r, d);
     };
-    switch (await tcyclesLedger.withdraw({ to = args.to; amount = args.amount - ledgerFee; from_subaccount = null; created_at_time = null })) {
+    let amount = Int.abs(args.amount - ledgerFee);
+    switch (await tcyclesLedger.withdraw({ to = args.to; amount; from_subaccount = null; created_at_time = null })) {
       case (#Err err) {
         rollbackCredit();
         #Err(err);
       };
-      case (#Ok amount) {
+      case (#Ok txid) {
         doneCallback();
         ignore auction.appendLoyaltyPoints(caller, #wallet);
-        #Ok({ amount });
+        #Ok({ txid; amount });
       };
     };
   };
