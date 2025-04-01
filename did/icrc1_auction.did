@@ -399,6 +399,7 @@ service : (opt principal, opt principal) -> {
       deposit_history : opt record { nat; nat };
       transaction_history : opt record { nat; nat };
       price_history : opt record { nat; nat; bool };
+      reversed_history : opt bool;
     },
   ) -> (
     record {
