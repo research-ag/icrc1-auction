@@ -195,7 +195,8 @@ describe('ICRC1 Auction', () => {
           deposit_history: [],
           price_history: [],
           transaction_history: [],
-          session_numbers: []
+          session_numbers: [],
+          reversed_history: []
         })).bids).toHaveLength(1);
       let metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
@@ -221,7 +222,8 @@ describe('ICRC1 Auction', () => {
         deposit_history: [],
         price_history: [],
         transaction_history: [],
-        session_numbers: []
+        session_numbers: [],
+        reversed_history: []
       })).bids).toHaveLength(1);
       metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
@@ -319,7 +321,8 @@ describe('ICRC1 Auction', () => {
         deposit_history: [],
         price_history: [],
         transaction_history: [],
-        session_numbers: []
+        session_numbers: [],
+        reversed_history: []
       })).bids).toHaveLength(1);
       let res2 = await auction.manageOrders([{ all: [] }], [
         { bid: [ledger1Principal, 1_000n, 15_100] },
@@ -333,7 +336,8 @@ describe('ICRC1 Auction', () => {
         deposit_history: [],
         price_history: [],
         transaction_history: [],
-        session_numbers: []
+        session_numbers: [],
+        reversed_history: []
       })).bids).toHaveLength(2);
     });
 
@@ -349,7 +353,8 @@ describe('ICRC1 Auction', () => {
         deposit_history: [],
         price_history: [],
         transaction_history: [],
-        session_numbers: []
+        session_numbers: [],
+        reversed_history: []
       })).bids).toHaveLength(0);
     });
 
@@ -364,7 +369,8 @@ describe('ICRC1 Auction', () => {
         deposit_history: [],
         price_history: [],
         transaction_history: [],
-        session_numbers: []
+        session_numbers: [],
+        reversed_history: []
       })).bids).toHaveLength(1);
     });
 
@@ -392,7 +398,8 @@ describe('ICRC1 Auction', () => {
         deposit_history: [],
         price_history: [],
         transaction_history: [],
-        session_numbers: []
+        session_numbers: [],
+        reversed_history: []
       })).bids).toHaveLength(0);
       metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
@@ -428,7 +435,8 @@ describe('ICRC1 Auction', () => {
         deposit_history: [],
         price_history: [],
         transaction_history: [],
-        session_numbers: []
+        session_numbers: [],
+        reversed_history: []
       })).asks).toHaveLength(0);
       metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
@@ -574,6 +582,7 @@ describe('ICRC1 Auction', () => {
         transaction_history: [[1000n, 0n]],
         price_history: [[1000n, 0n, true]],
         deposit_history: [[1000n, 0n]],
+        reversed_history: [true]
       });
 
       expect(res.credits).toEqual([
