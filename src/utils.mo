@@ -1,5 +1,6 @@
 import Iter "mo:base/Iter";
 import Prim "mo:prim";
+import List "mo:base/List";
 import R "mo:base/Result";
 
 module {
@@ -40,5 +41,18 @@ module {
         };
       }
     ) |> Iter.toArray(_);
+  };
+
+  public func listFindOneAndDelete<T>(list : List.List<T>, f : T -> Bool) : (List.List<T>, ?T) {
+    switch list {
+      case null { (null, null) };
+      case (?(h, t)) {
+        if (f(h)) {
+          (t, ?h);
+        } else {
+          listFindOneAndDelete<T>(t, f) |> (?(h, _.0), _.1);
+        };
+      };
+    };
   };
 };

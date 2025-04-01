@@ -140,6 +140,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     transaction_history : ?(limit : Nat, skip : Nat);
     price_history : ?(limit : Nat, skip : Nat, skipEmpty : Bool);
     reversed_history : ?Bool;
+    last_prices : ?Bool;
   };
 
   type AuctionQueryResponse = {
@@ -150,6 +151,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     deposit_history : [DepositHistoryItem];
     transaction_history : [TransactionHistoryItem];
     price_history : [PriceHistoryItem];
+    last_prices : [PriceHistoryItem];
     points : Nat;
   };
 
@@ -848,6 +850,39 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
           |> Array.map<Auction.PriceHistoryItem, PriceHistoryItem>(_, func(x) = (x.0, x.1, Vec.get(assets, x.2).ledgerPrincipal, x.3, x.4));
         };
         case (null) [];
+      };
+      last_prices = switch (selection.last_prices) {
+        case (?true) {
+          let (assetIds : List.List<Auction.AssetId>, itemsAmount : Nat) = switch (tokens.size()) {
+            case (0) (Iter.toList(Vec.keys(auction.assets.assets)), auction.assets.nAssets());
+            case (_) {
+              var list : List.List<Auction.AssetId> = List.nil();
+              for (p in tokens.vals()) {
+                let ?aid = getAssetId(p) else return #err(p);
+                list := List.push(aid, list);
+              };
+              (list, tokens.size());
+            };
+          };
+          var pendingAssetIds = assetIds;
+          auction.getPriceHistory([], #desc, true)
+          |> Iter.filter<Auction.PriceHistoryItem>(
+            _,
+            func(item : Auction.PriceHistoryItem) {
+              let (upd, deletedAid) = U.listFindOneAndDelete<Auction.AssetId>(pendingAssetIds, func(x) = Nat.equal(x, item.2));
+              switch (deletedAid) {
+                case (?_) {
+                  pendingAssetIds := upd;
+                  true;
+                };
+                case (null) false;
+              };
+            },
+          )
+          |> U.sliceIter(_, itemsAmount, 0)
+          |> Array.map<Auction.PriceHistoryItem, PriceHistoryItem>(_, func(x) = (x.0, x.1, Vec.get(assets, x.2).ledgerPrincipal, x.3, x.4));
+        };
+        case (_) [];
       };
       points = auction.getLoyaltyPoints(p);
     });

@@ -400,6 +400,7 @@ service : (opt principal, opt principal) -> {
       transaction_history : opt record { nat; nat };
       price_history : opt record { nat; nat; bool };
       reversed_history : opt bool;
+      last_prices : opt bool;
     },
   ) -> (
     record {
@@ -425,6 +426,7 @@ service : (opt principal, opt principal) -> {
         float64;
       };
       price_history : vec record { nat64; nat; Token; nat; float64 };
+      last_prices : vec record { nat64; nat; Token; nat; float64 };
       points : nat;
     }
   ) query;
