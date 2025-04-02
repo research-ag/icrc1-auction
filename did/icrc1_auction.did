@@ -462,6 +462,12 @@ service : (opt principal, opt principal) -> {
       // caller's opened bids
       bids : vec record { OrderId; Order };
       // caller's wallet information
+      //
+      // `total` is the total caller balance in the wallet
+      // `available` is the balance, available for placing orders and withdrawal
+      // `locked` is the balance, which is locked by currently placed orders
+      //
+      // Note: `total` is always equal to `available + locked`
       credits : vec record {
         Token;
         record { total : nat; available : nat; locked : nat };
