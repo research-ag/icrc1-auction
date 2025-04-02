@@ -209,151 +209,158 @@ service : (opt principal, opt principal) -> {
   icrc84_withdraw : (WithdrawArgs) -> (WithdrawResponse);
 
   // =========================================================== BTC API ===========================================================
+  // returns BTC address on mainnet for depositing to user of given principal if provided. Else caller principal is used
   btc_depositAddress : (opt principal) -> (text) query;
+
+  // claim BTC deposit
   btc_notify : () -> (
-  variant {
-    Ok : record {
-      credit : int;
-      credit_inc : nat;
-      deposit_inc : nat;
-    };
-    Err : variant {
-      AlreadyProcessing;
-      CallLedgerError : record { message : text };
-      GenericError : record {
-        error_code : nat64;
-        error_message : text;
+    variant {
+      Ok : record {
+        credit : int;
+        credit_inc : nat;
+        deposit_inc : nat;
       };
-      NoNewUtxos : record {
-        current_confirmations : opt nat32;
-        pending_utxos : opt vec record {
-          confirmations : nat32;
-          outpoint : record {
-            txid : vec nat8;
-            vout : nat32;
-          };
-          value : nat64;
+      Err : variant {
+        AlreadyProcessing;
+        CallLedgerError : record { message : text };
+        GenericError : record {
+          error_code : nat64;
+          error_message : text;
         };
-        required_confirmations : nat32;
-        suspended_utxos : opt vec record {
-          earliest_retry : nat64;
-          reason : variant {
-            Quarantined;
-            ValueTooSmall;
-          };
-          utxo : record {
-            height : nat32;
+        NoNewUtxos : record {
+          current_confirmations : opt nat32;
+          pending_utxos : opt vec record {
+            confirmations : nat32;
             outpoint : record {
               txid : vec nat8;
               vout : nat32;
             };
             value : nat64;
           };
+          required_confirmations : nat32;
+          suspended_utxos : opt vec record {
+            earliest_retry : nat64;
+            reason : variant {
+              Quarantined;
+              ValueTooSmall;
+            };
+            utxo : record {
+              height : nat32;
+              outpoint : record {
+                txid : vec nat8;
+                vout : nat32;
+              };
+              value : nat64;
+            };
+          };
         };
+        NotAvailable : record { message : text };
+        TemporarilyUnavailable : text;
+        NotMinted;
       };
-      NotAvailable : record { message : text };
-      TemporarilyUnavailable : text;
-      NotMinted;
-    };
-  }
+    }
   );
+
+  // withdraw BTC to the mainnet bitcoin address
   btc_withdraw : (
-  record {
-    amount : nat;
-    to : text;
-  }
+    record {
+      amount : nat;
+      to : text;
+    }
   ) -> (
-  variant {
-    Ok : record { block_index : nat64 };
-    Err : variant {
-      AllowanceChanged : record { current_allowance : nat };
-      AlreadyProcessing;
-      AmountTooLow : nat64;
-      BadFee : record { expected_fee : nat };
-      CreatedInFuture : record { ledger_time : nat64 };
-      Duplicate : record { duplicate_of : nat };
-      Expired : record { ledger_time : nat64 };
-      GenericError : record { error_code : reserved };
-      InsufficientAllowance : record { allowance : nat64 };
-      InsufficientCredit : record {};
-      InsufficientFunds : record { balance : reserved };
-      MalformedAddress : text;
-      TemporarilyUnavailable : reserved;
-      TooOld;
-    };
-  }
+    variant {
+      Ok : record { block_index : nat64 };
+      Err : variant {
+        AllowanceChanged : record { current_allowance : nat };
+        AlreadyProcessing;
+        AmountTooLow : nat64;
+        BadFee : record { expected_fee : nat };
+        CreatedInFuture : record { ledger_time : nat64 };
+        Duplicate : record { duplicate_of : nat };
+        Expired : record { ledger_time : nat64 };
+        GenericError : record { error_code : reserved };
+        InsufficientAllowance : record { allowance : nat64 };
+        InsufficientCredit : record {};
+        InsufficientFunds : record { balance : reserved };
+        MalformedAddress : text;
+        TemporarilyUnavailable : reserved;
+        TooOld;
+      };
+    }
   );
+  // check withdrawal status
   btc_withdrawal_status : (record { block_index : nat64 }) -> (
-  variant {
-    AmountTooLow;
-    Confirmed : record { txid : blob };
-    Pending;
-    Reimbursed : record {
-      account : record {
-        owner : principal;
-        subaccount : opt blob;
-      };
-      amount : nat64;
-      mint_block_index : nat64;
-      reason : variant {
-        CallFailed;
-        TaintedDestination : record {
-          kyt_fee : nat64;
-          kyt_provider : principal;
+    variant {
+      AmountTooLow;
+      Confirmed : record { txid : blob };
+      Pending;
+      Reimbursed : record {
+        account : record {
+          owner : principal;
+          subaccount : opt blob;
+        };
+        amount : nat64;
+        mint_block_index : nat64;
+        reason : variant {
+          CallFailed;
+          TaintedDestination : record {
+            kyt_fee : nat64;
+            kyt_provider : principal;
+          };
         };
       };
-    };
-    Sending : record { txid : blob };
-    Signing;
-    Submitted : record { txid : blob };
-    Unknown;
-    WillReimburse : record {
-      account : record {
-        owner : principal;
-        subaccount : opt blob;
-      };
-      amount : nat64;
-      reason : variant {
-        CallFailed;
-        TaintedDestination : record {
-          kyt_fee : nat64;
-          kyt_provider : principal;
+      Sending : record { txid : blob };
+      Signing;
+      Submitted : record { txid : blob };
+      Unknown;
+      WillReimburse : record {
+        account : record {
+          owner : principal;
+          subaccount : opt blob;
+        };
+        amount : nat64;
+        reason : variant {
+          CallFailed;
+          TaintedDestination : record {
+            kyt_fee : nat64;
+            kyt_provider : principal;
+          };
         };
       };
-    };
-  }
+    }
   );
 
   // =========================================================== Cycles API ===========================================================
+  // withdraw native cycles to the canister with provided id
   cycles_withdraw : (record { to : principal; amount : nat }) -> (
-  variant {
-    Ok : record { txid : nat; amount : nat };
-    Err : variant {
-      FailedToWithdraw : record {
-        rejection_code : variant {
-          NoError;
-          CanisterError;
-          SysTransient;
-          DestinationInvalid;
-          Unknown;
-          SysFatal;
-          CanisterReject;
+    variant {
+      Ok : record { txid : nat; amount : nat };
+      Err : variant {
+        FailedToWithdraw : record {
+          rejection_code : variant {
+            NoError;
+            CanisterError;
+            SysTransient;
+            DestinationInvalid;
+            Unknown;
+            SysFatal;
+            CanisterReject;
+          };
+          fee_block : opt nat;
+          rejection_reason : text;
         };
-        fee_block : opt nat;
-        rejection_reason : text;
+        GenericError : record { message : text; error_code : nat };
+        TemporarilyUnavailable;
+        Duplicate : record { duplicate_of : nat };
+        InsufficientCredit : record {};
+        TooLowAmount : record {};
+        BadFee : record { expected_fee : nat };
+        InvalidReceiver : record { receiver : principal };
+        CreatedInFuture : record { ledger_time : nat64 };
+        TooOld;
+        InsufficientFunds : record { balance : nat };
       };
-      GenericError : record { message : text; error_code : nat };
-      TemporarilyUnavailable;
-      Duplicate : record { duplicate_of : nat };
-      InsufficientCredit : record {};
-      TooLowAmount : record {};
-      BadFee : record { expected_fee : nat };
-      InvalidReceiver : record { receiver : principal };
-      CreatedInFuture : record { ledger_time : nat64 };
-      TooOld;
-      InsufficientFunds : record { balance : nat };
-    };
-  }
+    }
   );
 
   // ============================================================ SYSTEM API ===========================================================
@@ -428,6 +435,10 @@ service : (opt principal, opt principal) -> {
   // return values are: timestamp in nanoseconds; number of auction session; ICRC1 ledger principal; volume sold; price
   queryPriceHistory : (opt Token, nat, nat, bool) -> (vec record { nat64; nat; Token; nat; float64 }) query;
 
+  // an atomic query that allows to fetch various state info at once.
+  // arguments are: tokens that caller is interested in and selector object. Results are all filtered by provided tokens.
+  // providing empty array as tokens argument results in data across all the registered tokens.
+  // Each "opt bool" argument returns results only when ?true is provided
   auction_query : (
     vec Token,
     record {
@@ -435,25 +446,36 @@ service : (opt principal, opt principal) -> {
       asks : opt bool;
       bids : opt bool;
       credits : opt bool;
+      // aruments are (limit; skip), implements pagination
       deposit_history : opt record { nat; nat };
+      // aruments are (limit; skip), implements pagination
       transaction_history : opt record { nat; nat };
+      // aruments are (limit; skip; skipEmpty), implements pagination and filtering
       price_history : opt record { nat; nat; bool };
     },
   ) -> (
     record {
+      // session numbers per token
       session_numbers : vec record { Token; SessionNumber };
+      // caller's opened asks
       asks : vec record { OrderId; Order };
+      // caller's opened bids
       bids : vec record { OrderId; Order };
+      // caller's wallet information
       credits : vec record {
         Token;
         record { total : nat; available : nat; locked : nat };
       };
+      // history of deposit events.
+      // return values are: timestamp in nanoseconds; type; ICRC1 ledger principal; operation volume;
       deposit_history : vec record {
         nat64;
         variant { deposit; withdrawal };
         Token;
         nat;
       };
+      // history of transactions caused by order fulfillments.
+      // return values are: timestamp in nanoseconds; number of auction session; transaction type; ICRC1 ledger principal; transaction volume; transaction price
       transaction_history : vec record {
         nat64;
         nat;
@@ -462,7 +484,10 @@ service : (opt principal, opt principal) -> {
         nat;
         float64;
       };
+      // history of clearing price per token / auction session.
+      // return values are: timestamp in nanoseconds; number of auction session; ICRC1 ledger principal; volume sold; price
       price_history : vec record { nat64; nat; Token; nat; float64 };
+      // amount of caller's loyalty points
       points : nat;
     }
   ) query;
