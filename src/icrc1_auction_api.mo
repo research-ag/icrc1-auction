@@ -58,12 +58,35 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   let AUCTION_INTERVAL_SECONDS : Nat64 = 120;
 
   // Bitcoin mainnet
-  let CKBTC_MINTER_PRINCIPAL = Principal.fromText("mqygn-kiaaa-aaaar-qaadq-cai");
   let CKBTC_LEDGER_PRINCIPAL = Principal.fromText("mxzaz-hqaaa-aaaar-qaada-cai");
-
+  let CKBTC_MINTER = {
+    principal = Principal.fromText("mqygn-kiaaa-aaaar-qaadq-cai");
+    xPubKey = {
+      public_key : Blob = "\02\22\04\7A\81\D4\F8\A0\67\03\1C\89\27\3D\24\1B\79\A5\A0\07\C0\4D\FA\F3\6D\07\96\3D\B0\B9\90\97\EB";
+      chain_code : Blob = "\82\1A\EB\B6\43\BD\97\D3\19\D2\FD\0B\2E\48\3D\4E\7D\E2\EA\90\39\FF\67\56\8B\69\3E\6A\BC\14\A0\3B";
+    };
+  };
   // Bitcoin testnet
-  // let CKBTC_MINTER_PRINCIPAL = Principal.fromText("ml52i-qqaaa-aaaar-qaaba-cai");
   // let CKBTC_LEDGER_PRINCIPAL = Principal.fromText("mc6ru-gyaaa-aaaar-qaaaq-cai");
+  // let CKBTC_MINTER = {
+  //   principal = Principal.fromText("ml52i-qqaaa-aaaar-qaaba-cai");
+  //   xPubKey = // load with "await* CkBtcAddress.fetchEcdsaKey(Principal.fromText("ml52i-qqaaa-aaaar-qaaba-cai"));"
+  // };
+
+  let TCYCLES_LEDGER_PRINCIPAL = Principal.fromText("um5iw-rqaaa-aaaaq-qaaba-cai");
+  let tcyclesLedger : (
+    actor {
+      withdraw : shared ({
+        to : Principal;
+        from_subaccount : ?[Nat8];
+        created_at_time : ?Nat64;
+        amount : Nat;
+      }) -> async ({
+        #Ok : Nat;
+        #Err : CyclesLedgerWithdrawError;
+      });
+    }
+  ) = actor (Principal.toText(TCYCLES_LEDGER_PRINCIPAL));
 
   type AssetInfo = {
     ledgerPrincipal : Principal;
@@ -183,6 +206,41 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     #Err : {
       #InsufficientCredit : {};
     } or BtcHandler.ApproveError or BtcHandler.RetrieveBtcWithApprovalError;
+  };
+
+  type CyclesLedgerWithdrawError = {
+    #FailedToWithdraw : {
+      rejection_code : {
+        #NoError;
+        #CanisterError;
+        #SysTransient;
+        #DestinationInvalid;
+        #Unknown;
+        #SysFatal;
+        #CanisterReject;
+      };
+      fee_block : ?Nat;
+      rejection_reason : Text;
+    };
+    #GenericError : { message : Text; error_code : Nat };
+    #TemporarilyUnavailable;
+    #Duplicate : { duplicate_of : Nat };
+    #BadFee : { expected_fee : Nat };
+    #InvalidReceiver : { receiver : Principal };
+    #CreatedInFuture : { ledger_time : Nat64 };
+    #TooOld;
+    #InsufficientFunds : { balance : Nat };
+  };
+
+  type DirectCyclesWithdrawResult = {
+    #Ok : {
+      txid : Nat;
+      amount : Nat;
+    };
+    #Err : {
+      #InsufficientCredit : {};
+      #TooLowAmount : {};
+    } or CyclesLedgerWithdrawError;
   };
 
   let quoteAssetId : Auction.AssetId = 0;
@@ -512,11 +570,11 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     };
   };
 
-  let btcHandler : BtcHandler.BtcHandler = BtcHandler.BtcHandler(Principal.fromActor(self), CKBTC_LEDGER_PRINCIPAL, CKBTC_MINTER_PRINCIPAL);
+  let btcHandler : BtcHandler.BtcHandler = BtcHandler.BtcHandler(Principal.fromActor(self), CKBTC_LEDGER_PRINCIPAL, CKBTC_MINTER);
 
-  public shared ({ caller }) func btc_depositAddress(p : ?Principal) : async Text {
+  public shared query ({ caller }) func btc_depositAddress(p : ?Principal) : async Text {
     let ?_ = getAssetId(CKBTC_LEDGER_PRINCIPAL) else throw Error.reject("BTC is not supported");
-    await* btcHandler.getDepositAddress(Option.get(p, caller));
+    btcHandler.calculateDepositAddress(Option.get(p, caller));
   };
 
   public shared ({ caller }) func btc_notify() : async BtcNotifyResult {
@@ -560,6 +618,32 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   };
   public shared func btc_withdrawal_status(arg : { block_index : Nat64 }) : async BtcHandler.RetrieveBtcStatusV2 {
     await* btcHandler.getWithdrawalStatus(arg);
+  };
+
+  public shared ({ caller }) func cycles_withdraw(args : { to : Principal; amount : Nat }) : async DirectCyclesWithdrawResult {
+    let ?cyclesAssetId = getAssetId(TCYCLES_LEDGER_PRINCIPAL) else throw Error.reject("Cycles asset is not supported");
+
+    let ledgerFee = 100_000_000;
+    if (args.amount <= ledgerFee) {
+      return #Err(#TooLowAmount {});
+    };
+
+    let (rollbackCredit, doneCallback) = switch (auction.deductCredit(caller, cyclesAssetId, args.amount)) {
+      case (#err _) return #Err(#InsufficientCredit({}));
+      case (#ok(_, r, d)) (r, d);
+    };
+    let amount = Int.abs(args.amount - ledgerFee);
+    switch (await tcyclesLedger.withdraw({ to = args.to; amount; from_subaccount = null; created_at_time = null })) {
+      case (#Err err) {
+        rollbackCredit();
+        #Err(err);
+      };
+      case (#Ok txid) {
+        doneCallback();
+        ignore auction.appendLoyaltyPoints(caller, #wallet);
+        #Ok({ txid; amount });
+      };
+    };
   };
 
   public shared query func getQuoteLedger() : async Principal = async quoteLedgerPrincipal;
