@@ -1,21 +1,12 @@
 {
   "frontend": {
-    "ic": "pfsv3-oiaaa-aaaao-a3mza-cai"
-  },
-  "frontend_new": {
     "ic": "scenk-2qaaa-aaaao-a3o7q-cai"
   },
-  "icrc1_auction": {
-    "ic": "ydlzo-sqaaa-aaaai-acr5a-cai"
-  },
-  "icrc1_auction_legacy_th": {
-    "ic": "g2mgr-byaaa-aaaai-actsq-cai"
-  },
-  "icrc1_auction_testing": {
-    "ic": "pmr6h-yaaaa-aaaao-a3myq-cai"
-  },
-  "icrc1_auction_new": {
+  "icrc1_auction_development": {
     "ic": "z4s7u-byaaa-aaaao-a3paa-cai"
+  },
+  "icrc1_auction_production": {
+    "ic": "farwr-jqaaa-aaaao-qj4ya-cai"
   },
   "icrc1_ledger_mock": {
     "ic": "arufl-lyaaa-aaaao-a3n4a-cai"

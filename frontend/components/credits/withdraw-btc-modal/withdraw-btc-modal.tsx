@@ -4,21 +4,17 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z as zod } from 'zod';
 import { Box, Button, FormControl, FormLabel, Input, Modal, ModalClose, ModalDialog, Typography } from '@mui/joy';
 
-import { useTokenInfoMap, useWithdrawCredit } from '@fe/integration';
+import { useWithdrawBtc } from '@fe/integration';
 import ErrorAlert from '../../../components/error-alert';
-import { enqueueSnackbar } from 'notistack';
-import { validatePrincipal } from "@fe/utils";
 
-interface WithdrawCreditFormValues {
+interface WithdrawBtcFormValues {
   amount: number;
-  owner?: string;
-  subaccount: string;
+  to: string;
 }
 
-interface WithdrawCreditModalProps {
+interface WithdrawBtcModalProps {
   isOpen: boolean;
   onClose: () => void;
-  ledger: string;
 }
 
 const schema = zod.object({
@@ -26,18 +22,16 @@ const schema = zod.object({
     .string()
     .min(0)
     .refine(value => !isNaN(Number(value))),
-  owner: zod
+  to: zod
     .string()
-    .refine(value => value === '' || validatePrincipal(value)),
-  subaccount: zod.string(),
+    .regex(/\b((bc|tb)(0([ac-hj-np-z02-9]{39}|[ac-hj-np-z02-9]{59})|1[ac-hj-np-z02-9]{8,87})|([13]|[mn2])[a-km-zA-HJ-NP-Z1-9]{25,39})\b/g),
 });
 
-const WithdrawCreditModal = ({ isOpen, onClose, ledger }: WithdrawCreditModalProps) => {
-  const defaultValues: WithdrawCreditFormValues = useMemo(
+const WithdrawBtcModal = ({ isOpen, onClose }: WithdrawBtcModalProps) => {
+  const defaultValues: WithdrawBtcFormValues = useMemo(
     () => ({
       amount: 0,
-      owner: '',
-      subaccount: '',
+      to: '',
     }),
     [],
   );
@@ -46,7 +40,7 @@ const WithdrawCreditModal = ({ isOpen, onClose, ledger }: WithdrawCreditModalPro
     handleSubmit,
     control,
     reset: resetForm,
-  } = useForm<WithdrawCreditFormValues>({
+  } = useForm<WithdrawBtcFormValues>({
     defaultValues,
     resolver: zodResolver(schema),
     mode: 'onChange',
@@ -54,41 +48,12 @@ const WithdrawCreditModal = ({ isOpen, onClose, ledger }: WithdrawCreditModalPro
 
   const { isDirty, isValid } = useFormState({ control });
 
-  const { mutate: withdraw, error, isLoading, reset: resetApi } = useWithdrawCredit();
+  const { mutate: withdraw, error, isLoading, reset: resetApi } = useWithdrawBtc();
 
-  const { data: symbols } = useTokenInfoMap();
-  const getTokenDecimals = (ledger: string): number => {
-    const mapItem = (symbols || []).find(([p, s]) => p.toText() == ledger);
-    if (!mapItem) {
-      throw new Error('Unknown token');
-    }
-    return mapItem[1].decimals;
-  };
 
-  const submit: SubmitHandler<WithdrawCreditFormValues> = data => {
-    let subaccountStr = data.subaccount.replace(/\s/g, '');
-    if (subaccountStr.startsWith('0x')) {
-      subaccountStr = subaccountStr.substring(2);
-    }
-    let subaccount: Uint8Array | null = null;
-    if (subaccountStr.length > 0) {
-      if (subaccountStr.length !== 64) {
-        enqueueSnackbar(`Unknown subaccount format. Provide base16 string with length 32 bytes`, { variant: 'error' });
-        return;
-      }
-      subaccount = new Uint8Array(32);
-      for (let i = 0; i < 32; i++) {
-        subaccount[i] = parseInt(subaccountStr.substring(i * 2, i * 2 + 2), 16);
-      }
-    }
-    let decimals = getTokenDecimals(ledger);
+  const submit: SubmitHandler<WithdrawBtcFormValues> = data => {
     withdraw(
-      {
-        ledger,
-        subaccount,
-        owner: data.owner === '' ? undefined : data.owner,
-        amount: Math.round(data.amount * Math.pow(10, decimals))
-      },
+      { address: data.to, amount: Math.round(data.amount * Math.pow(10, 8)) },
       {
         onSuccess: () => {
           onClose();
@@ -106,7 +71,7 @@ const WithdrawCreditModal = ({ isOpen, onClose, ledger }: WithdrawCreditModalPro
     <Modal open={isOpen} onClose={onClose}>
       <ModalDialog sx={{ width: 'calc(100% - 50px)', maxWidth: '450px' }}>
         <ModalClose/>
-        <Typography level="h4">Withdraw credit (ledger {ledger})</Typography>
+        <Typography level="h4">Withdraw BTC directly</Typography>
         <form onSubmit={handleSubmit(submit)} autoComplete="off">
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
             <Controller
@@ -128,29 +93,11 @@ const WithdrawCreditModal = ({ isOpen, onClose, ledger }: WithdrawCreditModalPro
               )}
             />
             <Controller
-              name="owner"
+              name="to"
               control={control}
               render={({ field, fieldState }) => (
                 <FormControl>
-                  <FormLabel>Owner principal. Leave empty for using your principal</FormLabel>
-                  <Input
-                    type="text"
-                    variant="outlined"
-                    name={field.name}
-                    value={field.value}
-                    onChange={field.onChange}
-                    autoComplete="off"
-                    error={!!fieldState.error}
-                  />
-                </FormControl>
-              )}
-            />
-            <Controller
-              name="subaccount"
-              control={control}
-              render={({ field, fieldState }) => (
-                <FormControl>
-                  <FormLabel>Base16 subaccount. Leave empty for null</FormLabel>
+                  <FormLabel>BTC address</FormLabel>
                   <Input
                     type="text"
                     variant="outlined"
@@ -171,7 +118,7 @@ const WithdrawCreditModal = ({ isOpen, onClose, ledger }: WithdrawCreditModalPro
             loading={isLoading}
             type="submit"
             disabled={!isValid || !isDirty}>
-            Withdraw
+            Withdraw BTC
           </Button>
         </form>
       </ModalDialog>
@@ -179,4 +126,4 @@ const WithdrawCreditModal = ({ isOpen, onClose, ledger }: WithdrawCreditModalPro
   );
 };
 
-export default WithdrawCreditModal;
+export default WithdrawBtcModal;

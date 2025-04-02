@@ -1,12 +1,13 @@
 import { Box, Table } from '@mui/joy';
 
-import { useDepositHistory, useQuoteLedger, useTokenInfoMap } from '@fe/integration';
+import { useAuctionQuery, useDepositHistory, useQuoteLedger, useTokenInfoMap } from '@fe/integration';
 import InfoItem from '../../root/info-item';
 import { Principal } from '@dfinity/principal';
 import { displayWithDecimals } from '@fe/utils';
 
 const DepositHistoryTable = () => {
-  const { data: data } = useDepositHistory();
+  const { data: auctionQuery } = useAuctionQuery();
+  const { data: data } = useDepositHistory(auctionQuery);
 
   const { data: quoteLedger } = useQuoteLedger();
   const { data: symbols } = useTokenInfoMap();
@@ -19,9 +20,9 @@ const DepositHistoryTable = () => {
     <Box sx={{ width: '100%', overflow: 'auto' }}>
       <Table>
         <colgroup>
-          <col style={{ width: '290px' }} />
-          <col style={{ width: '160px' }} />
-          <col style={{ width: '150px' }} />
+          <col style={{ width: '290px' }}/>
+          <col style={{ width: '160px' }}/>
+          <col style={{ width: '150px' }}/>
         </colgroup>
         <thead>
         <tr>
@@ -36,7 +37,7 @@ const DepositHistoryTable = () => {
             <tr key={String(ts)}>
               <td>{String(new Date(Number(ts) / 1_000_000))}</td>
               <td>
-                <InfoItem content={getInfo(ledger).symbol} withCopy={true} />
+                <InfoItem content={getInfo(ledger).symbol} withCopy={true}/>
               </td>
               <td style={{ color: 'withdrawal' in kind ? 'red' : 'green' }}>
                 {('withdrawal' in kind ? '-' : '+') + displayWithDecimals(volume, getInfo(ledger).decimals)}
