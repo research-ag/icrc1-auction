@@ -395,7 +395,12 @@ service : (opt principal, opt principal) -> {
   // returns information about auction results if acution session happened now
   indicativeStats : (principal) -> (IndicativeStats) query;
 
-  // user queries
+  // ========================================================= USER API ==========================================================
+
+  // an atomic query that allows to fetch various state info at once.
+  // arguments are: tokens that caller is interested in and selector object. Results are all filtered by provided tokens.
+  // providing empty array as tokens argument results in data across all the registered tokens.
+  // Each "opt bool" argument returns results only when ?true is provided
   auction_query : (
     vec Token,
     record {
