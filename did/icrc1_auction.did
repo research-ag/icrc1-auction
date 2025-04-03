@@ -493,8 +493,9 @@ service : (opt principal, opt principal) -> {
         variant {
           deposit;
           withdrawal : opt variant {
-            btcDirect : text;
             icrc1Address : record { principal; opt blob };
+            btcDirect : text;
+            cyclesDirect : principal;
           };
         };
         Token;
