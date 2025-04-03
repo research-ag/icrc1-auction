@@ -41,13 +41,6 @@
         "output": "./declarations/icrc1_auction"
       },
       "optimize": "cycles"
-    },
-    "icrc1_auction_production": {
-      "dependencies": ["icrc1_auction_development"],
-      "wasm": "./.dfx/local/canisters/icrc1_auction_development/icrc1_auction_development.wasm",
-      "candid": "./.dfx/local/canisters/icrc1_auction_development/icrc1_auction_development.did",
-      "type": "custom",
-      "init_arg": "(opt principal \"cngnf-vqaaa-aaaar-qag4q-cai\", opt principal \"2vxsx-fae\")"
     }
   },
   "defaults": {

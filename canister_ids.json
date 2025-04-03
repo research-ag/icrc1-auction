@@ -5,9 +5,6 @@
   "icrc1_auction_development": {
     "ic": "z4s7u-byaaa-aaaao-a3paa-cai"
   },
-  "icrc1_auction_production": {
-    "ic": "farwr-jqaaa-aaaao-qj4ya-cai"
-  },
   "icrc1_ledger_mock": {
     "ic": "arufl-lyaaa-aaaao-a3n4a-cai"
   },
