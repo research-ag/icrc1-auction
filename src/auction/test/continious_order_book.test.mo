@@ -59,7 +59,7 @@ do {
   assert auction.getAccountRevision(buyer) > srev;
 
   // check history
-  let history = Iter.toArray(auction.getImmediatePriceHistory(?ft, #desc));
+  let history = Iter.toArray(auction.getImmediatePriceHistory([ft], #desc));
   assert history.size() == 1;
   assert history[0].2 == ft;
   assert history[0].3 == 2_000;

@@ -194,6 +194,7 @@ describe('ICRC1 Auction', () => {
           asks: [],
           deposit_history: [],
           price_history: [],
+          immediate_price_history: [],
           transaction_history: [],
           session_numbers: []
         })).bids).toHaveLength(1);
@@ -220,6 +221,7 @@ describe('ICRC1 Auction', () => {
         asks: [],
         deposit_history: [],
         price_history: [],
+        immediate_price_history: [],
         transaction_history: [],
         session_numbers: []
       })).bids).toHaveLength(1);
@@ -318,6 +320,7 @@ describe('ICRC1 Auction', () => {
         asks: [],
         deposit_history: [],
         price_history: [],
+        immediate_price_history: [],
         transaction_history: [],
         session_numbers: []
       })).bids).toHaveLength(1);
@@ -332,6 +335,7 @@ describe('ICRC1 Auction', () => {
         asks: [],
         deposit_history: [],
         price_history: [],
+        immediate_price_history: [],
         transaction_history: [],
         session_numbers: []
       })).bids).toHaveLength(2);
@@ -349,6 +353,7 @@ describe('ICRC1 Auction', () => {
         asks: [],
         deposit_history: [],
         price_history: [],
+        immediate_price_history: [],
         transaction_history: [],
         session_numbers: []
       })).bids).toHaveLength(0);
@@ -365,6 +370,7 @@ describe('ICRC1 Auction', () => {
         asks: [],
         deposit_history: [],
         price_history: [],
+        immediate_price_history: [],
         transaction_history: [],
         session_numbers: []
       })).bids).toHaveLength(1);
@@ -393,6 +399,7 @@ describe('ICRC1 Auction', () => {
         asks: [],
         deposit_history: [],
         price_history: [],
+        immediate_price_history: [],
         transaction_history: [],
         session_numbers: []
       })).bids).toHaveLength(0);
@@ -429,6 +436,7 @@ describe('ICRC1 Auction', () => {
         asks: [true],
         deposit_history: [],
         price_history: [],
+        immediate_price_history: [],
         transaction_history: [],
         session_numbers: []
       })).asks).toHaveLength(0);
@@ -575,6 +583,7 @@ describe('ICRC1 Auction', () => {
         session_numbers: [true],
         transaction_history: [[1000n, 0n]],
         price_history: [[1000n, 0n, true]],
+        immediate_price_history: [],
         deposit_history: [[1000n, 0n]],
       });
 
