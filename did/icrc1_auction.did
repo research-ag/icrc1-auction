@@ -418,13 +418,13 @@ service : (opt principal, opt principal) -> {
   queryTokenBids : (Token) -> (vec record { OrderId; Order }, AccountRevision) query;
 
   // returns all caller's bids and current account revision
-  queryBids : () -> (vec record { OrderId; Order; AccountRevision }) query;
+  queryBids : () -> (vec record { OrderId; Order }, AccountRevision) query;
 
   // returns caller's asks, set for given base token and current account revision
   queryTokenAsks : (Token) -> (vec record { OrderId; Order }, AccountRevision) query;
 
   // returns all caller's asks and current account revision
-  queryAsks : () -> (vec record { OrderId; Order; AccountRevision }) query;
+  queryAsks : () -> (vec record { OrderId; Order }, AccountRevision) query;
 
   // returns caller's wallet information for given token and current account revision
   //
@@ -436,7 +436,7 @@ service : (opt principal, opt principal) -> {
   queryCredit : (Token) -> (record { total : nat; available : nat; locked : nat }, AccountRevision) query;
 
   // returns caller's wallet information for all tokens with non-zero `total` and current account revision
-  queryCredits : () -> (vec record { principal; record { total : nat; available : nat; locked : nat }; AccountRevision }) query;
+  queryCredits : () -> (vec record { principal; record { total : nat; available : nat; locked : nat } }, AccountRevision) query;
 
   // returns caller's account revision
   queryAccountRevision : () -> (AccountRevision) query;
