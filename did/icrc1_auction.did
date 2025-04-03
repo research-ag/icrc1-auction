@@ -452,6 +452,7 @@ service : (opt principal, opt principal) -> {
       transaction_history : opt record { nat; nat };
       // aruments are (limit; skip; skipEmpty), implements pagination and filtering
       price_history : opt record { nat; nat; bool };
+      // reverses price, transaction and deposit history lists. ?true returns histories in descending chronological order
       reversed_history : opt bool;
       last_prices : opt bool;
     },
