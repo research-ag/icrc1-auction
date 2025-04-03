@@ -141,6 +141,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     deposit_history : ?(limit : Nat, skip : Nat);
     transaction_history : ?(limit : Nat, skip : Nat);
     price_history : ?(limit : Nat, skip : Nat, skipEmpty : Bool);
+    immediate_price_history : ?(limit : Nat, skip : Nat);
   };
 
   type AuctionQueryResponse = {
@@ -151,6 +152,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     deposit_history : [DepositHistoryItem];
     transaction_history : [TransactionHistoryItem];
     price_history : [PriceHistoryItem];
+    immediate_price_history : [PriceHistoryItem];
     points : Nat;
     account_revision : Nat;
   };
@@ -864,6 +866,20 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
         };
         case (null) [];
       };
+      immediate_price_history = switch (selection.immediate_price_history) {
+        case (?(limit, skip)) {
+          (
+            switch (mapLedgersToAssetIds(tokens)) {
+              case (#ok aids) aids;
+              case (#err p) return #err(p);
+            }
+          )
+          |> auction.getImmediatePriceHistory(_, #desc)
+          |> U.sliceIter(_, limit, skip)
+          |> Array.map<Auction.PriceHistoryItem, PriceHistoryItem>(_, func(x) = (x.0, x.1, Vec.get(assets, x.2).ledgerPrincipal, x.3, x.4));
+        };
+        case (null) [];
+      };
       points = auction.getLoyaltyPoints(p);
       account_revision = auction.getAccountRevision(p);
     });
@@ -920,11 +936,14 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   };
 
   public shared query func queryImmediatePriceHistory(token : ?Principal, limit : Nat, skip : Nat) : async [PriceHistoryItem] {
-    let assetId : ?Auction.AssetId = switch (token) {
-      case (null) null;
-      case (?aid) getAssetId(aid);
+    let assetIds : [Auction.AssetId] = switch (token) {
+      case (null) [];
+      case (?p) {
+        let ?aid = getAssetId(p) else throw Error.reject("Unknown token " # Principal.toText(p));
+        [aid];
+      };
     };
-    auction.getImmediatePriceHistory(assetId, #desc)
+    auction.getImmediatePriceHistory(assetIds, #desc)
     |> U.sliceIter(_, limit, skip)
     |> Array.map<Auction.PriceHistoryItem, PriceHistoryItem>(_, func(x) = (x.0, x.1, Vec.get(assets, x.2).ledgerPrincipal, x.3, x.4));
   };

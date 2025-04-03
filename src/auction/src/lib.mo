@@ -451,11 +451,10 @@ module {
       iter;
     };
 
-    public func getImmediatePriceHistory(assetId : ?AssetId, order : { #asc; #desc }) : Iter.Iter<T.PriceHistoryItem> {
+    public func getImmediatePriceHistory(assetIds : [AssetId], order : { #asc; #desc }) : Iter.Iter<T.PriceHistoryItem> {
       var iter = assets.historyIter(#immediate, order);
-      switch (assetId) {
-        case (?aid) iter := Iter.filter<T.PriceHistoryItem>(iter, func x = x.2 == aid);
-        case (_) {};
+      if (assetIds.size() > 0) {
+        iter := Iter.filter<T.PriceHistoryItem>(iter, func x = not Option.isNull(Array.indexOf(x.2, assetIds, Nat.equal)));
       };
       iter;
     };

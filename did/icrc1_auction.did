@@ -455,6 +455,9 @@ service : (opt principal, opt principal) -> {
   // returns history of clearing price per token / auction session. Providing token in the arguments to history queries will filter results by token
   // return values are: timestamp in nanoseconds; number of auction session; ICRC1 ledger principal; volume sold; price
   queryPriceHistory : (opt Token, nat, nat, bool) -> (vec record { nat64; nat; Token; nat; float64 }) query;
+
+  // returns history of clearing price when immediate order book has been executed
+  // return values are: timestamp in nanoseconds; 0; ICRC1 ledger principal; volume sold; price
   queryImmediatePriceHistory : (opt Token, nat, nat) -> (vec record { nat64; nat; Token; nat; float64 }) query;
 
   // an atomic query that allows to fetch various state info at once.
@@ -474,6 +477,8 @@ service : (opt principal, opt principal) -> {
       transaction_history : opt record { nat; nat };
       // aruments are (limit; skip; skipEmpty), implements pagination and filtering
       price_history : opt record { nat; nat; bool };
+      // aruments are (limit; skip), implements pagination
+      immediate_price_history : opt record { nat; nat };
     },
   ) -> (
     record {
@@ -515,8 +520,12 @@ service : (opt principal, opt principal) -> {
       // history of clearing price per token / auction session.
       // return values are: timestamp in nanoseconds; number of auction session; ICRC1 ledger principal; volume sold; price
       price_history : vec record { nat64; nat; Token; nat; float64 };
+      // history of clearing price when immediate order book has been executed
+      // return values are: timestamp in nanoseconds; 0; ICRC1 ledger principal; volume sold; price
+      immediate_price_history : vec record { nat64; nat; Token; nat; float64 };
       // amount of caller's loyalty points
       points : nat;
+      // current caller's account revision
       account_revision : nat;
     }
   ) query;
