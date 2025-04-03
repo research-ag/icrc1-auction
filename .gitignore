@@ -19,4 +19,5 @@ declarations/
 
 # build files
 build/
-out/
+out/*
+!out/.gitkeep
