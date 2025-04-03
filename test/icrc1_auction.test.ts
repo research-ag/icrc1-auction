@@ -14,8 +14,11 @@ import { IDL } from '@dfinity/candid';
 import { resolve } from 'node:path';
 import { Principal } from '@dfinity/principal';
 import { Identity } from '@dfinity/agent';
+import { readFileSync } from "fs";
+import { tmpdir } from "os";
 
 describe('ICRC1 Auction', () => {
+  let serverUrl: string;
   let pic: PocketIc;
 
   let quoteLedgerPrincipal!: Principal;
@@ -74,8 +77,12 @@ describe('ICRC1 Auction', () => {
     return (await auction.icrc84_query([token]))[0][1].credit;
   }
 
+  beforeAll(() => {
+    serverUrl = readFileSync(resolve(tmpdir(), 'pic_server_url.txt'), 'utf-8');
+  });
+
   beforeEach(async () => {
-    pic = await PocketIc.create();
+    pic = await PocketIc.create(serverUrl);
     await pic.setTime(1711029457000); // mock time to be 21.03.2024 13:57:37.000 UTC
 
     const setupLedgerCanister = () => pic.setupCanister({
@@ -121,7 +128,9 @@ describe('ICRC1 Auction', () => {
   });
 
   afterEach(async () => {
-    await pic.tearDown();
+    if (pic) {
+      await pic.tearDown();
+    }
   });
 
   describe('canister installation', () => {
@@ -134,7 +143,8 @@ describe('ICRC1 Auction', () => {
         wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction_continuous/icrc1_auction_continuous.wasm'),
         arg: IDL.encode(aInit({ IDL }), [[], []]),
         sender: controller.getPrincipal(),
-      })).rejects.toThrow(`Canister ${p.toText()} trapped explicitly: Quote ledger principal not provided`);
+      })).rejects.toThrow(`Error from Canister ${p.toText()}: Canister called \`ic0.trap\` with message: Quote ledger principal not provided.
+Consider gracefully handling failures from this canister or altering the canister to handle exceptions. See documentation: http://internetcomputer.org/docs/current/references/execution-errors#trapped-explicitly`);
     });
 
     test('should expose ledger principals', async () => {
