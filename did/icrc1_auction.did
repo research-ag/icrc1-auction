@@ -452,6 +452,9 @@ service : (opt principal, opt principal) -> {
       transaction_history : opt record { nat; nat };
       // aruments are (limit; skip; skipEmpty), implements pagination and filtering
       price_history : opt record { nat; nat; bool };
+      // reverses price, transaction and deposit history lists. ?true returns histories in descending chronological order
+      reversed_history : opt bool;
+      last_prices : opt bool;
     },
   ) -> (
     record {
@@ -493,6 +496,8 @@ service : (opt principal, opt principal) -> {
       // history of clearing price per token / auction session.
       // return values are: timestamp in nanoseconds; number of auction session; ICRC1 ledger principal; volume sold; price
       price_history : vec record { nat64; nat; Token; nat; float64 };
+      // last non-zero clearing price per token
+      last_prices : vec record { nat64; nat; Token; nat; float64 };
       // amount of caller's loyalty points
       points : nat;
     }

@@ -205,7 +205,9 @@ Consider gracefully handling failures from this canister or altering the caniste
           deposit_history: [],
           price_history: [],
           transaction_history: [],
-          session_numbers: []
+          session_numbers: [],
+          reversed_history: [],
+          last_prices: [],
         })).bids).toHaveLength(1);
       let metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
@@ -231,7 +233,9 @@ Consider gracefully handling failures from this canister or altering the caniste
         deposit_history: [],
         price_history: [],
         transaction_history: [],
-        session_numbers: []
+        session_numbers: [],
+        reversed_history: [],
+        last_prices: [],
       })).bids).toHaveLength(1);
       metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
@@ -329,7 +333,9 @@ Consider gracefully handling failures from this canister or altering the caniste
         deposit_history: [],
         price_history: [],
         transaction_history: [],
-        session_numbers: []
+        session_numbers: [],
+        reversed_history: [],
+        last_prices: [],
       })).bids).toHaveLength(1);
       let res2 = await auction.manageOrders([{ all: [] }], [
         { bid: [ledger1Principal, 1_000n, 15_100] },
@@ -343,7 +349,9 @@ Consider gracefully handling failures from this canister or altering the caniste
         deposit_history: [],
         price_history: [],
         transaction_history: [],
-        session_numbers: []
+        session_numbers: [],
+        reversed_history: [],
+        last_prices: [],
       })).bids).toHaveLength(2);
     });
 
@@ -359,7 +367,9 @@ Consider gracefully handling failures from this canister or altering the caniste
         deposit_history: [],
         price_history: [],
         transaction_history: [],
-        session_numbers: []
+        session_numbers: [],
+        reversed_history: [],
+        last_prices: [],
       })).bids).toHaveLength(0);
     });
 
@@ -374,7 +384,9 @@ Consider gracefully handling failures from this canister or altering the caniste
         deposit_history: [],
         price_history: [],
         transaction_history: [],
-        session_numbers: []
+        session_numbers: [],
+        reversed_history: [],
+        last_prices: [],
       })).bids).toHaveLength(1);
     });
 
@@ -402,7 +414,9 @@ Consider gracefully handling failures from this canister or altering the caniste
         deposit_history: [],
         price_history: [],
         transaction_history: [],
-        session_numbers: []
+        session_numbers: [],
+        reversed_history: [],
+        last_prices: [],
       })).bids).toHaveLength(0);
       metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
@@ -438,7 +452,9 @@ Consider gracefully handling failures from this canister or altering the caniste
         deposit_history: [],
         price_history: [],
         transaction_history: [],
-        session_numbers: []
+        session_numbers: [],
+        reversed_history: [],
+        last_prices: [],
       })).asks).toHaveLength(0);
       metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
@@ -584,6 +600,8 @@ Consider gracefully handling failures from this canister or altering the caniste
         transaction_history: [[1000n, 0n]],
         price_history: [[1000n, 0n, true]],
         deposit_history: [[1000n, 0n]],
+        reversed_history: [true],
+        last_prices: [true],
       });
 
       expect(res.credits).toEqual([
@@ -613,6 +631,12 @@ Consider gracefully handling failures from this canister or altering the caniste
       expect(res.price_history[0][2]).toEqual(ledger1Principal);
       expect(res.price_history[0][3]).toEqual(1500n);
       expect(res.price_history[0][4]).toEqual(101000);
+
+      expect(res.last_prices).toHaveLength(1);
+      expect(res.last_prices[0][1]).toEqual(1n);
+      expect(res.last_prices[0][2]).toEqual(ledger1Principal);
+      expect(res.last_prices[0][3]).toEqual(1500n);
+      expect(res.last_prices[0][4]).toEqual(101000);
 
       expect(res.deposit_history).toHaveLength(2);
       expect(res.deposit_history[0][1]).toEqual({ deposit: null });
