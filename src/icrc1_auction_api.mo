@@ -3,6 +3,7 @@ import Error "mo:base/Error";
 import Float "mo:base/Float";
 import Int "mo:base/Int";
 import Iter "mo:base/Iter";
+import List "mo:base/List";
 import Nat "mo:base/Nat";
 import Nat8 "mo:base/Nat8";
 import Nat64 "mo:base/Nat64";
@@ -881,7 +882,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
               case (#err p) return #err(p);
             }
           )
-          |> auction.getImmediatePriceHistory(_, #desc)
+          |> auction.getImmediatePriceHistory(_, historyListOrder)
           |> U.sliceIter(_, limit, skip)
           |> Array.map<Auction.PriceHistoryItem, PriceHistoryItem>(_, func(x) = (x.0, x.1, Vec.get(assets, x.2).ledgerPrincipal, x.3, x.4));
         };
