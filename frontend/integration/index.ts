@@ -226,6 +226,8 @@ export const useAuctionQuery = () => {
           deposit_history: [[BigInt(10000), BigInt(0)]],
           transaction_history: [[BigInt(10000), BigInt(0)]],
           price_history: [],
+          reversed_history: [true],
+          last_prices: [],
         }),
       );
     },
@@ -429,6 +431,8 @@ export const usePriceHistory = (limit: number, offset: number) => {
         deposit_history: [],
         transaction_history: [],
         price_history: [[BigInt(limit), BigInt(offset), false]],
+        reversed_history: [true],
+        last_prices: [],
       });
       return res.price_history;
     },
