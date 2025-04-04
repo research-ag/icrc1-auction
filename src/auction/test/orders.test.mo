@@ -7,8 +7,8 @@ do {
   let (auction, user) = init(0, 3, 5);
   let ft = createFt(auction);
   auction.processAsset(ft);
-  ignore auction.appendCredit(user, 0, 500_000_000);
-  ignore auction.appendCredit(user, ft, 500_000_000);
+  ignore auction.appendCredit(user, 0, 500_000_000, null);
+  ignore auction.appendCredit(user, ft, 500_000_000, null);
   switch (auction.placeOrder(user, #bid, ft, 2_000, 250, null)) {
     case (#ok _) ();
     case (_) assert false;
@@ -26,8 +26,8 @@ do {
   let (auction, user) = init(0, 3, 5);
   let ft = createFt(auction);
   auction.processAsset(ft);
-  ignore auction.appendCredit(user, 0, 500_000_000);
-  ignore auction.appendCredit(user, ft, 500_000_000);
+  ignore auction.appendCredit(user, 0, 500_000_000, null);
+  ignore auction.appendCredit(user, ft, 500_000_000, null);
   let orderId = switch (auction.placeOrder(user, #bid, ft, 2_000, 250, null)) {
     case (#ok id) id;
     case (_) { assert false; 0 };
@@ -45,8 +45,8 @@ do {
   let (auction, user) = init(0, 3, 5);
   let ft = createFt(auction);
   auction.processAsset(ft);
-  ignore auction.appendCredit(user, 0, 500_000_000);
-  ignore auction.appendCredit(user, ft, 500_000_000);
+  ignore auction.appendCredit(user, 0, 500_000_000, null);
+  ignore auction.appendCredit(user, ft, 500_000_000, null);
   let orderId = switch (auction.placeOrder(user, #ask, ft, 2_000_000, 200, null)) {
     case (#ok id) id;
     case (_) { assert false; 0 };
@@ -64,8 +64,8 @@ do {
   let (auction, user) = init(0, 3, 5);
   let ft = createFt(auction);
   auction.processAsset(ft);
-  ignore auction.appendCredit(user, 0, 500_000_000);
-  ignore auction.appendCredit(user, ft, 500_000_000);
+  ignore auction.appendCredit(user, 0, 500_000_000, null);
+  ignore auction.appendCredit(user, ft, 500_000_000, null);
   switch (
     auction.manageOrders(
       user,
@@ -89,8 +89,8 @@ do {
   let (auction, user) = init(0, 3, 5);
   let ft = createFt(auction);
   auction.processAsset(ft);
-  ignore auction.appendCredit(user, 0, 500_000_000);
-  ignore auction.appendCredit(user, ft, 500_000_000);
+  ignore auction.appendCredit(user, 0, 500_000_000, null);
+  ignore auction.appendCredit(user, ft, 500_000_000, null);
   let orderId = switch (auction.placeOrder(user, #ask, ft, 2_000_000, 200, null)) {
     case (#ok id) id;
     case (_) { assert false; 0 };
@@ -98,7 +98,7 @@ do {
   switch (
     auction.manageOrders(
       user,
-      ? #orders([#ask(orderId)]),
+      ?#orders([#ask(orderId)]),
       [#bid(ft, 2_000, 250)],
       null,
     )
@@ -115,9 +115,9 @@ do {
   let (auction, user) = init(0, 3, 5);
   let ft1 = createFt(auction);
   let ft2 = createFt(auction);
-  ignore auction.appendCredit(user, 0, 500_000_000);
-  ignore auction.appendCredit(user, ft1, 500_000_000);
-  ignore auction.appendCredit(user, ft2, 500_000_000);
+  ignore auction.appendCredit(user, 0, 500_000_000, null);
+  ignore auction.appendCredit(user, ft1, 500_000_000, null);
+  ignore auction.appendCredit(user, ft2, 500_000_000, null);
   switch (
     auction.manageOrders(
       user,
@@ -152,9 +152,9 @@ do {
   let (auction, user) = init(0, 3, 5);
   let ft1 = createFt(auction);
   let ft2 = createFt(auction);
-  ignore auction.appendCredit(user, 0, 500_000_000);
-  ignore auction.appendCredit(user, ft1, 500_000_000);
-  ignore auction.appendCredit(user, ft2, 500_000_000);
+  ignore auction.appendCredit(user, 0, 500_000_000, null);
+  ignore auction.appendCredit(user, ft1, 500_000_000, null);
+  ignore auction.appendCredit(user, ft2, 500_000_000, null);
   switch (
     auction.manageOrders(
       user,
@@ -175,7 +175,7 @@ do {
     case (#ok _) ();
     case (_) assert false;
   };
-  switch (auction.manageOrders(user, ? #all(null), [], null)) {
+  switch (auction.manageOrders(user, ?#all(null), [], null)) {
     case (#ok _) ();
     case (_) assert false;
   };
@@ -193,9 +193,9 @@ do {
   let (auction, user) = init(0, 3, 5);
   let ft1 = createFt(auction);
   let ft2 = createFt(auction);
-  ignore auction.appendCredit(user, 0, 500_000_000);
-  ignore auction.appendCredit(user, ft1, 500_000_000);
-  ignore auction.appendCredit(user, ft2, 500_000_000);
+  ignore auction.appendCredit(user, 0, 500_000_000, null);
+  ignore auction.appendCredit(user, ft1, 500_000_000, null);
+  ignore auction.appendCredit(user, ft2, 500_000_000, null);
   switch (
     auction.manageOrders(
       user,
@@ -216,7 +216,7 @@ do {
     case (#ok _) ();
     case (_) assert false;
   };
-  switch (auction.manageOrders(user, ? #all(?[ft1]), [], null)) {
+  switch (auction.manageOrders(user, ?#all(?[ft1]), [], null)) {
     case (#ok _) ();
     case (_) assert false;
   };
@@ -234,9 +234,9 @@ do {
   let (auction, user) = init(0, 3, 5);
   let ft1 = createFt(auction);
   let ft2 = createFt(auction);
-  ignore auction.appendCredit(user, 0, 500_000_000);
-  ignore auction.appendCredit(user, ft1, 500_000_000);
-  ignore auction.appendCredit(user, ft2, 500_000_000);
+  ignore auction.appendCredit(user, 0, 500_000_000, null);
+  ignore auction.appendCredit(user, ft1, 500_000_000, null);
+  ignore auction.appendCredit(user, ft2, 500_000_000, null);
   let orderIds = switch (
     auction.manageOrders(
       user,
@@ -254,13 +254,13 @@ do {
       null,
     )
   ) {
-    case (#ok (_, ids)) ids;
+    case (#ok(_, ids)) ids;
     case (_) {
       assert false;
       [];
     };
   };
-  switch (auction.manageOrders(user, ? #orders([#bid(orderIds[1]), #ask(orderIds[4]), #ask(orderIds[5])]), [], null)) {
+  switch (auction.manageOrders(user, ?#orders([#bid(orderIds[1]), #ask(orderIds[4]), #ask(orderIds[5])]), [], null)) {
     case (#ok _) ();
     case (_) assert false;
   };

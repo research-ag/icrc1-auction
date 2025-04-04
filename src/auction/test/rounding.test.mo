@@ -11,16 +11,16 @@ do {
   let ft = createFt(auction);
 
   // user places big bid, which will be fulfilled with many smaller asks
-  ignore auction.appendCredit(user, 0, 500_000_000);
+  ignore auction.appendCredit(user, 0, 500_000_000, null);
 
   let seller1 = Principal.fromText("dkkzx-rn4st-jpxtx-c2q6z-wy2k7-uyffr-ks7hq-azcmt-zjwxi-btxoi-mqe");
-  ignore auction.appendCredit(seller1, ft, 1_000);
+  ignore auction.appendCredit(seller1, ft, 1_000, null);
   let seller2 = Principal.fromText("v5ec2-tmkq6-4v4pj-3piks-4liht-fiayb-itoch-hqkzi-cx4y7-ilhh3-hae");
-  ignore auction.appendCredit(seller2, ft, 1_000);
+  ignore auction.appendCredit(seller2, ft, 1_000, null);
   let seller3 = Principal.fromText("6gpuk-wazec-cgn76-wwyg2-tacww-edf2b-pek6i-qpmi6-qqxts-lasj7-rae");
-  ignore auction.appendCredit(seller3, ft, 1_000);
+  ignore auction.appendCredit(seller3, ft, 1_000, null);
   let seller4 = Principal.fromText("qo2aj-uwwcl-gw2to-zzmko-mdptl-ogqy3-ondre-dmlra-tal7p-klf4v-uae");
-  ignore auction.appendCredit(seller4, ft, 1_000);
+  ignore auction.appendCredit(seller4, ft, 1_000, null);
 
   switch (auction.placeOrder(user, #bid, ft, 4_000, 1, null)) {
     case (#ok _) ();
@@ -75,7 +75,7 @@ do {
   let ft = createFt(auction);
 
   let seller = Principal.fromText("dkkzx-rn4st-jpxtx-c2q6z-wy2k7-uyffr-ks7hq-azcmt-zjwxi-btxoi-mqe");
-  ignore auction.appendCredit(seller, ft, 500_000_000_000_000);
+  ignore auction.appendCredit(seller, ft, 500_000_000_000_000, null);
 
   let bidVolume = 6_821_200_000_000_000;
   let bidPrice = 0.0000000024790000000000002;
@@ -86,7 +86,7 @@ do {
   |> Float.ceil(_)
   |> Int.abs(Float.toInt(_));
 
-  ignore auction.appendCredit(user, 0, denominateVolumeInQuoteAsset(bidVolume, bidPrice));
+  ignore auction.appendCredit(user, 0, denominateVolumeInQuoteAsset(bidVolume, bidPrice), null);
   let oid = switch (auction.placeOrder(user, #bid, ft, bidVolume, bidPrice, null)) {
     case (#ok x) x;
     case (_) {

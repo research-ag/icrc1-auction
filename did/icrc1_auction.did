@@ -425,7 +425,21 @@ service : (opt principal, opt principal) -> {
 
   // returns history of deposit events. Providing token in the arguments to history queries will filter results by token
   // return values are: timestamp in nanoseconds; type; ICRC1 ledger principal; operation volume;
-  queryDepositHistory : (opt Token, nat, nat) -> (vec record { nat64; variant { deposit; withdrawal }; Token; nat }) query;
+  queryDepositHistory : (opt Token, nat, nat) -> (
+    vec record {
+      nat64;
+      variant {
+        deposit;
+        withdrawal : opt variant {
+          icrc1Address : record { principal; opt blob };
+          btcDirect : text;
+          cyclesDirect : principal;
+        };
+      };
+      Token;
+      nat;
+    }
+  ) query;
 
   // returns history of transactions caused by order fulfillments. Providing token in the arguments to history queries will filter results by token
   // return values are: timestamp in nanoseconds; number of auction session; transaction type; ICRC1 ledger principal; transaction volume; transaction price
@@ -479,7 +493,14 @@ service : (opt principal, opt principal) -> {
       // return values are: timestamp in nanoseconds; type; ICRC1 ledger principal; operation volume;
       deposit_history : vec record {
         nat64;
-        variant { deposit; withdrawal };
+        variant {
+          deposit;
+          withdrawal : opt variant {
+            icrc1Address : record { principal; opt blob };
+            btcDirect : text;
+            cyclesDirect : principal;
+          };
+        };
         Token;
         nat;
       };

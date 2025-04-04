@@ -47,6 +47,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   stable var assetsDataV1 : Vec.Vector<StableAssetInfoV1> = Vec.new();
 
   stable var auctionDataV1 : Auction.StableDataV1 = Auction.defaultStableDataV1();
+  stable var auctionDataV2 : Auction.StableDataV2 = Auction.migrateStableDataV2(auctionDataV1);
 
   stable var ptData : PT.StableData = null;
 
@@ -155,9 +156,29 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     points : Nat;
   };
 
+  type WithdrawalMemo = {
+    #icrc1Address : (Principal, ?Blob);
+    #btcDirect : Text;
+    #cyclesDirect : Principal;
+  };
+
   type PriceHistoryItem = (timestamp : Nat64, sessionNumber : Nat, ledgerPrincipal : Principal, volume : Nat, price : Float);
-  type DepositHistoryItem = (timestamp : Nat64, kind : { #deposit; #withdrawal }, ledgerPrincipal : Principal, volume : Nat);
+  type DepositHistoryItem = (timestamp : Nat64, kind : { #deposit; #withdrawal : ?WithdrawalMemo }, ledgerPrincipal : Principal, volume : Nat);
   type TransactionHistoryItem = (timestamp : Nat64, sessionNumber : Nat, kind : { #ask; #bid }, ledgerPrincipal : Principal, volume : Nat, price : Float);
+
+  let mapDepositHistoryItem = func(x : Auction.DepositHistoryItem) : DepositHistoryItem = (
+    x.0,
+    switch (x.1) {
+      case (#deposit _) #deposit;
+      case (#withdrawal null) #withdrawal(null);
+      case (#withdrawal(?memo)) {
+        let info : ?WithdrawalMemo = from_candid memo;
+        #withdrawal(info);
+      };
+    },
+    Vec.get(assets, x.2).ledgerPrincipal,
+    x.3,
+  );
 
   type TokenInfo = {
     allowance_fee : Nat;
@@ -284,7 +305,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       performanceCounter = Prim.performanceCounter;
     },
   );
-  auction.unshare(auctionDataV1);
+  auction.unshare(auctionDataV2);
 
   // will be set in startAuctionTimer_
   // this timestamp is set right before starting auction execution
@@ -485,7 +506,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
         if (userCredit > 0) {
           let inc = Int.abs(userCredit);
           assert assetInfo.handler.debitUser(p, inc);
-          ignore auction.appendCredit(p, assetId, inc);
+          ignore auction.appendCredit(p, assetId, inc, null);
           ignore auction.appendLoyaltyPoints(p, #wallet);
           #Ok({
             deposit_inc = depositInc;
@@ -517,7 +538,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
         if (userCredit > 0) {
           let credited = Int.abs(userCredit);
           assert assetInfo.handler.debitUser(caller, credited);
-          ignore auction.appendCredit(caller, assetId, credited);
+          ignore auction.appendCredit(caller, assetId, credited, null);
           ignore auction.appendLoyaltyPoints(caller, #wallet);
           #Ok({
             credit_inc = creditInc;
@@ -550,7 +571,8 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     withdrawCounter.add(1);
     let ?assetId = getAssetId(args.token) else throw Error.reject("Unknown token");
     let handler = Vec.get(assets, assetId).handler;
-    let (rollbackCredit, doneCallback) = switch (auction.deductCredit(caller, assetId, args.amount)) {
+    let withdrawalMemo = to_candid (#icrc1Address(args.to.owner, args.to.subaccount) : WithdrawalMemo);
+    let (rollbackCredit, doneCallback) = switch (auction.deductCredit(caller, assetId, args.amount, ?withdrawalMemo)) {
       case (#err _) return #Err(#InsufficientCredit({}));
       case (#ok(_, r, d)) (r, d);
     };
@@ -591,8 +613,9 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   public shared ({ caller }) func btc_withdraw(args : { to : Text; amount : Nat }) : async BtcWithdrawResult {
     let ?ckbtcAssetId = getAssetId(CKBTC_LEDGER_PRINCIPAL) else throw Error.reject("BTC is not supported");
     let handler = Vec.get(assets, ckbtcAssetId).handler;
+    let withdrawalMemo = to_candid (#btcDirect(args.to) : WithdrawalMemo);
 
-    let (rollbackCredit, doneCallback) = switch (auction.deductCredit(caller, ckbtcAssetId, args.amount)) {
+    let (rollbackCredit, doneCallback) = switch (auction.deductCredit(caller, ckbtcAssetId, args.amount, ?withdrawalMemo)) {
       case (#err _) return #Err(#InsufficientCredit({}));
       case (#ok(_, r, d)) (r, d);
     };
@@ -630,8 +653,9 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     if (args.amount <= ledgerFee) {
       return #Err(#TooLowAmount {});
     };
+    let withdrawalMemo = to_candid (#cyclesDirect(args.to) : WithdrawalMemo);
 
-    let (rollbackCredit, doneCallback) = switch (auction.deductCredit(caller, cyclesAssetId, args.amount)) {
+    let (rollbackCredit, doneCallback) = switch (auction.deductCredit(caller, cyclesAssetId, args.amount, ?withdrawalMemo)) {
       case (#err _) return #Err(#InsufficientCredit({}));
       case (#ok(_, r, d)) (r, d);
     };
@@ -738,7 +762,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     };
     auction.getDepositHistory(caller, assetIds, #desc)
     |> U.sliceIter(_, limit, skip)
-    |> Array.map<Auction.DepositHistoryItem, DepositHistoryItem>(_, func(x) = (x.0, x.1, Vec.get(assets, x.2).ledgerPrincipal, x.3));
+    |> Array.map<Auction.DepositHistoryItem, DepositHistoryItem>(_, mapDepositHistoryItem);
   };
 
   public shared query ({ caller }) func queryTransactionHistory(token : ?Principal, limit : Nat, skip : Nat) : async [TransactionHistoryItem] {
@@ -823,7 +847,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
           )
           |> auction.getDepositHistory(p, _, historyListOrder)
           |> U.sliceIter(_, limit, skip)
-          |> Array.map<Auction.DepositHistoryItem, DepositHistoryItem>(_, func(x) = (x.0, x.1, Vec.get(assets, x.2).ledgerPrincipal, x.3));
+          |> Array.map<Auction.DepositHistoryItem, DepositHistoryItem>(_, mapDepositHistoryItem);
         };
         case (null) [];
       };
@@ -1254,7 +1278,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
         symbol = x.symbol;
       },
     );
-    auctionDataV1 := auction.share();
+    auctionDataV2 := auction.share();
     ptData := metrics.share();
     stableAdminsMap := adminsMap.share();
   };

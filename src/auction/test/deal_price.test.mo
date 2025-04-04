@@ -10,7 +10,7 @@ do {
   let ft = createFt(auction);
   auction.processAsset(ft);
 
-  ignore auction.appendCredit(user, 0, 500_000_000);
+  ignore auction.appendCredit(user, 0, 500_000_000, null);
 
   // should be fulfilled
   switch (auction.placeOrder(user, #bid, ft, 5_000_000, 1, null)) {
@@ -24,7 +24,7 @@ do {
   };
 
   let user2 = Principal.fromText("tbsil-wffo6-dnxyb-b27v7-c5ghk-jsiqs-gsok7-bmtyu-w7u3b-el75k-iae");
-  ignore auction.appendCredit(user2, ft, 500_000_000);
+  ignore auction.appendCredit(user2, ft, 500_000_000, null);
 
   // should be fulfilled
   switch (auction.placeOrder(user2, #ask, ft, 5_000_000, 0.8, null)) {
@@ -50,7 +50,7 @@ do {
   let ft = createFt(auction);
   auction.processAsset(ft);
 
-  ignore auction.appendCredit(user, 0, 500_000_000);
+  ignore auction.appendCredit(user, 0, 500_000_000, null);
   // should be fulfilled partially
   switch (auction.placeOrder(user, #bid, ft, 6_010_000, 1, null)) {
     case (#ok _) ();
@@ -63,7 +63,7 @@ do {
   };
 
   let user2 = Principal.fromText("tbsil-wffo6-dnxyb-b27v7-c5ghk-jsiqs-gsok7-bmtyu-w7u3b-el75k-iae");
-  ignore auction.appendCredit(user2, ft, 500_000_000);
+  ignore auction.appendCredit(user2, ft, 500_000_000, null);
   // should be fulfilled
   switch (auction.placeOrder(user2, #ask, ft, 5_000_000, 0.8, null)) {
     case (#ok _) ();
@@ -88,7 +88,7 @@ do {
   let ft = createFt(auction);
   auction.processAsset(ft);
 
-  ignore auction.appendCredit(user, 0, 500_000_000);
+  ignore auction.appendCredit(user, 0, 500_000_000, null);
   // should be fulfilled partially
   switch (auction.placeOrder(user, #bid, ft, 5_010_000, 1, null)) {
     case (#ok _) ();
@@ -101,7 +101,7 @@ do {
   };
 
   let user2 = Principal.fromText("tbsil-wffo6-dnxyb-b27v7-c5ghk-jsiqs-gsok7-bmtyu-w7u3b-el75k-iae");
-  ignore auction.appendCredit(user2, ft, 500_000_000);
+  ignore auction.appendCredit(user2, ft, 500_000_000, null);
   // should be fulfilled partially
   switch (auction.placeOrder(user2, #ask, ft, 6_000_000, 0.8, null)) {
     case (#ok _) ();
@@ -140,7 +140,7 @@ do {
   };
   auction.processAsset(ft);
 
-  ignore auction.appendCredit(user, 0, 500_000_000);
+  ignore auction.appendCredit(user, 0, 500_000_000, null);
   userExpectedCredits[0] += 500_000_000;
 
   switch (auction.placeOrder(user, #bid, ft, 5_000_000, 0.1, null)) {
@@ -149,7 +149,7 @@ do {
   };
   userExpectedCredits[0] -= 500_000;
 
-  ignore auction.appendCredit(user, ft, 500_000_000);
+  ignore auction.appendCredit(user, ft, 500_000_000, null);
   userExpectedCredits[1] += 500_000_000;
 
   switch (auction.placeOrder(user, #ask, ft, 500_000, 26, null)) {
@@ -159,9 +159,9 @@ do {
   userExpectedCredits[1] -= 500_000;
 
   let user2 = Principal.fromText("tbsil-wffo6-dnxyb-b27v7-c5ghk-jsiqs-gsok7-bmtyu-w7u3b-el75k-iae");
-  ignore auction.appendCredit(user2, 0, 500_000_000);
+  ignore auction.appendCredit(user2, 0, 500_000_000, null);
   user2ExpectedCredits[0] += 500_000_000;
-  ignore auction.appendCredit(user2, ft, 500_000_000);
+  ignore auction.appendCredit(user2, ft, 500_000_000, null);
   user2ExpectedCredits[1] += 500_000_000;
 
   switch (auction.placeOrder(user2, #ask, ft, 980_000, 0.08, null)) {
