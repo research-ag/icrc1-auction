@@ -9,7 +9,7 @@ import {
   _SERVICE as AService,
   idlFactory as A_IDL,
   init as aInit,
-} from '../declarations/icrc1_auction/icrc1_auction_development.did';
+} from '../declarations/icrc1_auction_continuous/icrc1_auction_continuous.did';
 import { IDL } from '@dfinity/candid';
 import { resolve } from 'node:path';
 import { Principal } from '@dfinity/principal';
@@ -108,7 +108,7 @@ describe('ICRC1 Auction', () => {
     ledger2.setIdentity(user);
 
     f = await pic.setupCanister({
-      wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction_development/icrc1_auction_development.wasm'),
+      wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction_continuous/icrc1_auction_continuous.wasm'),
       arg: IDL.encode(aInit({ IDL }), [[quoteLedgerPrincipal], [admin.getPrincipal()]]),
       sender: controller.getPrincipal(),
       idlFactory: A_IDL,
@@ -140,7 +140,7 @@ describe('ICRC1 Auction', () => {
       });
       await expect(pic.installCode({
         canisterId: p,
-        wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction_development/icrc1_auction_development.wasm'),
+        wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction_continuous/icrc1_auction_continuous.wasm'),
         arg: IDL.encode(aInit({ IDL }), [[], []]),
         sender: controller.getPrincipal(),
       })).rejects.toThrow(`Error from Canister ${p.toText()}: Canister called \`ic0.trap\` with message: Quote ledger principal not provided.
@@ -157,7 +157,7 @@ Consider gracefully handling failures from this canister or altering the caniste
     test('should upgrade canister without arguments', async () => {
       await pic.upgradeCanister({
         canisterId: auctionPrincipal,
-        wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction_development/icrc1_auction_development.wasm'),
+        wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction_continuous/icrc1_auction_continuous.wasm'),
         arg: IDL.encode(aInit({ IDL }), [[], []]),
         sender: controller.getPrincipal(),
       });
@@ -171,7 +171,7 @@ Consider gracefully handling failures from this canister or altering the caniste
       const fakeLedger = createIdentity('fakeLedger');
       await pic.upgradeCanister({
         canisterId: auctionPrincipal,
-        wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction_development/icrc1_auction_development.wasm'),
+        wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction_continuous/icrc1_auction_continuous.wasm'),
         arg: IDL.encode(aInit({ IDL }), [[fakeLedger.getPrincipal()], []]),
         sender: controller.getPrincipal(),
       });
@@ -183,11 +183,11 @@ Consider gracefully handling failures from this canister or altering the caniste
       await startNewAuctionSession();
 
       await prepareDeposit(user);
-      await auction.placeBids([[ledger1Principal, 1_500n, 100_000]], []);
-      await auction.placeBids([[ledger2Principal, 100n, 100_000]], []);
+      await auction.placeBids([[ledger1Principal, { delayed: null }, 1_500n, 100_000]], []);
+      await auction.placeBids([[ledger2Principal, { delayed: null }, 100n, 100_000]], []);
       const seller = createIdentity('seller');
       await prepareDeposit(seller, ledger1Principal);
-      await auction.placeAsks([[ledger1Principal, 1_500_000n, 100_000]], []);
+      await auction.placeAsks([[ledger1Principal, { delayed: null }, 1_500_000n, 100_000]], []);
 
       await startNewAuctionSession();
 
@@ -204,6 +204,7 @@ Consider gracefully handling failures from this canister or altering the caniste
           asks: [],
           deposit_history: [],
           price_history: [],
+          immediate_price_history: [],
           transaction_history: [],
           session_numbers: [],
           reversed_history: [],
@@ -212,12 +213,12 @@ Consider gracefully handling failures from this canister or altering the caniste
       let metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
-      expect(metrics).toContain(`bids_count{canister="${shortP}",asset_id="MOCK"} 1 `);
-      expect(metrics).toContain(`bids_volume{canister="${shortP}",asset_id="MOCK"} 100 `);
+      expect(metrics).toContain(`bids_count{canister="${shortP}",asset_id="MOCK",order_book="delayed"} 1 `);
+      expect(metrics).toContain(`bids_volume{canister="${shortP}",asset_id="MOCK",order_book="delayed"} 100 `);
 
       await pic.upgradeCanister({
         canisterId: auctionPrincipal,
-        wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction_development/icrc1_auction_development.wasm'),
+        wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction_continuous/icrc1_auction_continuous.wasm'),
         arg: IDL.encode(aInit({ IDL }), [[], []]),
         sender: controller.getPrincipal(),
       });
@@ -232,6 +233,7 @@ Consider gracefully handling failures from this canister or altering the caniste
         asks: [],
         deposit_history: [],
         price_history: [],
+        immediate_price_history: [],
         transaction_history: [],
         session_numbers: [],
         reversed_history: [],
@@ -240,8 +242,8 @@ Consider gracefully handling failures from this canister or altering the caniste
       metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
-      expect(metrics).toContain(`bids_count{canister="${shortP}",asset_id="MOCK"} 1 `);
-      expect(metrics).toContain(`bids_volume{canister="${shortP}",asset_id="MOCK"} 100 `);
+      expect(metrics).toContain(`bids_count{canister="${shortP}",asset_id="MOCK",order_book="delayed"} 1 `);
+      expect(metrics).toContain(`bids_volume{canister="${shortP}",asset_id="MOCK",order_book="delayed"} 100 `);
     });
   });
 
@@ -325,21 +327,22 @@ Consider gracefully handling failures from this canister or altering the caniste
 
     test('should be able to manage orders via single query', async () => {
       await prepareDeposit(user);
-      await auction.placeBids([[ledger1Principal, 1_000n, 15_000]], []);
+      await auction.placeBids([[ledger1Principal, { delayed: null }, 1_000n, 15_000]], []);
       expect((await auction.auction_query([], {
         bids: [true],
         credits: [],
         asks: [],
         deposit_history: [],
         price_history: [],
+        immediate_price_history: [],
         transaction_history: [],
         session_numbers: [],
         reversed_history: [],
         last_prices: [],
       })).bids).toHaveLength(1);
       let res2 = await auction.manageOrders([{ all: [] }], [
-        { bid: [ledger1Principal, 1_000n, 15_100] },
-        { bid: [ledger1Principal, 1_000n, 15_200] },
+        { bid: [ledger1Principal, { delayed: null }, 1_000n, 15_100] },
+        { bid: [ledger1Principal, { delayed: null }, 1_000n, 15_200] },
       ], []);
       expect(res2).toHaveProperty('Ok');
       expect((await auction.auction_query([], {
@@ -348,6 +351,7 @@ Consider gracefully handling failures from this canister or altering the caniste
         asks: [],
         deposit_history: [],
         price_history: [],
+        immediate_price_history: [],
         transaction_history: [],
         session_numbers: [],
         reversed_history: [],
@@ -355,17 +359,19 @@ Consider gracefully handling failures from this canister or altering the caniste
       })).bids).toHaveLength(2);
     });
 
-    test('should reject changes if session number is wrong', async () => {
+    test('should reject changes if account revision is wrong', async () => {
       await prepareDeposit(user);
-      const res = await auction.placeBids([[ledger1Principal, 1_000n, 15_000]], [1005n]);
+      const rev = await auction.queryAccountRevision();
+      const res = await auction.placeBids([[ledger1Principal, { delayed: null }, 1_000n, 15_000]], [rev - 1n]);
       expect(res[0]).toHaveProperty('Err');
-      expect((res[0] as any)['Err']).toHaveProperty('SessionNumberMismatch');
+      expect((res[0] as any)['Err']).toHaveProperty('AccountRevisionMismatch');
       expect((await auction.auction_query([], {
         bids: [true],
         credits: [],
         asks: [],
         deposit_history: [],
         price_history: [],
+        immediate_price_history: [],
         transaction_history: [],
         session_numbers: [],
         reversed_history: [],
@@ -373,9 +379,10 @@ Consider gracefully handling failures from this canister or altering the caniste
       })).bids).toHaveLength(0);
     });
 
-    test('should accept correct session number', async () => {
+    test('should accept correct account revision', async () => {
       await prepareDeposit(user);
-      const res = await auction.placeBids([[ledger1Principal, 1_000n, 15_000]], [1n]);
+      const rev = await auction.queryAccountRevision();
+      const res = await auction.placeBids([[ledger1Principal, { delayed: null }, 1_000n, 15_000]], [rev]);
       expect(res[0]).toHaveProperty('Ok');
       expect((await auction.auction_query([], {
         bids: [true],
@@ -383,6 +390,7 @@ Consider gracefully handling failures from this canister or altering the caniste
         asks: [],
         deposit_history: [],
         price_history: [],
+        immediate_price_history: [],
         transaction_history: [],
         session_numbers: [],
         reversed_history: [],
@@ -393,17 +401,17 @@ Consider gracefully handling failures from this canister or altering the caniste
     test('bids should affect metrics', async () => {
       await startNewAuctionSession();
       await prepareDeposit(user);
-      await auction.placeBids([[ledger1Principal, 2_000n, 15_000]], []);
+      await auction.placeBids([[ledger1Principal, { delayed: null }, 2_000n, 15_000]], []);
       const shortP = auctionPrincipal.toText().substring(0, auctionPrincipal.toString().indexOf('-'));
       let metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
-      expect(metrics).toContain(`bids_count{canister="${shortP}",asset_id="MOCK"} 1 `);
-      expect(metrics).toContain(`bids_volume{canister="${shortP}",asset_id="MOCK"} 2000 `);
+      expect(metrics).toContain(`bids_count{canister="${shortP}",asset_id="MOCK",order_book="delayed"} 1 `);
+      expect(metrics).toContain(`bids_volume{canister="${shortP}",asset_id="MOCK",order_book="delayed"} 2000 `);
 
       const seller = createIdentity('seller');
       await prepareDeposit(seller, ledger1Principal);
-      await auction.placeAsks([[ledger1Principal, 200_000_000n, 15_000]], []);
+      await auction.placeAsks([[ledger1Principal, { delayed: null }, 200_000_000n, 15_000]], []);
       auction.setIdentity(user);
       await startNewAuctionSession();
 
@@ -413,6 +421,7 @@ Consider gracefully handling failures from this canister or altering the caniste
         asks: [],
         deposit_history: [],
         price_history: [],
+        immediate_price_history: [],
         transaction_history: [],
         session_numbers: [],
         reversed_history: [],
@@ -421,8 +430,8 @@ Consider gracefully handling failures from this canister or altering the caniste
       metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
-      expect(metrics).toContain(`bids_count{canister="${shortP}",asset_id="MOCK"} 0 `);
-      expect(metrics).toContain(`bids_volume{canister="${shortP}",asset_id="MOCK"} 0 `);
+      expect(metrics).toContain(`bids_count{canister="${shortP}",asset_id="MOCK",order_book="delayed"} 0 `);
+      expect(metrics).toContain(`bids_volume{canister="${shortP}",asset_id="MOCK",order_book="delayed"} 0 `);
     });
 
     test('asks should affect metrics', async () => {
@@ -432,16 +441,16 @@ Consider gracefully handling failures from this canister or altering the caniste
       const buyer = createIdentity('buyer');
       await prepareDeposit(buyer);
       auction.setIdentity(buyer);
-      await auction.placeBids([[ledger1Principal, 2_000_000n, 100]], []);
+      await auction.placeBids([[ledger1Principal, { delayed: null }, 2_000_000n, 100]], []);
 
       auction.setIdentity(user);
-      await auction.placeAsks([[ledger1Principal, 2_000_000n, 100]], []);
+      await auction.placeAsks([[ledger1Principal, { delayed: null }, 2_000_000n, 100]], []);
       const shortP = auctionPrincipal.toText().substring(0, auctionPrincipal.toString().indexOf('-'));
       let metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
-      expect(metrics).toContain(`asks_count{canister="${shortP}",asset_id="MOCK"} 1 `);
-      expect(metrics).toContain(`asks_volume{canister="${shortP}",asset_id="MOCK"} 2000000 `);
+      expect(metrics).toContain(`asks_count{canister="${shortP}",asset_id="MOCK",order_book="delayed"} 1 `);
+      expect(metrics).toContain(`asks_volume{canister="${shortP}",asset_id="MOCK",order_book="delayed"} 2000000 `);
 
       await startNewAuctionSession();
 
@@ -451,6 +460,7 @@ Consider gracefully handling failures from this canister or altering the caniste
         asks: [true],
         deposit_history: [],
         price_history: [],
+        immediate_price_history: [],
         transaction_history: [],
         session_numbers: [],
         reversed_history: [],
@@ -459,8 +469,8 @@ Consider gracefully handling failures from this canister or altering the caniste
       metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
-      expect(metrics).toContain(`asks_count{canister="${shortP}",asset_id="MOCK"} 0 `);
-      expect(metrics).toContain(`asks_volume{canister="${shortP}",asset_id="MOCK"} 0 `);
+      expect(metrics).toContain(`asks_count{canister="${shortP}",asset_id="MOCK",order_book="delayed"} 0 `);
+      expect(metrics).toContain(`asks_volume{canister="${shortP}",asset_id="MOCK",order_book="delayed"} 0 `);
     });
 
   });
@@ -580,17 +590,17 @@ Consider gracefully handling failures from this canister or altering the caniste
       await prepareDeposit(user);
       await prepareDeposit(user, ledger1Principal);
 
-      await auction.placeBids([[ledger1Principal, 1_500n, 100_000]], []);
-      await auction.placeAsks([[ledger1Principal, 1_500n, 101_000]], []);
+      await auction.placeBids([[ledger1Principal, { delayed: null }, 1_500n, 100_000]], []);
+      await auction.placeAsks([[ledger1Principal, { delayed: null }, 1_500n, 101_000]], []);
       const buyer = createIdentity('buyer');
       await prepareDeposit(buyer);
       auction.setIdentity(buyer);
-      await auction.placeBids([[ledger1Principal, 1_500n, 102_000]], []);
+      await auction.placeBids([[ledger1Principal, { delayed: null }, 1_500n, 102_000]], []);
       auction.setIdentity(user);
 
 
       await startNewAuctionSession();
-      await auction.placeAsks([[ledger1Principal, 1_500n, 102_000]], []);
+      await auction.placeAsks([[ledger1Principal, { delayed: null }, 1_500n, 102_000]], []);
 
       const res = await auction.auction_query([], {
         credits: [true],
@@ -599,6 +609,7 @@ Consider gracefully handling failures from this canister or altering the caniste
         session_numbers: [true],
         transaction_history: [[1000n, 0n]],
         price_history: [[1000n, 0n, true]],
+        immediate_price_history: [],
         deposit_history: [[1000n, 0n]],
         reversed_history: [true],
         last_prices: [true],
@@ -609,10 +620,10 @@ Consider gracefully handling failures from this canister or altering the caniste
         [quoteLedgerPrincipal, { total: 651500000n, locked: 150000000n, available: 501500000n }],
       ]);
       expect(res.asks).toEqual([
-        [3n, { icrc1Ledger: ledger1Principal, volume: 1500n, price: 102000 }],
+        [3n, { icrc1Ledger: ledger1Principal, orderBookType: { delayed: null }, volume: 1500n, price: 102000 }],
       ]);
       expect(res.bids).toEqual([
-        [0n, { icrc1Ledger: ledger1Principal, volume: 1500n, price: 100000 }],
+        [0n, { icrc1Ledger: ledger1Principal, orderBookType: { delayed: null }, volume: 1500n, price: 100000 }],
       ]);
       expect(res.session_numbers).toEqual([
         [quoteLedgerPrincipal, 2n],

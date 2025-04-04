@@ -4,8 +4,8 @@ import { useSnackbar } from 'notistack';
 import { useIdentity } from './identity';
 import { Principal } from '@dfinity/principal';
 import { useMemo } from 'react';
-import { createActor } from '@declarations/icrc1_auction';
-import { AuctionQueryResponse } from '@declarations/icrc1_auction/icrc1_auction_development.did';
+import { createActor } from '@declarations/icrc1_auction_continuous';
+import { AuctionQueryResponse } from '@declarations/icrc1_auction_continuous/icrc1_auction_continuous.did';
 import { createActor as createLedgerActor } from '@declarations/icrc1_ledger_mock';
 import { CKBTC_MINTER_MAINNET_XPUBKEY, Minter } from '@research-ag/ckbtc-address-js';
 
@@ -28,7 +28,7 @@ const replaceBigInts = <T>(obj: T): T => {
   return obj;
 };
 
-export const defaultAuctionCanisterId = 'farwr-jqaaa-aaaao-qj4ya-cai';
+export const defaultAuctionCanisterId = 'kkmxt-jqaaa-aaaap-anwoq-cai';
 
 let ckBtcMinter = new Minter(CKBTC_MINTER_MAINNET_XPUBKEY);
 
@@ -226,6 +226,7 @@ export const useAuctionQuery = () => {
           deposit_history: [[BigInt(10000), BigInt(0)]],
           transaction_history: [[BigInt(10000), BigInt(0)]],
           price_history: [],
+          immediate_price_history: [],
           reversed_history: [true],
           last_prices: [],
         }),
@@ -357,9 +358,9 @@ export const usePlaceOrder = (kind: 'ask' | 'bid') => {
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
   return useMutation(
-    (formObj: { ledger: string; volume: number; price: number }) =>
+    (formObj: { ledger: string; volume: number; price: number; orderBookType: 'delayed' | 'immediate' }) =>
       (kind === 'bid' ? auction.placeBids : auction.placeAsks).bind(auction)(
-        [[Principal.fromText(formObj.ledger), BigInt(formObj.volume), Number(formObj.price)]],
+        [[Principal.fromText(formObj.ledger), { [formObj.orderBookType]: null } as any, BigInt(formObj.volume), Number(formObj.price)]],
         [],
       ),
     {
@@ -368,9 +369,15 @@ export const usePlaceOrder = (kind: 'ask' | 'bid') => {
           enqueueSnackbar(`Failed to place a ${kind}: ${JSON.stringify(res.Err, bigIntReplacer)}`, {
             variant: 'error',
           });
-        } else {
+        } else if ('Ok' in res) {
           queryClient.invalidateQueries('auctionQuery');
-          enqueueSnackbar(`${kind} placed`, { variant: 'success' });
+          let orderId = res['Ok'][0];
+          if ('placed' in res['Ok'][1]) {
+            enqueueSnackbar(`${kind} placed, order ID: ${orderId}`, { variant: 'success' });
+          } else if ('executed' in res['Ok'][1]) {
+            let [price, volumeExecuted] = res['Ok'][1]['executed'];
+            enqueueSnackbar(`${kind} executed with price ${price}, volume executed: ${volumeExecuted}`, { variant: 'success' });
+          }
         }
       },
       onError: err => {
@@ -431,6 +438,7 @@ export const usePriceHistory = (limit: number, offset: number) => {
         deposit_history: [],
         transaction_history: [],
         price_history: [[BigInt(limit), BigInt(offset), false]],
+        immediate_price_history: [],
         reversed_history: [true],
         last_prices: [],
       });
