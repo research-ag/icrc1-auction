@@ -16,12 +16,12 @@ import Text "mo:base/Text";
 import Timer "mo:base/Timer";
 
 import ICRC84 "mo:icrc-84";
+import PT "mo:promtracker";
+import TokenHandler "mo:token-handler";
+import Vec "mo:vector";
 
 import Auction "./auction/src";
 import ICRC84Auction "./icrc84_auction";
-import PT "mo:promtracker";
-import TokenHandler "mo:token_handler";
-import Vec "mo:vector";
 
 import BtcHandler "./btc_handler";
 import HTTP "./http";

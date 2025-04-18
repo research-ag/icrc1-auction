@@ -2,9 +2,9 @@ import Int "mo:base/Int";
 import Nat64 "mo:base/Nat64";
 import Principal "mo:base/Principal";
 import R "mo:base/Result";
-import TokenHandler "mo:token_handler";
 
-import CkBtcAddress "mo:ckbtc_address";
+import TokenHandler "mo:token-handler";
+import CkBtcAddress "mo:ckbtc-address";
 
 module {
 
