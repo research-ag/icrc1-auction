@@ -2,7 +2,6 @@
 base = "0.14.3"
 promtracker = "0.5.4"
 vector = "0.4.1"
-mrr = "https://github.com/research-ag/motoko-lib#main"
 bitcoin = "0.1.1"
 icrc-84 = "0.1.0"
 token-handler = "0.0.3"
