@@ -15,6 +15,8 @@ import RBTree "mo:base/RBTree";
 import Text "mo:base/Text";
 import Timer "mo:base/Timer";
 
+import ICRC84 "mo:icrc-84";
+
 import Auction "./auction/src";
 import ICRC84Auction "./icrc84_auction";
 import PT "mo:promtracker";
@@ -28,6 +30,10 @@ import U "./utils";
 // arguments have to be provided on first canister install,
 // on upgrade quote ledger will be ignored
 actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Principal) = self {
+
+  // ensure compliance to ICRC84 standart.
+  // actor won't compile in case of type mismatch here
+  let _ : ICRC84.ICRC84 = self;
 
   stable let trustedLedgerPrincipal : Principal = U.requireMsg(quoteLedger_, "Quote ledger principal not provided");
   stable let quoteLedgerPrincipal : Principal = trustedLedgerPrincipal;
@@ -159,39 +165,6 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   type DepositHistoryItem = (timestamp : Nat64, kind : { #deposit; #withdrawal }, ledgerPrincipal : Principal, volume : Nat);
   type TransactionHistoryItem = (timestamp : Nat64, sessionNumber : Nat, kind : { #ask; #bid }, ledgerPrincipal : Principal, volume : Nat, price : Float);
 
-  type TokenInfo = {
-    allowance_fee : Nat;
-    deposit_fee : Nat;
-    withdrawal_fee : Nat;
-  };
-
-  type NotifyResult = {
-    #Ok : {
-      deposit_inc : Nat;
-      credit_inc : Nat;
-      credit : Int;
-    };
-    #Err : {
-      #CallLedgerError : { message : Text };
-      #NotAvailable : { message : Text };
-    };
-  };
-
-  type DepositResult = UpperResult<{ txid : Nat; credit_inc : Nat; credit : Int }, { #AmountBelowMinimum : {}; #CallLedgerError : { message : Text }; #TransferError : { message : Text }; #BadFee : { expected_fee : Nat } }>;
-
-  type WithdrawResult = {
-    #Ok : {
-      txid : Nat;
-      amount : Nat;
-    };
-    #Err : {
-      #BadFee : { expected_fee : Nat };
-      #CallLedgerError : { message : Text };
-      #InsufficientCredit : {};
-      #AmountBelowMinimum : {};
-    };
-  };
-
   type BtcNotifyResult = {
     #Ok : {
       deposit_inc : Nat;
@@ -225,7 +198,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       fee_block : ?Nat;
       rejection_reason : Text;
     };
-    #GenericError : { message : Text; error_code : Nat };
+    #GenericError : { error_message : Text; error_code : Nat64 };
     #TemporarilyUnavailable;
     #Duplicate : { duplicate_of : Nat };
     #BadFee : { expected_fee : Nat };
@@ -436,7 +409,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     );
   };
 
-  public shared query func icrc84_token_info(token : Principal) : async TokenInfo {
+  public shared query func icrc84_token_info(token : Principal) : async ICRC84.TokenInfo {
     for ((assetInfo, i) in Vec.items(assets)) {
       if (Principal.equal(assetInfo.ledgerPrincipal, token)) {
         return {
@@ -472,7 +445,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     Vec.toArray(ret);
   };
 
-  private func notify(p : Principal, assetId : Auction.AssetId) : async* NotifyResult {
+  private func notify(p : Principal, assetId : Auction.AssetId) : async* ICRC84.NotifyResponse {
     let assetInfo = Vec.get(assets, assetId);
     let result = try {
       await* assetInfo.handler.notify(p);
@@ -500,13 +473,13 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     };
   };
 
-  public shared ({ caller }) func icrc84_notify(args : { token : Principal }) : async NotifyResult {
+  public shared ({ caller }) func icrc84_notify(args : ICRC84.NotifyArgs) : async ICRC84.NotifyResponse {
     notifyCounter.add(1);
     let ?assetId = getAssetId(args.token) else return #Err(#NotAvailable({ message = "Unknown token" }));
     await* notify(caller, assetId);
   };
 
-  public shared ({ caller }) func icrc84_deposit(args : { token : Principal; amount : Nat; from : { owner : Principal; subaccount : ?Blob }; expected_fee : ?Nat }) : async DepositResult {
+  public shared ({ caller }) func icrc84_deposit(args : ICRC84.DepositArgs) : async ICRC84.DepositResponse {
     depositCounter.add(1);
     let ?assetId = getAssetId(args.token) else throw Error.reject("Unknown token");
     let assetInfo = Vec.get(assets, assetId);
@@ -546,7 +519,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     };
   };
 
-  public shared ({ caller }) func icrc84_withdraw(args : { to : { owner : Principal; subaccount : ?Blob }; amount : Nat; token : Principal; expected_fee : ?Nat }) : async WithdrawResult {
+  public shared ({ caller }) func icrc84_withdraw(args : ICRC84.WithdrawArgs) : async ICRC84.WithdrawResponse {
     withdrawCounter.add(1);
     let ?assetId = getAssetId(args.token) else throw Error.reject("Unknown token");
     let handler = Vec.get(assets, assetId).handler;

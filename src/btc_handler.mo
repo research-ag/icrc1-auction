@@ -102,7 +102,7 @@ module {
     #CreatedInFuture : { ledger_time : Nat64 };
     #Duplicate : { duplicate_of : Nat };
     #TemporarilyUnavailable;
-    #GenericError : { error_code : Nat; message : Text };
+    #GenericError : { error_message : Text; error_code : Nat64 };
   };
 
   type CkbtcLedger = actor {
@@ -181,7 +181,7 @@ module {
       #Err : ApproveError or RetrieveBtcWithApprovalError;
     } {
       if (amount < ledgerFee * 2) {
-        return #Err(#GenericError({ error_code = 0; message = "Amount is too low" }));
+        return #Err(#GenericError({ error_code = 0; error_message = "Amount is too low" }));
       };
       let allowanceAmount = Int.abs(amount - ledgerFee); // take allowance creation fee into account
       let approveRes = await ckbtcLedger.icrc2_approve({

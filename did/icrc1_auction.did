@@ -278,7 +278,10 @@ service : (opt principal, opt principal) -> {
         CreatedInFuture : record { ledger_time : nat64 };
         Duplicate : record { duplicate_of : nat };
         Expired : record { ledger_time : nat64 };
-        GenericError : record { error_code : reserved };
+        GenericError : record {
+          error_code : nat64;
+          error_message : text;
+        };
         InsufficientAllowance : record { allowance : nat64 };
         InsufficientCredit : record {};
         InsufficientFunds : record { balance : reserved };
@@ -349,7 +352,10 @@ service : (opt principal, opt principal) -> {
           fee_block : opt nat;
           rejection_reason : text;
         };
-        GenericError : record { message : text; error_code : nat };
+        GenericError : record {
+          error_code : nat64;
+          error_message : text;
+        };
         TemporarilyUnavailable;
         Duplicate : record { duplicate_of : nat };
         InsufficientCredit : record {};
