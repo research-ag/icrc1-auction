@@ -8,7 +8,7 @@
   "type": "module",
   "scripts": {
     "create": "dfx canister create --all",
-    "setup": "mkdir -p .dfx/local/canisters/frontend && wget https://raw.githubusercontent.com/jamesbeadle/OpenFPL/master/candid/assetstorage.did -O .dfx/local/canisters/frontend/assetstorage.did && dfx generate && dfx deploy",
+    "setup": "mkdir -p .dfx/local/canisters/frontend_continuous && wget https://raw.githubusercontent.com/jamesbeadle/OpenFPL/master/candid/assetstorage.did -O .dfx/local/canisters/frontend_continuous/assetstorage.did && dfx generate && dfx deploy",
     "dev:frontend": "vite --port 3993 --host",
     "build:frontend": "rm -rf ./dist/ && tsc && vite build",
     "prettier-format": "prettier --config frontend/.prettierrc 'frontend/**/*.ts' --write",
