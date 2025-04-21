@@ -21,6 +21,8 @@ const DepositHistoryTable = () => {
     }
     if ('btcDirect' in kind['withdrawal'][0]) {
       return 'BTC address: ' + kind['withdrawal'][0]['btcDirect'];
+    } else if ('cyclesDirect' in kind['withdrawal'][0]) {
+      return 'Canister: ' + kind['withdrawal'][0]['cyclesDirect'].toText();
     } else if ('icrc1Address' in kind['withdrawal'][0]) {
       let p = kind['withdrawal'][0]['icrc1Address'][0];
       let subaccount = kind['withdrawal'][0]['icrc1Address'][1];
@@ -39,33 +41,33 @@ const DepositHistoryTable = () => {
           <col style={{ width: '190px' }} />
           <col style={{ width: '90px' }} />
           <col style={{ width: '80px' }} />
-          <col style={{ width: '200px' }}/>
+          <col style={{ width: '200px' }} />
         </colgroup>
         <thead>
-        <tr>
-          <th>Timestamp</th>
-          <th>Token symbol</th>
-          <th>Volume</th>
-          <th>Destination</th>
-        </tr>
+          <tr>
+            <th>Timestamp</th>
+            <th>Token symbol</th>
+            <th>Volume</th>
+            <th>Destination</th>
+          </tr>
         </thead>
         <tbody>
-        {(data ?? []).map(([ts, kind, ledger, volume]) => {
-          return (
-            <tr key={String(ts)}>
-              <td>{String(new Date(Number(ts) / 1_000_000))}</td>
-              <td>
-                <InfoItem content={getInfo(ledger).symbol} withCopy={true}/>
-              </td>
-              <td style={{ color: 'withdrawal' in kind ? 'red' : 'green' }}>
-                {('withdrawal' in kind ? '-' : '+') + displayWithDecimals(volume, getInfo(ledger).decimals)}
-              </td>
-              <td>
-                {getDestinationLabel(kind)}
-              </td>
-            </tr>
-          );
-        })}
+          {(data ?? []).map(([ts, kind, ledger, volume]) => {
+            return (
+              <tr key={String(ts)}>
+                <td>{String(new Date(Number(ts) / 1_000_000))}</td>
+                <td>
+                  <InfoItem content={getInfo(ledger).symbol} withCopy={true} />
+                </td>
+                <td style={{ color: 'withdrawal' in kind ? 'red' : 'green' }}>
+                  {('withdrawal' in kind ? '-' : '+') + displayWithDecimals(volume, getInfo(ledger).decimals)}
+                </td>
+                <td>
+                  {getDestinationLabel(kind)}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </Table>
     </Box>
