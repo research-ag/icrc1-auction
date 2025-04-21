@@ -172,20 +172,6 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   type DepositHistoryItem = (timestamp : Nat64, kind : { #deposit; #withdrawal : ?WithdrawalMemo }, ledgerPrincipal : Principal, volume : Nat);
   type TransactionHistoryItem = (timestamp : Nat64, sessionNumber : Nat, kind : { #ask; #bid }, ledgerPrincipal : Principal, volume : Nat, price : Float);
 
-  let mapDepositHistoryItem = func(x : Auction.DepositHistoryItem) : DepositHistoryItem = (
-    x.0,
-    switch (x.1) {
-      case (#deposit _) #deposit;
-      case (#withdrawal null) #withdrawal(null);
-      case (#withdrawal(?memo)) {
-        let info : ?WithdrawalMemo = from_candid memo;
-        #withdrawal(info);
-      };
-    },
-    Vec.get(assets, x.2).ledgerPrincipal,
-    x.3,
-  );
-
   type BtcNotifyResult = {
     #Ok : {
       deposit_inc : Nat;
@@ -754,7 +740,22 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
           )
           |> auction.getDepositHistory(p, _, historyListOrder)
           |> U.sliceIter(_, limit, skip)
-          |> Array.map<Auction.DepositHistoryItem, DepositHistoryItem>(_, mapDepositHistoryItem);
+          |> Array.map<Auction.DepositHistoryItem, DepositHistoryItem>(
+            _,
+            func(x) = (
+              x.0,
+              switch (x.1) {
+                case (#deposit _) #deposit;
+                case (#withdrawal null) #withdrawal(null);
+                case (#withdrawal(?memo)) {
+                  let info : ?WithdrawalMemo = from_candid memo;
+                  #withdrawal(info);
+                };
+              },
+              Vec.get(assets, x.2).ledgerPrincipal,
+              x.3,
+            ),
+          );
         };
         case (null) [];
       };
