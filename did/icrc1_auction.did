@@ -278,7 +278,10 @@ service : (opt principal, opt principal) -> {
         CreatedInFuture : record { ledger_time : nat64 };
         Duplicate : record { duplicate_of : nat };
         Expired : record { ledger_time : nat64 };
-        GenericError : record { error_code : reserved };
+        GenericError : record {
+          error_code : nat64;
+          error_message : text;
+        };
         InsufficientAllowance : record { allowance : nat64 };
         InsufficientCredit : record {};
         InsufficientFunds : record { balance : reserved };
@@ -349,7 +352,10 @@ service : (opt principal, opt principal) -> {
           fee_block : opt nat;
           rejection_reason : text;
         };
-        GenericError : record { message : text; error_code : nat };
+        GenericError : record {
+          error_code : nat64;
+          error_message : text;
+        };
         TemporarilyUnavailable;
         Duplicate : record { duplicate_of : nat };
         InsufficientCredit : record {};
@@ -396,58 +402,6 @@ service : (opt principal, opt principal) -> {
   indicativeStats : (principal) -> (IndicativeStats) query;
 
   // ========================================================= USER API ==========================================================
-  // returns caller's bids, set for given base token and current session number
-  queryTokenBids : (Token) -> (vec record { OrderId; Order }, SessionNumber) query;
-
-  // returns all caller's bids and current session number
-  queryBids : () -> (vec record { OrderId; Order; SessionNumber }) query;
-
-  // returns caller's asks, set for given base token and current session number
-  queryTokenAsks : (Token) -> (vec record { OrderId; Order }, SessionNumber) query;
-
-  // returns all caller's asks and current session number
-  queryAsks : () -> (vec record { OrderId; Order; SessionNumber }) query;
-
-  // returns caller's wallet information for given token and current session number
-  //
-  // `total` is the total caller balance in the wallet
-  // `available` is the balance, available for placing orders and withdrawal
-  // `locked` is the balance, which is locked by currently placed orders
-  //
-  // Note: `total` is always equal to `available + locked`
-  queryCredit : (Token) -> (record { total : nat; available : nat; locked : nat }, SessionNumber) query;
-
-  // returns caller's wallet information for all tokens with non-zero `total` and current session number
-  queryCredits : () -> (vec record { principal; record { total : nat; available : nat; locked : nat }; SessionNumber }) query;
-
-  // returns amount of caller's loyalty points
-  queryPoints : () -> (nat) query;
-
-  // returns history of deposit events. Providing token in the arguments to history queries will filter results by token
-  // return values are: timestamp in nanoseconds; type; ICRC1 ledger principal; operation volume;
-  queryDepositHistory : (opt Token, nat, nat) -> (
-    vec record {
-      nat64;
-      variant {
-        deposit;
-        withdrawal : opt variant {
-          icrc1Address : record { principal; opt blob };
-          btcDirect : text;
-          cyclesDirect : principal;
-        };
-      };
-      Token;
-      nat;
-    }
-  ) query;
-
-  // returns history of transactions caused by order fulfillments. Providing token in the arguments to history queries will filter results by token
-  // return values are: timestamp in nanoseconds; number of auction session; transaction type; ICRC1 ledger principal; transaction volume; transaction price
-  queryTransactionHistory : (opt Token, nat, nat) -> (vec record { nat64; nat; variant { ask; bid }; Token; nat; float64 }) query;
-
-  // returns history of clearing price per token / auction session. Providing token in the arguments to history queries will filter results by token
-  // return values are: timestamp in nanoseconds; number of auction session; ICRC1 ledger principal; volume sold; price
-  queryPriceHistory : (opt Token, nat, nat, bool) -> (vec record { nat64; nat; Token; nat; float64 }) query;
 
   // an atomic query that allows to fetch various state info at once.
   // arguments are: tokens that caller is interested in and selector object. Results are all filtered by provided tokens.
