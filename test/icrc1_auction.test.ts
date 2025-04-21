@@ -7,6 +7,7 @@ import {
 } from '../declarations/icrc1_ledger_mock/icrc1_ledger_mock.did';
 import {
   _SERVICE as AService,
+  AuctionQuerySelection,
   idlFactory as A_IDL,
   init as aInit,
 } from '../declarations/icrc1_auction_continuous/icrc1_auction_continuous.did';
@@ -76,6 +77,19 @@ describe('ICRC1 Auction', () => {
   const queryCredit = async (token: Principal) => {
     return (await auction.icrc84_query([token]))[0][1].credit;
   }
+
+  const auctionQueryEmpty: AuctionQuerySelection = {
+    bids: [],
+    credits: [],
+    asks: [],
+    deposit_history: [],
+    price_history: [],
+    immediate_price_history: [],
+    transaction_history: [],
+    session_numbers: [],
+    reversed_history: [],
+    last_prices: [],
+  };
 
   beforeAll(() => {
     serverUrl = readFileSync(resolve(tmpdir(), 'pic_server_url.txt'), 'utf-8');
@@ -198,18 +212,8 @@ Consider gracefully handling failures from this canister or altering the caniste
       expect(await queryCredit(ledger1Principal)).toEqual(1_500n);
       expect((await auction.auction_query(
         [ledger2Principal],
-        {
-          bids: [true],
-          credits: [],
-          asks: [],
-          deposit_history: [],
-          price_history: [],
-          immediate_price_history: [],
-          transaction_history: [],
-          session_numbers: [],
-          reversed_history: [],
-          last_prices: [],
-        })).bids).toHaveLength(1);
+        { ...auctionQueryEmpty, bids: [true] }
+      )).bids).toHaveLength(1);
       let metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
@@ -228,16 +232,8 @@ Consider gracefully handling failures from this canister or altering the caniste
       expect(await queryCredit(quoteLedgerPrincipal)).toEqual(340_000_000n);
       expect(await queryCredit(ledger1Principal)).toEqual(1_500n);
       expect((await auction.auction_query([ledger2Principal], {
+        ...auctionQueryEmpty,
         bids: [true],
-        credits: [],
-        asks: [],
-        deposit_history: [],
-        price_history: [],
-        immediate_price_history: [],
-        transaction_history: [],
-        session_numbers: [],
-        reversed_history: [],
-        last_prices: [],
       })).bids).toHaveLength(1);
       metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
@@ -329,16 +325,8 @@ Consider gracefully handling failures from this canister or altering the caniste
       await prepareDeposit(user);
       await auction.placeBids([[ledger1Principal, { delayed: null }, 1_000n, 15_000]], []);
       expect((await auction.auction_query([], {
+        ...auctionQueryEmpty,
         bids: [true],
-        credits: [],
-        asks: [],
-        deposit_history: [],
-        price_history: [],
-        immediate_price_history: [],
-        transaction_history: [],
-        session_numbers: [],
-        reversed_history: [],
-        last_prices: [],
       })).bids).toHaveLength(1);
       let res2 = await auction.manageOrders([{ all: [] }], [
         { bid: [ledger1Principal, { delayed: null }, 1_000n, 15_100] },
@@ -346,55 +334,31 @@ Consider gracefully handling failures from this canister or altering the caniste
       ], []);
       expect(res2).toHaveProperty('Ok');
       expect((await auction.auction_query([], {
+        ...auctionQueryEmpty,
         bids: [true],
-        credits: [],
-        asks: [],
-        deposit_history: [],
-        price_history: [],
-        immediate_price_history: [],
-        transaction_history: [],
-        session_numbers: [],
-        reversed_history: [],
-        last_prices: [],
       })).bids).toHaveLength(2);
     });
 
     test('should reject changes if account revision is wrong', async () => {
       await prepareDeposit(user);
-      const rev = await auction.queryAccountRevision();
+      const rev = (await auction.auction_query([], auctionQueryEmpty)).account_revision;
       const res = await auction.placeBids([[ledger1Principal, { delayed: null }, 1_000n, 15_000]], [rev - 1n]);
       expect(res[0]).toHaveProperty('Err');
       expect((res[0] as any)['Err']).toHaveProperty('AccountRevisionMismatch');
       expect((await auction.auction_query([], {
+        ...auctionQueryEmpty,
         bids: [true],
-        credits: [],
-        asks: [],
-        deposit_history: [],
-        price_history: [],
-        immediate_price_history: [],
-        transaction_history: [],
-        session_numbers: [],
-        reversed_history: [],
-        last_prices: [],
       })).bids).toHaveLength(0);
     });
 
     test('should accept correct account revision', async () => {
       await prepareDeposit(user);
-      const rev = await auction.queryAccountRevision();
+      const rev = (await auction.auction_query([], auctionQueryEmpty)).account_revision;
       const res = await auction.placeBids([[ledger1Principal, { delayed: null }, 1_000n, 15_000]], [rev]);
       expect(res[0]).toHaveProperty('Ok');
       expect((await auction.auction_query([], {
+        ...auctionQueryEmpty,
         bids: [true],
-        credits: [],
-        asks: [],
-        deposit_history: [],
-        price_history: [],
-        immediate_price_history: [],
-        transaction_history: [],
-        session_numbers: [],
-        reversed_history: [],
-        last_prices: [],
       })).bids).toHaveLength(1);
     });
 
@@ -416,16 +380,8 @@ Consider gracefully handling failures from this canister or altering the caniste
       await startNewAuctionSession();
 
       expect((await auction.auction_query([ledger1Principal], {
+        ...auctionQueryEmpty,
         bids: [true],
-        credits: [],
-        asks: [],
-        deposit_history: [],
-        price_history: [],
-        immediate_price_history: [],
-        transaction_history: [],
-        session_numbers: [],
-        reversed_history: [],
-        last_prices: [],
       })).bids).toHaveLength(0);
       metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
@@ -455,16 +411,8 @@ Consider gracefully handling failures from this canister or altering the caniste
       await startNewAuctionSession();
 
       expect((await auction.auction_query([ledger1Principal], {
-        bids: [],
-        credits: [],
+        ...auctionQueryEmpty,
         asks: [true],
-        deposit_history: [],
-        price_history: [],
-        immediate_price_history: [],
-        transaction_history: [],
-        session_numbers: [],
-        reversed_history: [],
-        last_prices: [],
       })).asks).toHaveLength(0);
       metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
