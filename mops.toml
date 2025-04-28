@@ -4,7 +4,7 @@ promtracker = "0.5.4"
 vector = "0.4.1"
 bitcoin = "0.1.1"
 icrc-84 = "0.1.0"
-token-handler = "0.0.3"
+token-handler = "https://github.com/research-ag/token-handler#7e52cb5c3b26191f0a9e7ccc07e3075723c86d7c"
 ckbtc-address = "0.0.1"
 auction = "3.0.0"
 
