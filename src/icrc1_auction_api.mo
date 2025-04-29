@@ -20,13 +20,6 @@ import PT "mo:promtracker";
 import TokenHandler "mo:token-handler";
 import Vec "mo:vector";
 
-import THData "mo:token-handler/Data";
-import THDepositManager "mo:token-handler/DepositManager";
-import THCreditManager "mo:token-handler/CreditManager";
-import THFeeManager "mo:token-handler/FeeManager";
-import THICRC84Helper "mo:token-handler/icrc84-helper";
-import THWithdrawalManager "mo:token-handler/WithdrawalManager";
-
 import Auction "./auction/src";
 import ICRC84Auction "./icrc84_auction";
 
@@ -59,51 +52,11 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   stable var assetsDataV1 : Vec.Vector<StableAssetInfoV1> = Vec.new();
 
-  stable var tokenHandlersJournal : Vec.Vector<(ledger : Principal, p : Principal, logEvent : TokenHandler.LogEvent)> = Vec.new();
-
-  stable var assetsDataV2 : Vec.Vector<StableAssetInfoIntermediate> = Vec.map<StableAssetInfoV1, StableAssetInfoIntermediate>(
-    assetsDataV1,
-    func(d) {
-      let totalWithdrawn = Vec.foldLeft<Nat, (ledger : Principal, p : Principal, logEvent : TokenHandler.LogEvent)>(
-        tokenHandlersJournal,
-        0,
-        func(acc, x) = switch (Principal.equal(x.0, d.ledgerPrincipal), x.2) {
-          case (true, #withdraw { amount }) acc + amount;
-          case (_) acc;
-        },
-      );
-      {
-        d with
-        handler = {
-          d.handler with withdrawalManager = { totalWithdrawn; lockedFunds = 0 }
-        };
-      };
-    },
-  );
-
-  stable var assetsDataFixed : Vec.Vector<StableAssetInfoV2> = Vec.map<StableAssetInfoIntermediate, StableAssetInfoV2>(
-    assetsDataV2,
-    func(d) {
-      let totalCredited = Vec.foldLeft<Nat, (ledger : Principal, p : Principal, logEvent : TokenHandler.LogEvent)>(
-        tokenHandlersJournal,
-        0,
-        func(acc, x) = switch (Principal.equal(x.0, d.ledgerPrincipal), x.2) {
-          case (true, #allowanceDrawn { credited }) acc + credited;
-          case (_) acc;
-        },
-      );
-      {
-        d with
-        handler = {
-          d.handler with allowanceManager = { totalCredited }
-        };
-      };
-    },
-  );
-
   stable var auctionDataV1 : Auction.StableDataV1 = Auction.defaultStableDataV1();
 
   stable var ptData : PT.StableData = null;
+
+  stable var tokenHandlersJournal : Vec.Vector<(ledger : Principal, p : Principal, logEvent : TokenHandler.LogEvent)> = Vec.new();
 
   stable var consolidationTimerEnabled : Bool = true;
 
@@ -148,39 +101,10 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     symbol : Text;
     decimals : Nat;
   };
-  type StableAssetInfoV2 = {
-    ledgerPrincipal : Principal;
-    minAskVolume : Nat;
-    handler : TokenHandler.StableData;
-    symbol : Text;
-    decimals : Nat;
-  };
-
-  type StableAssetInfoIntermediate = {
-    ledgerPrincipal : Principal;
-    minAskVolume : Nat;
-    handler : {
-      data : THData.StableData<Principal>;
-      depositManager : THDepositManager.StableData;
-      creditManager : THCreditManager.StableData;
-      feeManager : THFeeManager.StableData;
-      ledger : THICRC84Helper.StableData;
-      withdrawalManager : THWithdrawalManager.StableData;
-    };
-    symbol : Text;
-    decimals : Nat;
-  };
-
   type StableAssetInfoV1 = {
     ledgerPrincipal : Principal;
     minAskVolume : Nat;
-    handler : {
-      data : THData.StableData<Principal>;
-      depositManager : THDepositManager.StableData;
-      creditManager : THCreditManager.StableData;
-      feeManager : THFeeManager.StableData;
-      ledger : THICRC84Helper.StableData;
-    };
+    handler : TokenHandler.StableData;
     symbol : Text;
     decimals : Nat;
   };
@@ -319,8 +243,8 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     ai;
   };
 
-  let assets : Vec.Vector<AssetInfo> = Vec.map<StableAssetInfoV2, AssetInfo>(
-    assetsDataFixed,
+  let assets : Vec.Vector<AssetInfo> = Vec.map<StableAssetInfoV1, AssetInfo>(
+    assetsDataV1,
     func(x) = createAssetInfo_(x.ledgerPrincipal, x.minAskVolume, x.decimals, x.symbol, ?x.handler),
   );
   let auction : Auction.Auction = Auction.Auction(
@@ -1216,7 +1140,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   };
 
   system func preupgrade() {
-    assetsDataFixed := Vec.map<AssetInfo, StableAssetInfoV2>(
+    assetsDataV1 := Vec.map<AssetInfo, StableAssetInfoV1>(
       assets,
       func(x) = {
         ledgerPrincipal = x.ledgerPrincipal;
