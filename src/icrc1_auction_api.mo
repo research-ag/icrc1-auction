@@ -330,59 +330,61 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   let orderCancellationCounter = metrics.addCounter("total_calls__order_cancellation", "", true);
 
   private func registerAssetMetrics_(assetId : Auction.AssetId) {
-    if (assetId == quoteAssetId) return;
-    let asset = auction.assets.getAsset(assetId);
     let tokenHandler = Vec.get(assets, assetId).handler;
-
-    let priceMultiplier = 10 ** Float.fromInt(Vec.get(assets, assetId).decimals);
-    let renderPrice = func(price : Float) : Nat = Int.abs(Float.toInt(price * priceMultiplier));
     let labels = "asset_id=\"" # Vec.get(assets, assetId).symbol # "\"";
 
-    ignore metrics.addPullValue("asks_count", labels, func() = asset.asks.size);
-    ignore metrics.addPullValue("asks_volume", labels, func() = asset.asks.totalVolume);
-    ignore metrics.addPullValue("bids_count", labels, func() = asset.bids.size);
-    ignore metrics.addPullValue("bids_volume", labels, func() = asset.bids.totalVolume);
-    ignore metrics.addPullValue("processing_instructions", labels, func() = asset.lastProcessingInstructions);
-    ignore metrics.addPullValue("total_executed_volume_base", labels, func() = asset.totalExecutedVolumeBase);
-    ignore metrics.addPullValue("total_executed_volume_quote", labels, func() = asset.totalExecutedVolumeQuote);
-    ignore metrics.addPullValue("total_executed_orders", labels, func() = asset.totalExecutedOrders);
+    if (assetId != quoteAssetId) {
+      let asset = auction.assets.getAsset(assetId);
 
-    ignore metrics.addPullValue(
-      "clearing_price",
-      labels,
-      func() = auction.indicativeAssetStats(assetId)
-      |> (switch (_.clearing) { case (#match x) { x.price }; case (_) { 0.0 } })
-      |> renderPrice(_),
-    );
-    ignore metrics.addPullValue(
-      "clearing_volume",
-      labels,
-      func() = auction.indicativeAssetStats(assetId)
-      |> (switch (_.clearing) { case (#match x) { x.volume }; case (_) { 0 } }),
-    );
+      let priceMultiplier = 10 ** Float.fromInt(Vec.get(assets, assetId).decimals);
+      let renderPrice = func(price : Float) : Nat = Int.abs(Float.toInt(price * priceMultiplier));
 
-    ignore metrics.addPullValue(
-      "last_price",
-      labels,
-      func() = auction.getPriceHistory([assetId], #desc, false).next()
-      |> (
-        switch (_) {
-          case (?item) renderPrice(item.4);
-          case (null) 0;
-        }
-      ),
-    );
-    ignore metrics.addPullValue(
-      "last_volume",
-      labels,
-      func() = auction.getPriceHistory([assetId], #desc, false).next()
-      |> (
-        switch (_) {
-          case (?item) item.3;
-          case (null) 0;
-        }
-      ),
-    );
+      ignore metrics.addPullValue("asks_count", labels, func() = asset.asks.size);
+      ignore metrics.addPullValue("asks_volume", labels, func() = asset.asks.totalVolume);
+      ignore metrics.addPullValue("bids_count", labels, func() = asset.bids.size);
+      ignore metrics.addPullValue("bids_volume", labels, func() = asset.bids.totalVolume);
+      ignore metrics.addPullValue("processing_instructions", labels, func() = asset.lastProcessingInstructions);
+      ignore metrics.addPullValue("total_executed_volume_base", labels, func() = asset.totalExecutedVolumeBase);
+      ignore metrics.addPullValue("total_executed_volume_quote", labels, func() = asset.totalExecutedVolumeQuote);
+      ignore metrics.addPullValue("total_executed_orders", labels, func() = asset.totalExecutedOrders);
+
+      ignore metrics.addPullValue(
+        "clearing_price",
+        labels,
+        func() = auction.indicativeAssetStats(assetId)
+        |> (switch (_.clearing) { case (#match x) { x.price }; case (_) { 0.0 } })
+        |> renderPrice(_),
+      );
+      ignore metrics.addPullValue(
+        "clearing_volume",
+        labels,
+        func() = auction.indicativeAssetStats(assetId)
+        |> (switch (_.clearing) { case (#match x) { x.volume }; case (_) { 0 } }),
+      );
+
+      ignore metrics.addPullValue(
+        "last_price",
+        labels,
+        func() = auction.getPriceHistory([assetId], #desc, false).next()
+        |> (
+          switch (_) {
+            case (?item) renderPrice(item.4);
+            case (null) 0;
+          }
+        ),
+      );
+      ignore metrics.addPullValue(
+        "last_volume",
+        labels,
+        func() = auction.getPriceHistory([assetId], #desc, false).next()
+        |> (
+          switch (_) {
+            case (?item) item.3;
+            case (null) 0;
+          }
+        ),
+      );
+    };
     ignore metrics.addPullValue(
       "token_handler_locks",
       labels,
