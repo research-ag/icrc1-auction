@@ -1,10 +1,10 @@
 import Float "mo:base/Float";
 import Iter "mo:base/Iter";
-import List "mo:base/List";
+import LinkedList "mo:base/List";
 import O "mo:base/Order";
 import Prim "mo:prim";
 
-import Vec "mo:vector";
+import List "mo:core/List";
 
 import PriorityQueue "./priority_queue";
 import T "./types";
@@ -14,27 +14,27 @@ module {
   public class Assets() {
 
     // asset info, index == assetId
-    public var assets : Vec.Vector<T.AssetInfo> = Vec.new();
+    public var assets : List.List<T.AssetInfo> = List.empty();
     // asset history
-    public var history : Vec.Vector<T.PriceHistoryItem> = Vec.new();
+    public var history : List.List<T.PriceHistoryItem> = List.empty();
 
-    public func nAssets() : Nat = Vec.size(assets);
+    public func nAssets() : Nat = List.size(assets);
 
-    public func getAsset(assetId : T.AssetId) : T.AssetInfo = Vec.get(assets, assetId);
+    public func getAsset(assetId : T.AssetId) : T.AssetInfo = List.get(assets, assetId);
 
-    public func historyLength() : Nat = Vec.size(history);
+    public func historyLength() : Nat = List.size(history);
 
     public func register(n : Nat, sessionsCounter : Nat) {
       for (i in Iter.range(1, n)) {
         (
           {
             bids = {
-              var queue = List.nil();
+              var queue = LinkedList.nil();
               var size = 0;
               var totalVolume = 0;
             };
             asks = {
-              var queue = List.nil();
+              var queue = LinkedList.nil();
               var size = 0;
               var totalVolume = 0;
             };
@@ -46,7 +46,7 @@ module {
             var sessionsCounter = sessionsCounter;
           } : T.AssetInfo
         )
-        |> Vec.add(assets, _);
+        |> List.add(assets, _);
       };
     };
 
@@ -85,7 +85,7 @@ module {
     };
 
     public func pushToHistory(item : T.PriceHistoryItem) {
-      Vec.add(history, item);
+      List.add(history, item);
     };
 
   };

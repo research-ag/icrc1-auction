@@ -1,11 +1,11 @@
 import AssocList "mo:base/AssocList";
-import List "mo:base/List";
+import LinkedList "mo:base/List";
 import Nat "mo:base/Nat";
 import Prim "mo:prim";
 import Principal "mo:base/Principal";
 import RBTree "mo:base/RBTree";
 
-import Vec "mo:vector";
+import List "mo:core/List";
 
 import T "./types";
 
@@ -20,7 +20,7 @@ module {
     public func nUsersWithCredits() : Nat {
       var res : Nat = 0;
       for ((_, user) in users.entries()) {
-        if (not List.isNil(user.credits)) {
+        if (not LinkedList.isNil(user.credits)) {
           res += 1;
         };
       };
@@ -29,7 +29,7 @@ module {
     public func nUsersWithActiveOrders() : Nat {
       var res : Nat = 0;
       for ((_, user) in users.entries()) {
-        if (not List.isNil(user.asks.map) or not List.isNil(user.bids.map)) {
+        if (not LinkedList.isNil(user.asks.map) or not LinkedList.isNil(user.bids.map)) {
           res += 1;
         };
       };
@@ -49,8 +49,8 @@ module {
           bids = { var map = null };
           var credits = null;
           var loyaltyPoints = 0;
-          var depositHistory = Vec.new<T.DepositHistoryItem>();
-          var transactionHistory = Vec.new<T.TransactionHistoryItem>();
+          var depositHistory = List.empty<T.DepositHistoryItem>();
+          var transactionHistory = List.empty<T.TransactionHistoryItem>();
         };
         let oldValue = users.replace(p, data);
         switch (oldValue) {

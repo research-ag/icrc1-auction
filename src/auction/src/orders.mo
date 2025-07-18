@@ -3,14 +3,14 @@ import AssocList "mo:base/AssocList";
 import Float "mo:base/Float";
 import Int "mo:base/Int";
 import Iter "mo:base/Iter";
-import List "mo:base/List";
+import LinkedList "mo:base/List";
 import Nat "mo:base/Nat";
 import Option "mo:base/Option";
 import Prim "mo:prim";
 import R "mo:base/Result";
 import RBTree "mo:base/RBTree";
 
-import Vec "mo:vector";
+import List "mo:core/List";
 
 import Assets "./assets";
 import C "./constants";
@@ -54,7 +54,7 @@ module {
   /// helper class to work with orders of given asset
   public class OrderBookService(service : OrdersService, assetInfo : T.AssetInfo) {
 
-    public func queue() : List.List<(T.OrderId, T.Order)> = service.assetOrdersQueue(assetInfo);
+    public func queue() : LinkedList.List<(T.OrderId, T.Order)> = service.assetOrdersQueue(assetInfo);
 
     public func nextOrder() : ?(T.OrderId, T.Order) = switch (queue()) {
       case (?(x, _)) ?x;
@@ -120,7 +120,7 @@ module {
       case (#bid) oppositeOrderPrice <= orderPrice;
     };
 
-    public func assetOrdersQueue(assetInfo : T.AssetInfo) : List.List<(T.OrderId, T.Order)> = switch (kind) {
+    public func assetOrdersQueue(assetInfo : T.AssetInfo) : LinkedList.List<(T.OrderId, T.Order)> = switch (kind) {
       case (#ask) assetInfo.asks.queue;
       case (#bid) assetInfo.bids.queue;
     };
@@ -184,7 +184,7 @@ module {
       let acc = credits.getOrCreate(order.userInfoRef, destAssetId(order.assetId));
       ignore credits.appendCredit(acc, destVol);
 
-      Vec.add(order.userInfoRef.transactionHistory, (Prim.time(), sessionNumber, kind, order.assetId, baseVolume, price));
+      List.add(order.userInfoRef.transactionHistory, (Prim.time(), sessionNumber, kind, order.assetId, baseVolume, price));
 
       let quoteVolume = switch (kind) {
         case (#ask) destVol;
@@ -288,7 +288,7 @@ module {
       var newBalances : AssocList.AssocList<T.AssetId, Nat> = null;
       // temporary lists of newly placed/cancelled orders
       type OrdersDelta = {
-        var placed : List.List<(?T.OrderId, T.Order)>;
+        var placed : LinkedList.List<(?T.OrderId, T.Order)>;
         var isOrderCancelled : (assetId : T.AssetId, orderId : T.OrderId) -> Bool;
       };
       var asksDelta : OrdersDelta = {
@@ -301,7 +301,7 @@ module {
       };
 
       // array of functions which will write all changes to the state
-      var cancellationCommitActions : List.List<() -> [CancellationResult]> = null;
+      var cancellationCommitActions : LinkedList.List<() -> [CancellationResult]> = null;
       let placementCommitActions : [var () -> T.OrderId] = Array.init<() -> T.OrderId>(placements.size(), func() = 0);
 
       // update temporary balances: add unlocked credits for each cancelled order
@@ -322,22 +322,22 @@ module {
       // prepare cancellation of all orders by type (ask or bid)
       func prepareBulkCancellation(ordersService : OrdersService) {
         let userOrderBook = users.getOrderBook(userInfo, ordersService.kind);
-        for ((orderId, order) in List.toIter(userOrderBook.map)) {
+        for ((orderId, order) in LinkedList.toIter(userOrderBook.map)) {
           affectNewBalancesWithCancellation(ordersService, order);
         };
-        cancellationCommitActions := List.push<() -> [CancellationResult]>(
+        cancellationCommitActions := LinkedList.push<() -> [CancellationResult]>(
           func() {
-            let ret : Vec.Vector<CancellationResult> = Vec.new();
+            let ret : List.List<CancellationResult> = List.empty();
             label l while (true) {
               switch (userOrderBook.map) {
                 case (?((orderId, _), _)) {
                   let ?order = ordersService.cancel(userInfo, orderId) else Prim.trap("Can never happen");
-                  Vec.add(ret, (orderId, order.assetId, order.volume, order.price));
+                  List.add(ret, (orderId, order.assetId, order.volume, order.price));
                 };
                 case (_) break l;
               };
             };
-            Vec.toArray(ret);
+            List.toArray(ret);
           },
           cancellationCommitActions,
         );
@@ -347,21 +347,21 @@ module {
       func prepareBulkCancellationWithFilter(ordersService : OrdersService, isCancel : (assetId : T.AssetId, orderId : T.OrderId) -> Bool) {
         // TODO can be optimized: cancelOrderInternal searches for order by it's id with linear complexity
         let userOrderBook = users.getOrderBook(userInfo, ordersService.kind);
-        let orderIds : Vec.Vector<T.OrderId> = Vec.new();
-        for ((orderId, order) in List.toIter(userOrderBook.map)) {
+        let orderIds : List.List<T.OrderId> = List.empty();
+        for ((orderId, order) in LinkedList.toIter(userOrderBook.map)) {
           if (isCancel(order.assetId, orderId)) {
             affectNewBalancesWithCancellation(ordersService, order);
-            Vec.add(orderIds, orderId);
+            List.add(orderIds, orderId);
           };
         };
-        cancellationCommitActions := List.push<() -> [CancellationResult]>(
+        cancellationCommitActions := LinkedList.push<() -> [CancellationResult]>(
           func() {
-            let ret : Vec.Vector<CancellationResult> = Vec.new();
-            for (orderId in Vec.vals(orderIds)) {
+            let ret : List.List<CancellationResult> = List.empty();
+            for (orderId in List.values(orderIds)) {
               let ?order = ordersService.cancel(userInfo, orderId) else Prim.trap("Can never happen");
-              Vec.add(ret, (orderId, order.assetId, order.volume, order.price));
+              List.add(ret, (orderId, order.assetId, order.volume, order.price));
             };
-            Vec.toArray(ret);
+            List.toArray(ret);
           },
           cancellationCommitActions,
         );
@@ -369,10 +369,10 @@ module {
 
       switch (cancellations) {
         case (null) {};
-        case (? #all(null)) {
+        case (?#all(null)) {
           switch (expectedSessionNumber) {
             case (?sn) {
-              for ((asset, aid) in Vec.items(assets.assets)) {
+              for ((aid, asset) in List.enumerate(assets.assets)) {
                 if (aid != quoteAssetId and asset.sessionsCounter != sn) {
                   return #err(#SessionNumberMismatch(aid));
                 };
@@ -385,12 +385,12 @@ module {
           prepareBulkCancellation(asks);
           prepareBulkCancellation(bids);
         };
-        case (? #all(?aids)) {
+        case (?#all(?aids)) {
           switch (expectedSessionNumber) {
             case (?sn) {
               for (i in aids.keys()) {
                 let aid = aids[i];
-                if (Vec.get(assets.assets, aid).sessionsCounter != sn) {
+                if (List.get(assets.assets, aid).sessionsCounter != sn) {
                   return #err(#SessionNumberMismatch(aid));
                 };
               };
@@ -402,7 +402,7 @@ module {
           prepareBulkCancellationWithFilter(asks, asksDelta.isOrderCancelled);
           prepareBulkCancellationWithFilter(bids, bidsDelta.isOrderCancelled);
         };
-        case (? #orders(orders)) {
+        case (?#orders(orders)) {
           let cancelledAsks : RBTree.RBTree<T.OrderId, ()> = RBTree.RBTree(Nat.compare);
           let cancelledBids : RBTree.RBTree<T.OrderId, ()> = RBTree.RBTree(Nat.compare);
           asksDelta.isOrderCancelled := func(_, orderId) = cancelledAsks.get(orderId) |> not Option.isNull(_);
@@ -417,7 +417,7 @@ module {
             let ?oldOrder = users.findOrder(userInfo, ordersService.kind, orderId) else return #err(#cancellation({ index = i; error = #UnknownOrder }));
             affectNewBalancesWithCancellation(ordersService, oldOrder);
             cancelledTree.put(orderId, ());
-            cancellationCommitActions := List.push<() -> [CancellationResult]>(
+            cancellationCommitActions := LinkedList.push<() -> [CancellationResult]>(
               func() {
                 let ?order = ordersService.cancel(userInfo, orderId) else return [];
                 [(orderId, order.assetId, order.volume, order.price)];
@@ -428,8 +428,8 @@ module {
           };
           switch (expectedSessionNumber) {
             case (?sn) {
-              for ((aid, index) in List.toIter(assetIdSet)) {
-                if (Vec.get(assets.assets, aid).sessionsCounter != sn) {
+              for ((aid, index) in LinkedList.toIter(assetIdSet)) {
+                if (List.get(assets.assets, aid).sessionsCounter != sn) {
                   return #err(#SessionNumberMismatch(aid));
                 };
               };
@@ -474,9 +474,9 @@ module {
 
         // build list of placed orders + orders to be placed during this call
         func buildOrdersList(user : T.UserInfo, kind : { #ask; #bid }, delta : OrdersDelta) : Iter.Iter<(?T.OrderId, T.Order)> = users.getOrderBook(user, kind).map
-        |> List.toIter(_)
+        |> LinkedList.toIter(_)
         |> Iter.map<(T.OrderId, T.Order), (?T.OrderId, T.Order)>(_, func(oid, o) = (?oid, o))
-        |> Iter.concat<(?T.OrderId, T.Order)>(_, List.toIter(delta.placed));
+        |> Iter.concat<(?T.OrderId, T.Order)>(_, LinkedList.toIter(delta.placed));
 
         // validate conflicting orders
         for ((orderId, order) in buildOrdersList(userInfo, ordersService.kind, ordersDelta)) {
@@ -516,7 +516,7 @@ module {
           price = price;
           var volume = volume;
         };
-        ordersDelta.placed := List.push((null, order), ordersDelta.placed);
+        ordersDelta.placed := LinkedList.push((null, order), ordersDelta.placed);
 
         placementCommitActions[i] := func() {
           let orderId = ordersCounter;
@@ -528,8 +528,8 @@ module {
       };
       switch (expectedSessionNumber) {
         case (?sn) {
-          for ((aid, index) in List.toIter(assetIdSet)) {
-            if (Vec.get(assets.assets, aid).sessionsCounter != sn) {
+          for ((aid, index) in LinkedList.toIter(assetIdSet)) {
+            if (List.get(assets.assets, aid).sessionsCounter != sn) {
               return #err(#SessionNumberMismatch(aid));
             };
           };
@@ -538,10 +538,10 @@ module {
       };
 
       // commit changes, return results
-      let retCancellations : Vec.Vector<CancellationResult> = Vec.new();
-      for (cancel in List.toIter(cancellationCommitActions)) {
+      let retCancellations : List.List<CancellationResult> = List.empty();
+      for (cancel in LinkedList.toIter(cancellationCommitActions)) {
         for (c in cancel().vals()) {
-          Vec.add(retCancellations, c);
+          List.add(retCancellations, c);
         };
       };
       let retPlacements = Array.tabulate<T.OrderId>(placementCommitActions.size(), func(i) = placementCommitActions[i]());
@@ -554,7 +554,7 @@ module {
         };
       };
 
-      #ok(Vec.toArray(retCancellations), retPlacements);
+      #ok(List.toArray(retCancellations), retPlacements);
     };
   };
 

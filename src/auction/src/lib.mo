@@ -8,7 +8,7 @@ import Array "mo:base/Array";
 import Float "mo:base/Float";
 import Int "mo:base/Int";
 import Iter "mo:base/Iter";
-import List "mo:base/List";
+import LinkedList "mo:base/List";
 import Nat "mo:base/Nat";
 import Nat64 "mo:base/Nat64";
 import Option "mo:base/Option";
@@ -17,7 +17,7 @@ import Principal "mo:base/Principal";
 import R "mo:base/Result";
 import RBTree "mo:base/RBTree";
 
-import Vec "mo:vector";
+import List "mo:core/List";
 
 import Assets "./assets";
 import C "./constants";
@@ -30,10 +30,10 @@ import T "./types";
 module {
 
   public func defaultStableDataV1() : T.StableDataV1 = {
-    assets = Vec.new();
+    assets = List.empty();
     orders = { globalCounter = 0 };
     quoteToken = { surplus = 0 };
-    sessions = { counter = 0; history = Vec.new<T.PriceHistoryItem>() };
+    sessions = { counter = 0; history = List.empty<T.PriceHistoryItem>() };
     users = {
       registry = {
         tree = #leaf;
@@ -156,8 +156,8 @@ module {
         });
         case (null) ({
           clearing = #noMatch({
-            maxBidPrice = List.get(bidsOrderBook.queue(), 0) |> Option.map<(T.OrderId, T.Order), Float>(_, func(b) = b.1.price);
-            minAskPrice = List.get(asksOrderBook.queue(), 0) |> Option.map<(T.OrderId, T.Order), Float>(_, func(b) = b.1.price);
+            maxBidPrice = LinkedList.get(bidsOrderBook.queue(), 0) |> Option.map<(T.OrderId, T.Order), Float>(_, func(b) = b.1.price);
+            minAskPrice = LinkedList.get(asksOrderBook.queue(), 0) |> Option.map<(T.OrderId, T.Order), Float>(_, func(b) = b.1.price);
           });
           totalBidVolume = assetInfo.bids.totalVolume;
           totalAskVolume = assetInfo.asks.totalVolume;
@@ -193,7 +193,7 @@ module {
     public func appendCredit(p : Principal, assetId : AssetId, amount : Nat) : Nat {
       let userInfo = users.getOrCreate(p);
       let acc = credits.getOrCreate(userInfo, assetId);
-      Vec.add<T.DepositHistoryItem>(userInfo.depositHistory, (Prim.time(), #deposit, assetId, amount));
+      List.add<T.DepositHistoryItem>(userInfo.depositHistory, (Prim.time(), #deposit, assetId, amount));
       credits.appendCredit(acc, amount);
     };
 
@@ -206,13 +206,13 @@ module {
             #ok(
               0,
               func() = ignore credits.getOrCreate(user, assetId) |> credits.appendCredit(_, amount),
-              func() = Vec.add<T.DepositHistoryItem>(user.depositHistory, (Prim.time(), #withdrawal, assetId, amount)),
+              func() = List.add<T.DepositHistoryItem>(user.depositHistory, (Prim.time(), #withdrawal, assetId, amount)),
             );
           } else {
             #ok(
               balance,
               func() = ignore credits.appendCredit(creditAcc, amount),
-              func() = Vec.add<T.DepositHistoryItem>(user.depositHistory, (Prim.time(), #withdrawal, assetId, amount)),
+              func() = List.add<T.DepositHistoryItem>(user.depositHistory, (Prim.time(), #withdrawal, assetId, amount)),
             );
           };
         };
@@ -241,16 +241,16 @@ module {
       case (?ui) {
         var list = users.getOrderBook(ui, kind).map;
         switch (assetId) {
-          case (?aid) list := List.filter<(OrderId, T.Order)>(list, func(_, o) = o.assetId == aid);
+          case (?aid) list := LinkedList.filter<(OrderId, T.Order)>(list, func(_, o) = o.assetId == aid);
           case (_) {};
         };
-        List.toArray(list);
+        LinkedList.toArray(list);
       };
     };
 
     public func getOrderBook(assetId : AssetId, kind : { #ask; #bid }) : [(OrderId, T.Order)] {
       let orderBook = assets.getAsset(assetId) |> assets.getOrderBook(_, kind);
-      let queueIter = List.toIter(orderBook.queue);
+      let queueIter = LinkedList.toIter(orderBook.queue);
       Array.tabulate<(OrderId, T.Order)>(
         orderBook.size,
         func(_) {
@@ -323,8 +323,8 @@ module {
       var iter = userInfo.depositHistory
       |> (
         switch (order) {
-          case (#asc) Vec.vals(_);
-          case (#desc) Vec.valsRev(_);
+          case (#asc) List.values(_);
+          case (#desc) List.reverseValues(_);
         }
       );
       if (assetIds.size() > 0) {
@@ -338,8 +338,8 @@ module {
       var iter = userInfo.transactionHistory
       |> (
         switch (order) {
-          case (#asc) Vec.vals(_);
-          case (#desc) Vec.valsRev(_);
+          case (#asc) List.values(_);
+          case (#desc) List.reverseValues(_);
         }
       );
       if (assetIds.size() > 0) {
@@ -352,8 +352,8 @@ module {
       var iter = assets.history
       |> (
         switch (order) {
-          case (#asc) Vec.vals(_);
-          case (#desc) Vec.valsRev(_);
+          case (#asc) List.values(_);
+          case (#desc) List.reverseValues(_);
         }
       );
       if (assetIds.size() > 0) {
@@ -368,7 +368,7 @@ module {
 
     // ============= system interface =============
     public func share() : T.StableDataV1 = {
-      assets = Vec.map<T.AssetInfo, T.StableAssetInfoV1>(
+      assets = List.map<T.AssetInfo, T.StableAssetInfoV1>(
         assets.assets,
         func(x) = {
           lastRate = x.lastRate;
@@ -395,10 +395,10 @@ module {
                   p,
                   {
                     asks = {
-                      var map = List.map<(T.OrderId, T.Order), (T.OrderId, T.StableOrderDataV1)>(u.asks.map, func(oid, o) = (oid, { assetId = o.assetId; price = o.price; user = o.user; volume = o.volume }));
+                      var map = LinkedList.map<(T.OrderId, T.Order), (T.OrderId, T.StableOrderDataV1)>(u.asks.map, func(oid, o) = (oid, { assetId = o.assetId; price = o.price; user = o.user; volume = o.volume }));
                     };
                     bids = {
-                      var map = List.map<(T.OrderId, T.Order), (T.OrderId, T.StableOrderDataV1)>(u.bids.map, func(oid, o) = (oid, { assetId = o.assetId; price = o.price; user = o.user; volume = o.volume }));
+                      var map = LinkedList.map<(T.OrderId, T.Order), (T.OrderId, T.StableOrderDataV1)>(u.bids.map, func(oid, o) = (oid, { assetId = o.assetId; price = o.price; user = o.user; volume = o.volume }));
                     };
                     credits = u.credits;
                     loyaltyPoints = u.loyaltyPoints;
@@ -421,7 +421,7 @@ module {
     };
 
     public func unshare(data : T.StableDataV1) {
-      assets.assets := Vec.map<T.StableAssetInfoV1, T.AssetInfo>(
+      assets.assets := List.map<T.StableAssetInfoV1, T.AssetInfo>(
         data.assets,
         func(x) = {
           asks = { var queue = null; var size = 0; var totalVolume = 0 };
@@ -458,7 +458,7 @@ module {
           var depositHistory = u.depositHistory;
           var transactionHistory = u.transactionHistory;
         };
-        for ((oid, orderData) in List.toIter(u.asks.map)) {
+        for ((oid, orderData) in LinkedList.toIter(u.asks.map)) {
           let order : T.Order = {
             orderData with userInfoRef = userData;
             var volume = orderData.volume;
@@ -466,7 +466,7 @@ module {
           users.putOrder(userData, #ask, oid, order);
           assets.putOrder(assets.getAsset(order.assetId), #ask, oid, order);
         };
-        for ((oid, orderData) in List.toIter(u.bids.map)) {
+        for ((oid, orderData) in LinkedList.toIter(u.bids.map)) {
           let order : T.Order = {
             orderData with userInfoRef = userData;
             var volume = orderData.volume;

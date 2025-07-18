@@ -1,7 +1,7 @@
 import AssocList "mo:base/AssocList";
 import RBTree "mo:base/RBTree";
 
-import Vec "mo:vector";
+import List "mo:core/List";
 
 import PriorityQueue "./priority_queue";
 
@@ -53,8 +53,8 @@ module {
     bids : UserOrderBook;
     var credits : AssocList.AssocList<AssetId, Account>;
     var loyaltyPoints : Nat;
-    var depositHistory : Vec.Vector<DepositHistoryItem>;
-    var transactionHistory : Vec.Vector<TransactionHistoryItem>;
+    var depositHistory : List.List<DepositHistoryItem>;
+    var transactionHistory : List.List<TransactionHistoryItem>;
   };
 
   public type PriceHistoryItem = (timestamp : Nat64, sessionNumber : Nat, assetId : AssetId, volume : Nat, price : Float);
@@ -63,12 +63,12 @@ module {
 
   // stable data types
   public type StableDataV1 = {
-    assets : Vec.Vector<StableAssetInfoV1>;
+    assets : List.List<StableAssetInfoV1>;
     orders : { globalCounter : Nat };
     quoteToken : { surplus : Nat };
     sessions : {
       counter : Nat;
-      history : Vec.Vector<PriceHistoryItem>;
+      history : List.List<PriceHistoryItem>;
     };
     users : {
       registry : {
@@ -95,8 +95,8 @@ module {
     bids : UserOrderBook_<StableOrderDataV1>;
     credits : AssocList.AssocList<AssetId, Account>;
     loyaltyPoints : Nat;
-    depositHistory : Vec.Vector<DepositHistoryItem>;
-    transactionHistory : Vec.Vector<TransactionHistoryItem>;
+    depositHistory : List.List<DepositHistoryItem>;
+    transactionHistory : List.List<TransactionHistoryItem>;
   };
   public type StableOrderDataV1 = {
     user : Principal;
