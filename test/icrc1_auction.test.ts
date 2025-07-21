@@ -183,8 +183,8 @@ Consider gracefully handling failures from this canister or altering the caniste
       await startNewAuctionSession();
 
       await prepareDeposit(user);
-      await auction.placeBids([[ledger1Principal, 1_500n, 100_000]], []);
-      await auction.placeBids([[ledger2Principal, 100n, 100_000]], []);
+      await auction.placeBids([[ledger1Principal, 150_000_000n, 100_000]], []);
+      await auction.placeBids([[ledger2Principal, 10_000_000n, 100_000]], []);
       const seller = createIdentity('seller');
       await prepareDeposit(seller, ledger1Principal);
       await auction.placeAsks([[ledger1Principal, 1_500_000n, 100_000]], []);
@@ -325,7 +325,7 @@ Consider gracefully handling failures from this canister or altering the caniste
 
     test('should be able to manage orders via single query', async () => {
       await prepareDeposit(user);
-      await auction.placeBids([[ledger1Principal, 1_000n, 15_000]], []);
+      await auction.placeBids([[ledger1Principal, 15_000_000n, 15_000]], []);
       expect((await auction.auction_query([], {
         bids: [true],
         credits: [],
@@ -357,7 +357,7 @@ Consider gracefully handling failures from this canister or altering the caniste
 
     test('should reject changes if session number is wrong', async () => {
       await prepareDeposit(user);
-      const res = await auction.placeBids([[ledger1Principal, 1_000n, 15_000]], [1005n]);
+      const res = await auction.placeBids([[ledger1Principal, 15_000_000n, 15_000]], [1005n]);
       expect(res[0]).toHaveProperty('Err');
       expect((res[0] as any)['Err']).toHaveProperty('SessionNumberMismatch');
       expect((await auction.auction_query([], {
@@ -375,7 +375,7 @@ Consider gracefully handling failures from this canister or altering the caniste
 
     test('should accept correct session number', async () => {
       await prepareDeposit(user);
-      const res = await auction.placeBids([[ledger1Principal, 1_000n, 15_000]], [1n]);
+      const res = await auction.placeBids([[ledger1Principal, 15_000_000n, 15_000]], [1n]);
       expect(res[0]).toHaveProperty('Ok');
       expect((await auction.auction_query([], {
         bids: [true],
@@ -393,7 +393,7 @@ Consider gracefully handling failures from this canister or altering the caniste
     test('bids should affect metrics', async () => {
       await startNewAuctionSession();
       await prepareDeposit(user);
-      await auction.placeBids([[ledger1Principal, 2_000n, 15_000]], []);
+      await auction.placeBids([[ledger1Principal, 30_000_000n, 15_000]], []);
       const shortP = auctionPrincipal.toText().substring(0, auctionPrincipal.toString().indexOf('-'));
       let metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
@@ -432,7 +432,7 @@ Consider gracefully handling failures from this canister or altering the caniste
       const buyer = createIdentity('buyer');
       await prepareDeposit(buyer);
       auction.setIdentity(buyer);
-      await auction.placeBids([[ledger1Principal, 2_000_000n, 100]], []);
+      await auction.placeBids([[ledger1Principal, 200_000_000n, 100]], []);
 
       auction.setIdentity(user);
       await auction.placeAsks([[ledger1Principal, 2_000_000n, 100]], []);
@@ -580,12 +580,12 @@ Consider gracefully handling failures from this canister or altering the caniste
       await prepareDeposit(user);
       await prepareDeposit(user, ledger1Principal);
 
-      await auction.placeBids([[ledger1Principal, 1_500n, 100_000]], []);
+      await auction.placeBids([[ledger1Principal, 150_000_000n, 100_000]], []);
       await auction.placeAsks([[ledger1Principal, 1_500n, 101_000]], []);
       const buyer = createIdentity('buyer');
       await prepareDeposit(buyer);
       auction.setIdentity(buyer);
-      await auction.placeBids([[ledger1Principal, 1_500n, 102_000]], []);
+      await auction.placeBids([[ledger1Principal, 153_000_000n, 102_000]], []);
       auction.setIdentity(user);
 
 

@@ -79,7 +79,7 @@ do {
 
   let buyer = Principal.fromText("khppa-evswo-bmx2f-4o7bj-4t6ai-burgf-ued7b-vpduu-6fgxt-ajby6-iae");
   ignore auction.appendCredit(buyer, 0, 500_000_000);
-  ignore auction.placeOrder(buyer, #bid, ft, 2_000_000, 100, null);
+  ignore auction.placeOrder(buyer, #bid, ft, 200_000_000, 100, null);
   ignore auction.placeOrder(user, #ask, ft, 2_000_000, 100, null);
 
   assert auction.assets.getAsset(ft).asks.size == 1;
@@ -198,7 +198,7 @@ do {
 
   let buyer = Principal.fromText("khppa-evswo-bmx2f-4o7bj-4t6ai-burgf-ued7b-vpduu-6fgxt-ajby6-iae");
   ignore auction.appendCredit(buyer, 0, 500_000_000);
-  switch (auction.placeOrder(buyer, #bid, ft, 100_000_000, 3, null)) {
+  switch (auction.placeOrder(buyer, #bid, ft, 300_000_000, 3, null)) {
     case (#ok _) {};
     case (_) assert false;
   };
@@ -218,7 +218,7 @@ do {
   let ft = createFt(auction);
   let buyer = Principal.fromText("khppa-evswo-bmx2f-4o7bj-4t6ai-burgf-ued7b-vpduu-6fgxt-ajby6-iae");
   ignore auction.appendCredit(buyer, 0, 5_000_000_000);
-  ignore auction.placeOrder(buyer, #bid, ft, 1_500_000, 500, null);
+  ignore auction.placeOrder(buyer, #bid, ft, 750_000_000, 500, null);
   assert auction.getCredit(buyer, 0).available + 1_500_000 * 500 == 5_000_000_000;
 
   let mediumSeller = Principal.fromText("fezva-cpps4-jvvqs-nlnm3-vafrr-d2mgi-v7lde-rog73-ry4sv-zonry-iqe");
@@ -249,7 +249,7 @@ do {
   assert auction.getCredit(buyer, 0).available + 50 * 1_500_000 == 5_000_000_000;
 
   // allow one additional ask to be fulfilled
-  ignore auction.placeOrder(buyer, #bid, ft, 1_500_000, 500, null);
+  ignore auction.placeOrder(buyer, #bid, ft, 750_000_000, 500, null);
   auction.processAsset(ft);
 
   assert auction.getOrders(mediumSeller, #ask, ?ft).size() == 0;
@@ -260,7 +260,7 @@ do {
   assert auction.getOrders(newSeller, #ask, ?ft).size() == 1;
 
   // allow one additional ask to be fulfilled
-  ignore auction.placeOrder(buyer, #bid, ft, 1_500_000, 500, null);
+  ignore auction.placeOrder(buyer, #bid, ft, 750_000_000, 500, null);
   auction.processAsset(ft);
 
   // new seller joined later, but should be fulfilled since priority greater than priority of high seller
@@ -269,7 +269,7 @@ do {
   assert auction.getCredit(newSeller, 0).available == 300 * 1_500_000;
 
   // allow one additional ask to be fulfilled
-  ignore auction.placeOrder(buyer, #bid, ft, 1_500_000, 500, null);
+  ignore auction.placeOrder(buyer, #bid, ft, 750_000_000, 500, null);
   auction.processAsset(ft);
 
   // finally high ask will be fulfilled

@@ -18,7 +18,7 @@ do {
     case (_) assert false;
   };
   // should not be fulfilled, too low bid
-  switch (auction.placeOrder(user, #bid, ft, 5_000_000, 0.1, null)) {
+  switch (auction.placeOrder(user, #bid, ft, 500_000, 0.1, null)) {
     case (#ok _) ();
     case (_) assert false;
   };
@@ -57,7 +57,7 @@ do {
     case (_) assert false;
   };
   // should not be fulfilled, too low bid
-  switch (auction.placeOrder(user, #bid, ft, 5_000_000, 0.1, null)) {
+  switch (auction.placeOrder(user, #bid, ft, 500_000, 0.1, null)) {
     case (#ok _) ();
     case (_) assert false;
   };
@@ -95,7 +95,7 @@ do {
     case (_) assert false;
   };
   // should not be fulfilled, too low bid
-  switch (auction.placeOrder(user, #bid, ft, 5_000_000, 0.1, null)) {
+  switch (auction.placeOrder(user, #bid, ft, 500_000, 0.1, null)) {
     case (#ok _) ();
     case (_) assert false;
   };
@@ -143,7 +143,7 @@ do {
   ignore auction.appendCredit(user, 0, 500_000_000);
   userExpectedCredits[0] += 500_000_000;
 
-  switch (auction.placeOrder(user, #bid, ft, 5_000_000, 0.1, null)) {
+  switch (auction.placeOrder(user, #bid, ft, 500_000, 0.1, null)) {
     case (#ok _) ();
     case (_) assert false;
   };
