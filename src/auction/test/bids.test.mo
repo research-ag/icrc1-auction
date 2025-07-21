@@ -160,14 +160,14 @@ do {
   assert auction.getCredit(user, 0).available == 250_000_000;
   assert auction.getOrders(user, #bid, ?ft).size() == 1;
 
-  let newOrderId = switch (auction.replaceOrder(user, #bid, orderId, 2_000, 250_000, null)) {
+  let newOrderId = switch (auction.replaceOrder(user, #bid, orderId, 500_000_000, 250_000, null)) {
     case (#ok id) id;
     case (_) { assert false; 0 };
   };
   assert auction.getCredit(user, 0).available == 0;
   assert auction.getOrders(user, #bid, ?ft).size() == 1;
 
-  switch (auction.replaceOrder(user, #bid, newOrderId, 2_000, 60_000, null)) {
+  switch (auction.replaceOrder(user, #bid, newOrderId, 120_000_000, 60_000, null)) {
     case (#ok _) {};
     case (_) assert false;
   };
@@ -188,7 +188,7 @@ do {
   assert auction.getCredit(user, 0).available == 250_000_000;
   assert auction.getOrders(user, #bid, ?ft).size() == 1;
 
-  switch (auction.replaceOrder(user, #bid, orderId, 2_000_000, 250_000_000, null)) {
+  switch (auction.replaceOrder(user, #bid, orderId, 500_000_000_000_000, 250_000_000, null)) {
     case (#err(#NoCredit)) ();
     case (_) assert false;
   };

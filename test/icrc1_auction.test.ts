@@ -338,8 +338,8 @@ Consider gracefully handling failures from this canister or altering the caniste
         last_prices: [],
       })).bids).toHaveLength(1);
       let res2 = await auction.manageOrders([{ all: [] }], [
-        { bid: [ledger1Principal, 1_000n, 15_100] },
-        { bid: [ledger1Principal, 1_000n, 15_200] },
+        { bid: [ledger1Principal, 15_100_000n, 15_100] },
+        { bid: [ledger1Principal, 15_200_000n, 15_200] },
       ], []);
       expect(res2).toHaveProperty('Ok');
       expect((await auction.auction_query([], {
