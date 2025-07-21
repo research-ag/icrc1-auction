@@ -69,52 +69,48 @@ do {
 
 };
 
-// FIXME uncomment & fix after migrating volume
-// do {
-//   Prim.debugPrint("rounding test: partial fulfillments should not create inaccuracy...");
-//   let (auction, user) = init(0, 0, 0);
-//   let ft = createFt(auction);
+do {
+  Prim.debugPrint("rounding test: partial fulfillments should not create inaccuracy...");
+  let (auction, user) = init(0, 0, 0);
+  let ft = createFt(auction);
 
-//   let seller = Principal.fromText("dkkzx-rn4st-jpxtx-c2q6z-wy2k7-uyffr-ks7hq-azcmt-zjwxi-btxoi-mqe");
-//   ignore auction.appendCredit(seller, ft, 500_000_000_000_000);
+  let seller = Principal.fromText("dkkzx-rn4st-jpxtx-c2q6z-wy2k7-uyffr-ks7hq-azcmt-zjwxi-btxoi-mqe");
+  ignore auction.appendCredit(seller, ft, 500_000_000_000_000);
 
-//   let bidVolume = 6_821_200_000_000_000;
-//   let bidPrice = 0.0000000024790000000000002;
-//   let askVolume = 1_000_000_000_000;
-//   let askPrice = 0.0000000022790000000000002;
+  let bidVolume = 16_909_755;
+  let bidPrice = 0.0000000024790000000000002;
+  let askVolume = 1_000_000_000_000;
+  let askPrice = 0.0000000022790000000000002;
 
-//   func denominateVolumeInQuoteAsset(volume : Nat, unitPrice : Float) : Nat = unitPrice * Float.fromInt(volume)
-//   |> Float.ceil(_)
-//   |> Int.abs(Float.toInt(_));
+  func denominateVolumeInQuoteAsset(volume : Nat, unitPrice : Float) : Nat = unitPrice * Float.fromInt(volume)
+  |> Float.floor(_)
+  |> Int.abs(Float.toInt(_));
 
-//   ignore auction.appendCredit(user, 0, denominateVolumeInQuoteAsset(bidVolume, bidPrice));
-//   let oid = switch (auction.placeOrder(user, #bid, ft, bidVolume, bidPrice, null)) {
-//     case (#ok x) x;
-//     case (_) {
-//       assert false;
-//       0;
-//     };
-//   };
+  ignore auction.appendCredit(user, 0, bidVolume);
+  let oid = switch (auction.placeOrder(user, #bid, ft, bidVolume, bidPrice, null)) {
+    case (#ok x) x;
+    case (_) {
+      assert false;
+      0;
+    };
+  };
 
-//   assert auction.getCredit(user, 0).locked == denominateVolumeInQuoteAsset(bidVolume, bidPrice);
+  assert auction.getCredit(user, 0).locked == bidVolume;
 
-//   switch (auction.placeOrder(seller, #ask, ft, askVolume, askPrice, null)) {
-//     case (#ok _) ();
-//     case (_) assert false;
-//   };
-//   auction.processAsset(ft);
-//   let ?priceHistoryItem = auction.getPriceHistory([ft], #desc, false).next() else Prim.trap("");
-//   assert priceHistoryItem.3 == askVolume;
-//   assert Float.equalWithin(priceHistoryItem.4, bidPrice, 0.000000000000001);
+  switch (auction.placeOrder(seller, #ask, ft, askVolume, askPrice, null)) {
+    case (#ok _) ();
+    case (_) assert false;
+  };
+  auction.processAsset(ft);
+  let ?priceHistoryItem = auction.getPriceHistory([ft], #desc, false).next() else Prim.trap("");
+  assert priceHistoryItem.3 == askVolume;
+  assert Float.equalWithin(priceHistoryItem.4, bidPrice, 0.000000000000001);
 
-//   assert auction.getCredit(user, 0).locked == denominateVolumeInQuoteAsset(bidVolume - askVolume, bidPrice);
+  assert auction.getCredit(user, 0).locked == bidVolume - denominateVolumeInQuoteAsset(askVolume, bidPrice);
 
-//   switch (auction.cancelOrder(user, #bid, oid, null)) {
-//     case (#ok _) ();
-//     case (x) {
-//       Prim.debugPrint(debug_show x);
-//       assert false;
-//     };
-//   };
+  switch (auction.cancelOrder(user, #bid, oid, null)) {
+    case (#ok _) ();
+    case (_) assert false;
+  };
 
-// };
+};
