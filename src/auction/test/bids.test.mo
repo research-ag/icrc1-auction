@@ -69,7 +69,7 @@ do {
   let bids = auction.getOrders(user, #bid, ?ft);
   assert bids.size() == 1;
   assert bids[0].1.price == 1_000;
-  assert bids[0].1.volume == 2_000;
+  assert bids[0].1.volume == 2_000_000;
   assert auction.getCredit(user, 0).available == 498_000_000;
 };
 
@@ -82,7 +82,7 @@ do {
   ignore auction.placeOrder(user, #bid, ft, 30_000_000, 15_000, null);
 
   assert auction.assets.getAsset(ft).bids.size == 1;
-  assert auction.assets.getAsset(ft).bids.totalVolume == 2000;
+  assert auction.assets.getAsset(ft).bids.totalVolume == 30_000_000;
 
   let seller = Principal.fromText("ocqy6-3dphi-xgf54-vkr2e-lk4oz-3exc6-446gr-5e72g-bsdfo-4nzrm-hqe");
   ignore auction.appendCredit(seller, ft, 500_000_000);
@@ -197,7 +197,7 @@ do {
   assert bids.size() == 1;
   assert bids[0].0 == orderId;
   assert bids[0].1.price == 125_000;
-  assert bids[0].1.volume == 2_000;
+  assert bids[0].1.volume == 250_000_000;
 };
 
 do {
@@ -344,7 +344,7 @@ do {
   let bids = auction.getOrders(user3, #bid, ?ft);
   assert bids.size() == 1;
   assert bids[0].1.price == 100_000;
-  assert bids[0].1.volume == 1_000;
+  assert bids[0].1.volume == 100_000_000;
   // check that partial bid recorded in history
   let ?historyItem = auction.getTransactionHistory(user3, [ft], #desc).next() else Prim.trap("");
   assert historyItem.2 == #bid;

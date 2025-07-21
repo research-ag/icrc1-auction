@@ -213,7 +213,7 @@ Consider gracefully handling failures from this canister or altering the caniste
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
       expect(metrics).toContain(`bids_count{canister="${shortP}",asset_id="MOCK"} 1 `);
-      expect(metrics).toContain(`bids_volume{canister="${shortP}",asset_id="MOCK"} 100 `);
+      expect(metrics).toContain(`bids_volume{canister="${shortP}",asset_id="MOCK"} 10000000 `);
 
       await pic.upgradeCanister({
         canisterId: auctionPrincipal,
@@ -241,7 +241,7 @@ Consider gracefully handling failures from this canister or altering the caniste
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
       expect(metrics).toContain(`bids_count{canister="${shortP}",asset_id="MOCK"} 1 `);
-      expect(metrics).toContain(`bids_volume{canister="${shortP}",asset_id="MOCK"} 100 `);
+      expect(metrics).toContain(`bids_volume{canister="${shortP}",asset_id="MOCK"} 10000000 `);
     });
   });
 
@@ -399,7 +399,7 @@ Consider gracefully handling failures from this canister or altering the caniste
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
       expect(metrics).toContain(`bids_count{canister="${shortP}",asset_id="MOCK"} 1 `);
-      expect(metrics).toContain(`bids_volume{canister="${shortP}",asset_id="MOCK"} 2000 `);
+      expect(metrics).toContain(`bids_volume{canister="${shortP}",asset_id="MOCK"} 30000000 `);
 
       const seller = createIdentity('seller');
       await prepareDeposit(seller, ledger1Principal);
@@ -609,10 +609,10 @@ Consider gracefully handling failures from this canister or altering the caniste
         [quoteLedgerPrincipal, { total: 651500000n, locked: 150000000n, available: 501500000n }],
       ]);
       expect(res.asks).toEqual([
-        [3n, { icrc1Ledger: ledger1Principal, volume: 1500n, price: 102000 }],
+        [3n, { icrc1Ledger: ledger1Principal, volume: 1_500n, price: 102_000 }],
       ]);
       expect(res.bids).toEqual([
-        [0n, { icrc1Ledger: ledger1Principal, volume: 1500n, price: 100000 }],
+        [0n, { icrc1Ledger: ledger1Principal, volume: 150_000_000n, price: 100_000 }],
       ]);
       expect(res.session_numbers).toEqual([
         [quoteLedgerPrincipal, 2n],
