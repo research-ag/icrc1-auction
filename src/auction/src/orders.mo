@@ -42,7 +42,7 @@ module {
     #TooLowOrder;
     #UnknownAsset;
     #PriceDigitsOverflow : { maxDigits : Nat };
-    #VolumeStepViolated : { baseVolumeStep : Nat };
+    #VolumeStepViolated : { volumeStep : Nat };
   };
 
   public type OrderManagementError = {
@@ -61,8 +61,8 @@ module {
       case (_) null;
     };
 
-    public func fulfilOrder(sessionNumber : Nat, orderId : T.OrderId, order : T.Order, maxVolume : Nat, price : Float) : (volume : Nat, quoteVol : Nat) {
-      service.fulfil(assetInfo, sessionNumber, orderId, order, maxVolume, price);
+    public func fulfilOrder(sessionNumber : Nat, orderId : T.OrderId, order : T.Order, maxBaseVolume : Nat, price : Float) : (volume : Nat, quoteVol : Nat) {
+      service.fulfil(assetInfo, sessionNumber, orderId, order, maxBaseVolume, price);
     };
   };
 
@@ -81,20 +81,10 @@ module {
 
     public let kind : { #ask; #bid } = kind_;
 
-    func denominateVolumeInQuoteAsset(volume : Nat, unitPrice : Float) : Nat = unitPrice * Float.fromInt(volume)
-    |> (switch (kind) { case (#ask) Float.floor(_); case (#bid) Float.ceil(_) })
-    |> Int.abs(Float.toInt(_));
-
     // returns asset id, which will be debited from user upon placing order
     public func srcAssetId(orderAssetId : T.AssetId) : T.AssetId = switch (kind) {
       case (#ask) orderAssetId;
       case (#bid) quoteAssetId;
-    };
-
-    // returns amount to debit from "srcAssetId" account
-    public func srcVolume(volume : Nat, price : Float) : Nat = switch (kind) {
-      case (#ask) volume;
-      case (#bid) denominateVolumeInQuoteAsset(volume, price);
     };
 
     // returns asset id, which will be credited to user when fulfilling order
@@ -103,16 +93,10 @@ module {
       case (#bid) orderAssetId;
     };
 
-    // returns amount to credit to "destAssetId" account
-    public func destVolume(volume : Nat, price : Float) : Nat = switch (kind) {
-      case (#ask) denominateVolumeInQuoteAsset(volume, price);
-      case (#bid) volume;
-    };
-
     // validation
     public func isOrderLow(orderAssetId : T.AssetId, orderAssetInfo : T.AssetInfo, volume : Nat, price : Float) : Bool = switch (kind) {
       case (#ask) price <= 0.0 or volume < minAskVolume(orderAssetId, orderAssetInfo);
-      case (#bid) denominateVolumeInQuoteAsset(volume, price) < minQuoteVolume;
+      case (#bid) volume < minQuoteVolume;
     };
 
     public func isOppositeOrderConflicts(orderPrice : Float, oppositeOrderPrice : Float) : Bool = switch (kind) {
@@ -127,7 +111,7 @@ module {
 
     public func place(userInfo : T.UserInfo, accountToCharge : T.Account, assetInfo : T.AssetInfo, orderId : T.OrderId, order : T.Order) {
       // charge user credits
-      let (success, _) = credits.lockCredit(accountToCharge, srcVolume(order.volume, order.price));
+      let (success, _) = credits.lockCredit(accountToCharge, order.volume);
       assert success;
       // insert into order lists
       users.putOrder(userInfo, kind, orderId, order);
@@ -142,7 +126,7 @@ module {
       assets.getAsset(existingOrder.assetId) |> assets.deleteOrder(_, kind, orderId);
       // return deposit to user
       let ?sourceAcc = credits.getAccount(userInfo, srcAssetId(existingOrder.assetId)) else Prim.trap("Can never happen");
-      let (success, _) = credits.unlockCredit(sourceAcc, srcVolume(existingOrder.volume, existingOrder.price));
+      let (success, _) = credits.unlockCredit(sourceAcc, existingOrder.volume);
       assert success;
       // add rewards
       userInfo.loyaltyPoints += C.LOYALTY_REWARD.ORDER_MODIFICATION;
@@ -152,25 +136,31 @@ module {
 
     // bid: source = quote, dest = base
     // ask: source = base, dest = quote
-    public func fulfil(assetInfo : T.AssetInfo, sessionNumber : Nat, orderId : T.OrderId, order : T.Order, maxVolume : Nat, price : Float) : (volume : Nat, quoteVol : Nat) {
+    public func fulfil(assetInfo : T.AssetInfo, sessionNumber : Nat, orderId : T.OrderId, order : T.Order, maxBaseVolume : Nat, price : Float) : (volume : Nat, quoteVol : Nat) {
       let ?sourceAcc = credits.getAccount(order.userInfoRef, srcAssetId(order.assetId)) else Prim.trap("Can never happen");
 
-      credits.unlockCredit(sourceAcc, srcVolume(order.volume, order.price)) |> (assert _.0);
+      credits.unlockCredit(sourceAcc, order.volume) |> (assert _.0);
 
-      let isPartial = maxVolume < order.volume;
-      let baseVolume = Nat.min(maxVolume, order.volume); // = executed volume
+      let orderBaseVolume = switch (kind) {
+        case (#bid) Float.fromInt(order.volume) / order.price |> Int.abs(Float.toInt(_));
+        case (#ask) order.volume;
+      };
+
+      let isPartial = maxBaseVolume < orderBaseVolume;
+
+      let baseVolume = Nat.min(maxBaseVolume, orderBaseVolume); // = executed volume
+      let quoteVolume = price * Float.fromInt(baseVolume) |> Float.floor(_) |> Int.abs(Float.toInt(_));
 
       // source and destination volumes
-      let srcVol = switch (isPartial, kind) {
-        case (true, #bid) price * Float.fromInt(baseVolume) |> Float.floor(_) |> Int.abs(Float.toInt(_));
-        case (_) srcVolume(baseVolume, price);
+      let (srcVol, destVol) = switch (kind) {
+        case (#ask) (baseVolume, quoteVolume);
+        case (#bid) (quoteVolume, baseVolume);
       };
-      let destVol = destVolume(baseVolume, price);
 
       // adjust orders
       if (isPartial) {
-        credits.lockCredit(sourceAcc, srcVolume(order.volume - baseVolume, order.price)) |> (assert _.0); // re-lock credit
-        assets.deductOrderVolume(assetInfo, kind, order, baseVolume); // shrink order
+        credits.lockCredit(sourceAcc, order.volume - srcVol) |> (assert _.0); // re-lock credit
+        assets.deductOrderVolume(assetInfo, kind, order, srcVol); // shrink order
       } else {
         users.deleteOrder(order.userInfoRef, kind, orderId) |> (ignore _); // delete order
         assets.deleteOrder(assetInfo, kind, orderId); // delete order
@@ -185,11 +175,6 @@ module {
       ignore credits.appendCredit(acc, destVol);
 
       List.add(order.userInfoRef.transactionHistory, (Prim.time(), sessionNumber, kind, order.assetId, baseVolume, price));
-
-      let quoteVolume = switch (kind) {
-        case (#ask) destVol;
-        case (#bid) srcVol;
-      };
 
       if (not isPartial) {
         assetInfo.totalExecutedOrders += 1;
@@ -315,7 +300,7 @@ module {
           newBalances,
           srcAssetId,
           Nat.equal,
-          ?(balance + ordersService.srcVolume(order.volume, order.price)),
+          ?(balance + order.volume),
         ) |> (newBalances := _.0);
       };
 
@@ -455,12 +440,15 @@ module {
 
         if (ordersService.isOrderLow(assetId, assetInfo, volume, price)) return #err(#placement({ index = i; error = #TooLowOrder }));
 
-        let baseVolumeStep = getBaseVolumeStep(price);
-        if (volume % baseVolumeStep != 0) return #err(#placement({ index = i; error = #VolumeStepViolated({ baseVolumeStep }) }));
+        let volumeStep = switch (ordersService.kind) {
+          case (#ask) getBaseVolumeStep(price);
+          case (#bid) quoteVolumeStep;
+        };
+        if (volume % volumeStep != 0) return #err(#placement({ index = i; error = #VolumeStepViolated({ volumeStep }) }));
 
         // validate user credit
         let srcAssetId = ordersService.srcAssetId(assetId);
-        let chargeAmount = ordersService.srcVolume(volume, price);
+        let chargeAmount = volume;
         let ?chargeAcc = credits.getAccount(userInfo, srcAssetId) else return #err(#placement({ index = i; error = #NoCredit }));
         let balance = switch (AssocList.find<T.AssetId, Nat>(newBalances, srcAssetId, Nat.equal)) {
           case (?b) b;

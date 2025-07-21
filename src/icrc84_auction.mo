@@ -17,7 +17,7 @@ module Icrc84Auction {
     #TooLowOrder;
     #UnknownAsset;
     #PriceDigitsOverflow : { maxDigits : Nat };
-    #VolumeStepViolated : { baseVolumeStep : Nat };
+    #VolumeStepViolated : { volumeStep : Nat };
   };
 
   public type CancellationResult = (T.OrderId, assetId : Principal, volume : Nat, price : Float);

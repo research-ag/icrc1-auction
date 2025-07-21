@@ -12,9 +12,20 @@ import T "./types";
 module {
 
   public func clearAuction(asks : Orders.OrderBookService, bids : Orders.OrderBookService) : ?(price : Float, volume : Nat) {
-    let mapOrders = func(orders : List.List<(T.OrderId, T.Order)>) : Iter.Iter<(Float, Nat)> = List.toIter(orders)
-    |> Iter.map<(T.OrderId, T.Order), (Float, Nat)>(_, func(_, order) = (order.price, order.volume));
-    clear(mapOrders(asks.queue()), mapOrders(bids.queue()), Float.less);
+
+    func denominateVolumeInBaseAsset(volume : Nat, unitPrice : Float) : Nat = Float.fromInt(volume) / unitPrice
+    |> Float.floor(_)
+    |> Int.abs(Float.toInt(_));
+
+    clear(
+      asks.queue()
+      |> List.toIter(_)
+      |> Iter.map<(T.OrderId, T.Order), (Float, Nat)>(_, func(_, order) = (order.price, order.volume)),
+      bids.queue()
+      |> List.toIter(_)
+      |> Iter.map<(T.OrderId, T.Order), (Float, Nat)>(_, func(_, order) = (order.price, denominateVolumeInBaseAsset(order.volume, order.price))),
+      Float.less,
+    );
   };
 
   public func processAuction(sessionNumber : Nat, asks : Orders.OrderBookService, bids : Orders.OrderBookService) : (price : Float, volume : Nat, surplus : Nat) {
@@ -26,16 +37,16 @@ module {
     var dealVolumeLeft = dealVolume;
     while (dealVolumeLeft > 0) {
       let ?(orderId, order) = asks.nextOrder() else Prim.trap("Can never happen: list shorter than before");
-      let (volume, quoteVol) = asks.fulfilOrder(sessionNumber, orderId, order, dealVolumeLeft, price);
-      dealVolumeLeft -= volume;
+      let (baseVol, quoteVol) = asks.fulfilOrder(sessionNumber, orderId, order, dealVolumeLeft, price);
+      dealVolumeLeft -= baseVol;
       quoteSurplus -= quoteVol;
     };
 
     dealVolumeLeft := dealVolume;
     while (dealVolumeLeft > 0) {
       let ?(orderId, order) = bids.nextOrder() else Prim.trap("Can never happen: list shorter than before");
-      let (volume, quoteVol) = bids.fulfilOrder(sessionNumber, orderId, order, dealVolumeLeft, price);
-      dealVolumeLeft -= volume;
+      let (baseVol, quoteVol) = bids.fulfilOrder(sessionNumber, orderId, order, dealVolumeLeft, price);
+      dealVolumeLeft -= baseVol;
       quoteSurplus += quoteVol;
     };
 

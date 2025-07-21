@@ -4,65 +4,65 @@ type Amount = nat;
 type TokenInfo = record {
   allowance_fee : Amount;
   deposit_fee : Amount;
-  withdrawal_fee : Amount;
+  withdrawal_fee : Amount
 };
 
 type Subaccount = blob;
 
 type NotifyArg = record {
-  token : Token;
+  token : Token
 };
 
 type NotifyResult = record {
   deposit_inc : Amount;
   credit_inc : Amount;
-  credit : int;
+  credit : int
 };
 
 type NotifyResponse = variant {
   Ok : NotifyResult;
   Err : variant {
     CallLedgerError : record { message : text };
-    NotAvailable : record { message : text };
-  };
+    NotAvailable : record { message : text }
+  }
 };
 
 type WithdrawArgs = record {
   to : Account;
   amount : Amount;
   token : Token;
-  expected_fee : opt nat;
+  expected_fee : opt nat
 };
 
 type WithdrawResponse = variant {
   Ok : record {
     txid : nat;
-    amount : Amount;
+    amount : Amount
   };
   Err : variant {
     BadFee : record { expected_fee : nat };
     CallLedgerError : record { message : text };
     InsufficientCredit : record {};
-    AmountBelowMinimum : record {};
-  };
+    AmountBelowMinimum : record {}
+  }
 };
 
 type DepositArgs = record {
   token : Token;
   amount : Amount;
   from : Account;
-  expected_fee : opt nat;
+  expected_fee : opt nat
 };
 
 type Account = record {
   owner : principal;
-  subaccount : opt Subaccount;
+  subaccount : opt Subaccount
 };
 
 type DepositResult = record {
   txid : nat;
   credit_inc : Amount;
-  credit : int;
+  credit : int
 };
 
 type DepositResponse = variant {
@@ -72,7 +72,7 @@ type DepositResponse = variant {
     BadFee : record { expected_fee : nat };
     CallLedgerError : record { message : text };
     TransferError : record { message : text }; // insufficient allowance or insufficient funds
-  };
+  }
 };
 
 type OrderId = nat;
@@ -81,16 +81,16 @@ type SessionNumber = nat;
 type Order = record {
   icrc1Ledger : Token;
   price : float64;
-  volume : nat;
+  volume : nat
 };
 
 type CancellationArg = variant {
   all : opt vec Token;
-  orders : vec variant { ask : OrderId; bid : OrderId };
+  orders : vec variant { ask : OrderId; bid : OrderId }
 };
 type PlaceArg = vec variant {
   ask : record { Token; nat; float64 };
-  bid : record { Token; nat; float64 };
+  bid : record { Token; nat; float64 }
 };
 
 type ManageOrdersResponse = variant {
@@ -99,9 +99,9 @@ type ManageOrdersResponse = variant {
       OrderId;
       Token;
       nat;
-      float64;
+      float64
     };
-    vec OrderId;
+    vec OrderId
   };
   Err : variant {
     SessionNumberMismatch : Token;
@@ -110,8 +110,8 @@ type ManageOrdersResponse = variant {
       index : nat;
       error : variant {
         UnknownAsset;
-        UnknownOrder;
-      };
+        UnknownOrder
+      }
     };
     placement : record {
       index : nat;
@@ -121,10 +121,10 @@ type ManageOrdersResponse = variant {
         TooLowOrder;
         UnknownAsset;
         PriceDigitsOverflow : record { maxDigits : nat };
-        VolumeStepViolated : record { baseVolumeStep : nat };
-      };
-    };
-  };
+        VolumeStepViolated : record { volumeStep : nat }
+      }
+    }
+  }
 };
 
 type PlaceOrderResponse = variant {
@@ -136,9 +136,9 @@ type PlaceOrderResponse = variant {
     UnknownAsset;
     UnknownPrincipal;
     PriceDigitsOverflow : record { maxDigits : nat };
-    VolumeStepViolated : record { baseVolumeStep : nat };
-    SessionNumberMismatch : Token;
-  };
+    VolumeStepViolated : record { volumeStep : nat };
+    SessionNumberMismatch : Token
+  }
 };
 type ReplaceOrderResponse = variant {
   Ok : OrderId;
@@ -150,37 +150,37 @@ type ReplaceOrderResponse = variant {
     UnknownOrder;
     UnknownPrincipal;
     PriceDigitsOverflow : record { maxDigits : nat };
-    VolumeStepViolated : record { baseVolumeStep : nat };
-    SessionNumberMismatch : Token;
-  };
+    VolumeStepViolated : record { volumeStep : nat };
+    SessionNumberMismatch : Token
+  }
 };
 type CancelOrderResponse = variant {
   Ok : record {
     OrderId;
     Token;
     nat;
-    float64;
+    float64
   };
   Err : variant {
     UnknownOrder;
     UnknownPrincipal;
-    SessionNumberMismatch : Token;
-  };
+    SessionNumberMismatch : Token
+  }
 };
 
 type IndicativeStats = record {
   clearing : variant {
     match : record {
       price : float64;
-      volume : nat;
+      volume : nat
     };
     noMatch : record {
       minAskPrice : opt float64;
-      maxBidPrice : opt float64;
-    };
+      maxBidPrice : opt float64
+    }
   };
   totalAskVolume : nat;
-  totalBidVolume : nat;
+  totalBidVolume : nat
 };
 
 service : (opt principal, opt principal) -> {
@@ -198,8 +198,8 @@ service : (opt principal, opt principal) -> {
       Token;
       record {
         credit : int;
-        tracked_deposit : opt Amount;
-      };
+        tracked_deposit : opt Amount
+      }
     }
   ) query;
 
@@ -218,14 +218,14 @@ service : (opt principal, opt principal) -> {
       Ok : record {
         credit : int;
         credit_inc : nat;
-        deposit_inc : nat;
+        deposit_inc : nat
       };
       Err : variant {
         AlreadyProcessing;
         CallLedgerError : record { message : text };
         GenericError : record {
           error_code : nat64;
-          error_message : text;
+          error_message : text
         };
         NoNewUtxos : record {
           current_confirmations : opt nat32;
@@ -233,31 +233,31 @@ service : (opt principal, opt principal) -> {
             confirmations : nat32;
             outpoint : record {
               txid : vec nat8;
-              vout : nat32;
+              vout : nat32
             };
-            value : nat64;
+            value : nat64
           };
           required_confirmations : nat32;
           suspended_utxos : opt vec record {
             earliest_retry : nat64;
             reason : variant {
               Quarantined;
-              ValueTooSmall;
+              ValueTooSmall
             };
             utxo : record {
               height : nat32;
               outpoint : record {
                 txid : vec nat8;
-                vout : nat32;
+                vout : nat32
               };
-              value : nat64;
-            };
-          };
+              value : nat64
+            }
+          }
         };
         NotAvailable : record { message : text };
         TemporarilyUnavailable : text;
-        NotMinted;
-      };
+        NotMinted
+      }
     }
   );
 
@@ -265,7 +265,7 @@ service : (opt principal, opt principal) -> {
   btc_withdraw : (
     record {
       amount : nat;
-      to : text;
+      to : text
     }
   ) -> (
     variant {
@@ -280,15 +280,15 @@ service : (opt principal, opt principal) -> {
         Expired : record { ledger_time : nat64 };
         GenericError : record {
           error_code : nat64;
-          error_message : text;
+          error_message : text
         };
         InsufficientAllowance : record { allowance : nat64 };
         InsufficientCredit : record {};
         InsufficientFunds : record { balance : reserved };
         MalformedAddress : text;
         TemporarilyUnavailable : reserved;
-        TooOld;
-      };
+        TooOld
+      }
     }
   );
   // check withdrawal status
@@ -300,7 +300,7 @@ service : (opt principal, opt principal) -> {
       Reimbursed : record {
         account : record {
           owner : principal;
-          subaccount : opt blob;
+          subaccount : opt blob
         };
         amount : nat64;
         mint_block_index : nat64;
@@ -308,9 +308,9 @@ service : (opt principal, opt principal) -> {
           CallFailed;
           TaintedDestination : record {
             kyt_fee : nat64;
-            kyt_provider : principal;
-          };
-        };
+            kyt_provider : principal
+          }
+        }
       };
       Sending : record { txid : blob };
       Signing;
@@ -319,17 +319,17 @@ service : (opt principal, opt principal) -> {
       WillReimburse : record {
         account : record {
           owner : principal;
-          subaccount : opt blob;
+          subaccount : opt blob
         };
         amount : nat64;
         reason : variant {
           CallFailed;
           TaintedDestination : record {
             kyt_fee : nat64;
-            kyt_provider : principal;
-          };
-        };
-      };
+            kyt_provider : principal
+          }
+        }
+      }
     }
   );
 
@@ -347,14 +347,14 @@ service : (opt principal, opt principal) -> {
             DestinationInvalid;
             Unknown;
             SysFatal;
-            CanisterReject;
+            CanisterReject
           };
           fee_block : opt nat;
-          rejection_reason : text;
+          rejection_reason : text
         };
         GenericError : record {
           error_code : nat64;
-          error_message : text;
+          error_message : text
         };
         TemporarilyUnavailable;
         Duplicate : record { duplicate_of : nat };
@@ -364,8 +364,8 @@ service : (opt principal, opt principal) -> {
         InvalidReceiver : record { receiver : principal };
         CreatedInFuture : record { ledger_time : nat64 };
         TooOld;
-        InsufficientFunds : record { balance : nat };
-      };
+        InsufficientFunds : record { balance : nat }
+      }
     }
   );
 
@@ -377,7 +377,7 @@ service : (opt principal, opt principal) -> {
   nextSession : () -> (
     record {
       timestamp : nat;
-      counter : nat;
+      counter : nat
     }
   ) query;
 
@@ -422,8 +422,8 @@ service : (opt principal, opt principal) -> {
       price_history : opt record { nat; nat; bool };
       // reverses price, transaction and deposit history lists. ?true returns histories in descending chronological order
       reversed_history : opt bool;
-      last_prices : opt bool;
-    },
+      last_prices : opt bool
+    }
   ) -> (
     record {
       // session numbers per token
@@ -441,7 +441,7 @@ service : (opt principal, opt principal) -> {
       // Note: `total` is always equal to `available + locked`
       credits : vec record {
         Token;
-        record { total : nat; available : nat; locked : nat };
+        record { total : nat; available : nat; locked : nat }
       };
       // history of deposit events.
       // return values are: timestamp in nanoseconds; type; ICRC1 ledger principal; operation volume;
@@ -449,7 +449,7 @@ service : (opt principal, opt principal) -> {
         nat64;
         variant { deposit; withdrawal };
         Token;
-        nat;
+        nat
       };
       // history of transactions caused by order fulfillments.
       // return values are: timestamp in nanoseconds; number of auction session; transaction type; ICRC1 ledger principal; transaction volume; transaction price
@@ -459,7 +459,7 @@ service : (opt principal, opt principal) -> {
         variant { ask; bid };
         Token;
         nat;
-        float64;
+        float64
       };
       // history of clearing price per token / auction session.
       // return values are: timestamp in nanoseconds; number of auction session; ICRC1 ledger principal; volume sold; price
@@ -467,7 +467,7 @@ service : (opt principal, opt principal) -> {
       // last non-zero clearing price per token
       last_prices : vec record { nat64; nat; Token; nat; float64 };
       // amount of caller's loyalty points
-      points : nat;
+      points : nat
     }
   ) query;
 
@@ -520,5 +520,5 @@ service : (opt principal, opt principal) -> {
   removeAdmin : (principal) -> ();
 
   // register new base token
-  registerAsset : (principal, nat) -> (variant { Ok : nat; Err : variant { AlreadyRegistered } });
-};
+  registerAsset : (principal, nat) -> (variant { Ok : nat; Err : variant { AlreadyRegistered } })
+}
