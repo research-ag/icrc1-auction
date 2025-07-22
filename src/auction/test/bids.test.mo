@@ -128,26 +128,6 @@ do {
 };
 
 do {
-  Prim.debugPrint("should not be able to place few bids on the same token with the same price...");
-  let (auction, user) = init(0, 3, 5);
-  ignore auction.appendCredit(user, 0, 500_000_000);
-  let ft = createFt(auction);
-
-  assert auction.getCredit(user, 0).available == 500_000_000;
-  let orderId = switch (auction.placeOrder(user, #bid, ft, 200_000_000, 100_000, null)) {
-    case (#ok id) id;
-    case (_) { assert false; 0 };
-  };
-  assert auction.getCredit(user, 0).available == 300_000_000;
-  switch (auction.placeOrder(user, #bid, ft, 200_000_000, 100_000, null)) {
-    case (#err(#ConflictingOrder(#bid, oid))) assert oid == ?orderId;
-    case (_) assert false;
-  };
-  assert auction.getCredit(user, 0).available == 300_000_000;
-  assert auction.getOrders(user, #bid, ?ft).size() == 1;
-};
-
-do {
   Prim.debugPrint("should be able to replace a bid...");
   let (auction, user) = init(0, 3, 5);
   ignore auction.appendCredit(user, 0, 500_000_000);

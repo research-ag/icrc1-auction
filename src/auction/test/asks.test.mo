@@ -110,27 +110,6 @@ do {
 };
 
 do {
-  Prim.debugPrint("should not be able to place few asks on the same asset with the same price...");
-
-  let (auction, user) = init(0, 3, 5);
-  let ft = createFt(auction);
-  ignore auction.appendCredit(user, ft, 500_000_000);
-  assert auction.getCredit(user, ft).available == 500_000_000;
-  let orderId = switch (auction.placeOrder(user, #ask, ft, 125_000_000, 125_000, null)) {
-    case (#ok id) id;
-    case (_) { assert false; 0 };
-  };
-  assert auction.getCredit(user, ft).available == 375_000_000;
-
-  switch (auction.placeOrder(user, #ask, ft, 300_000_000, 125_000, null)) {
-    case (#err(#ConflictingOrder(#ask, oid))) assert oid == ?orderId;
-    case (_) assert false;
-  };
-  assert auction.getCredit(user, ft).available == 375_000_000;
-  assert auction.getOrders(user, #ask, ?ft).size() == 1;
-};
-
-do {
   Prim.debugPrint("should be able to replace an ask...");
   let (auction, user) = init(0, 3, 5);
   let ft = createFt(auction);

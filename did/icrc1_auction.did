@@ -116,7 +116,6 @@ type ManageOrdersResponse = variant {
     placement : record {
       index : nat;
       error : variant {
-        ConflictingOrder : record { variant { ask; bid }; opt OrderId };
         NoCredit;
         TooLowOrder;
         UnknownAsset;
@@ -130,7 +129,6 @@ type ManageOrdersResponse = variant {
 type PlaceOrderResponse = variant {
   Ok : OrderId;
   Err : variant {
-    ConflictingOrder : record { variant { ask; bid }; opt OrderId };
     NoCredit;
     TooLowOrder;
     UnknownAsset;
@@ -143,7 +141,6 @@ type PlaceOrderResponse = variant {
 type ReplaceOrderResponse = variant {
   Ok : OrderId;
   Err : variant {
-    ConflictingOrder : record { variant { ask; bid }; opt OrderId };
     NoCredit;
     TooLowOrder;
     UnknownAsset;

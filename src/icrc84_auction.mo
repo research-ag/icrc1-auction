@@ -12,7 +12,6 @@ module Icrc84Auction {
     #UnknownOrder;
   };
   type InternalPlaceOrderError = {
-    #ConflictingOrder : ({ #ask; #bid }, ?T.OrderId);
     #NoCredit;
     #TooLowOrder;
     #UnknownAsset;
@@ -48,7 +47,6 @@ module Icrc84Auction {
       case (#ok x) #Ok(x);
       case (#err err) #Err(
         switch (err) {
-          case (#ConflictingOrder x) #ConflictingOrder(x);
           case (#NoCredit x) #NoCredit(x);
           case (#TooLowOrder x) #TooLowOrder(x);
           case (#UnknownAsset x) #UnknownAsset(x);
@@ -66,7 +64,6 @@ module Icrc84Auction {
       case (#ok x) #Ok(x);
       case (#err err) #Err(
         switch (err) {
-          case (#ConflictingOrder x) #ConflictingOrder(x);
           case (#NoCredit x) #NoCredit(x);
           case (#TooLowOrder x) #TooLowOrder(x);
           case (#UnknownAsset x) #UnknownAsset(x);
@@ -107,7 +104,6 @@ module Icrc84Auction {
           case (#placement { index; error }) #placement({
             index;
             error = switch (error) {
-              case (#ConflictingOrder x) #ConflictingOrder(x);
               case (#NoCredit x) #NoCredit(x);
               case (#TooLowOrder x) #TooLowOrder(x);
               case (#UnknownAsset x) #UnknownAsset(x);

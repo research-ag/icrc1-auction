@@ -22,69 +22,6 @@ do {
 };
 
 do {
-  Prim.debugPrint("should return error when placing ask with lower price than own bid price for the same asset...");
-  let (auction, user) = init(0, 3, 5);
-  let ft = createFt(auction);
-  auction.processAsset(ft);
-  ignore auction.appendCredit(user, 0, 500_000_000);
-  ignore auction.appendCredit(user, ft, 500_000_000);
-  let orderId = switch (auction.placeOrder(user, #bid, ft, 500_000, 250, null)) {
-    case (#ok id) id;
-    case (_) { assert false; 0 };
-  };
-  switch (auction.placeOrder(user, #ask, ft, 2_000_000, 200, null)) {
-    case (#err(#ConflictingOrder(#bid, oid))) assert oid == ?orderId;
-    case (_) assert false;
-  };
-  assert auction.getOrders(user, #bid, ?ft).size() == 1;
-  assert auction.getOrders(user, #ask, ?ft).size() == 0;
-};
-
-do {
-  Prim.debugPrint("should return error when placing bid with higher price than own ask price for the same asset...");
-  let (auction, user) = init(0, 3, 5);
-  let ft = createFt(auction);
-  auction.processAsset(ft);
-  ignore auction.appendCredit(user, 0, 500_000_000);
-  ignore auction.appendCredit(user, ft, 500_000_000);
-  let orderId = switch (auction.placeOrder(user, #ask, ft, 2_000_000, 200, null)) {
-    case (#ok id) id;
-    case (_) { assert false; 0 };
-  };
-  switch (auction.placeOrder(user, #bid, ft, 500_000, 250, null)) {
-    case (#err(#ConflictingOrder(#ask, oid))) assert oid == ?orderId;
-    case (_) assert false;
-  };
-  assert auction.getOrders(user, #ask, ?ft).size() == 1;
-  assert auction.getOrders(user, #bid, ?ft).size() == 0;
-};
-
-do {
-  Prim.debugPrint("should return conflict error when placing both conflicting orders in one call");
-  let (auction, user) = init(0, 3, 5);
-  let ft = createFt(auction);
-  auction.processAsset(ft);
-  ignore auction.appendCredit(user, 0, 500_000_000);
-  ignore auction.appendCredit(user, ft, 500_000_000);
-  switch (
-    auction.manageOrders(
-      user,
-      null,
-      [
-        #ask(ft, 2_000_000, 200),
-        #bid(ft, 500_000, 250),
-      ],
-      null,
-    )
-  ) {
-    case (#err(#placement({ index = 1; error = #ConflictingOrder(#ask, null) }))) ();
-    case (_) assert false;
-  };
-  assert auction.getOrders(user, #ask, ?ft).size() == 0;
-  assert auction.getOrders(user, #bid, ?ft).size() == 0;
-};
-
-do {
   Prim.debugPrint("should place conflicting order if cancel old one in the same call");
   let (auction, user) = init(0, 3, 5);
   let ft = createFt(auction);

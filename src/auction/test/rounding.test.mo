@@ -106,7 +106,7 @@ do {
   assert priceHistoryItem.3 == askVolume;
   assert Float.equalWithin(priceHistoryItem.4, bidPrice, 0.000000000000001);
 
-  assert auction.getCredit(user, 0).locked == bidVolume - denominateVolumeInQuoteAsset(askVolume, bidPrice);
+  assert auction.getCredit(user, 0).locked + denominateVolumeInQuoteAsset(askVolume, bidPrice) == bidVolume;
 
   switch (auction.cancelOrder(user, #bid, oid, null)) {
     case (#ok _) ();

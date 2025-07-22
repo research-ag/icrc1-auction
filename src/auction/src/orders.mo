@@ -2,7 +2,6 @@ import Array "mo:base/Array";
 import AssocList "mo:base/AssocList";
 import Float "mo:base/Float";
 import Int "mo:base/Int";
-import Iter "mo:base/Iter";
 import LinkedList "mo:base/List";
 import Nat "mo:base/Nat";
 import Option "mo:base/Option";
@@ -37,7 +36,6 @@ module {
     #UnknownOrder;
   };
   public type InternalPlaceOrderError = {
-    #ConflictingOrder : ({ #ask; #bid }, ?T.OrderId);
     #NoCredit;
     #TooLowOrder;
     #UnknownAsset;
@@ -427,9 +425,9 @@ module {
       // validate and prepare placements
       var assetIdSet : AssocList.AssocList<T.AssetId, Nat> = null;
       for (i in placements.keys()) {
-        let (ordersService, (assetId, volume, rawPrice), ordersDelta, oppositeOrdersDelta) = switch (placements[i]) {
-          case (#ask(args)) (asks, args, asksDelta, bidsDelta);
-          case (#bid(args)) (bids, args, bidsDelta, asksDelta);
+        let (ordersService, (assetId, volume, rawPrice), ordersDelta) = switch (placements[i]) {
+          case (#ask(args)) (asks, args, asksDelta);
+          case (#bid(args)) (bids, args, bidsDelta);
         };
         // validate asset id
         if (assetId == quoteAssetId or assetId >= assets.nAssets()) return #err(#placement({ index = i; error = #UnknownAsset }));
@@ -459,43 +457,6 @@ module {
         };
         AssocList.replace<T.AssetId, Nat>(newBalances, srcAssetId, Nat.equal, ?(balance - chargeAmount))
         |> (newBalances := _.0);
-
-        // build list of placed orders + orders to be placed during this call
-        func buildOrdersList(user : T.UserInfo, kind : { #ask; #bid }, delta : OrdersDelta) : Iter.Iter<(?T.OrderId, T.Order)> = users.getOrderBook(user, kind).map
-        |> LinkedList.toIter(_)
-        |> Iter.map<(T.OrderId, T.Order), (?T.OrderId, T.Order)>(_, func(oid, o) = (?oid, o))
-        |> Iter.concat<(?T.OrderId, T.Order)>(_, LinkedList.toIter(delta.placed));
-
-        // validate conflicting orders
-        for ((orderId, order) in buildOrdersList(userInfo, ordersService.kind, ordersDelta)) {
-          if (
-            order.assetId == assetId and price == order.price and (
-              switch (orderId) {
-                case (?oid) not ordersDelta.isOrderCancelled(assetId, oid);
-                case (null) true;
-              }
-            )
-          ) {
-            return #err(#placement({ index = i; error = #ConflictingOrder(ordersService.kind, orderId) }));
-          };
-        };
-
-        let oppositeOrderManager = switch (ordersService.kind) {
-          case (#ask) { bids };
-          case (#bid) { asks };
-        };
-        for ((oppOrderId, oppOrder) in buildOrdersList(userInfo, oppositeOrderManager.kind, oppositeOrdersDelta)) {
-          if (
-            oppOrder.assetId == assetId and ordersService.isOppositeOrderConflicts(price, oppOrder.price) and (
-              switch (oppOrderId) {
-                case (?oid) not oppositeOrdersDelta.isOrderCancelled(assetId, oid);
-                case (null) true;
-              }
-            )
-          ) {
-            return #err(#placement({ index = i; error = #ConflictingOrder(oppositeOrderManager.kind, oppOrderId) }));
-          };
-        };
 
         let order : T.Order = {
           user = p;
