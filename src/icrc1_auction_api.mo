@@ -342,20 +342,6 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       ignore metrics.addPullValue("total_executed_orders", labels, func() = asset.totalExecutedOrders);
 
       ignore metrics.addPullValue(
-        "clearing_price",
-        labels,
-        func() = auction.indicativeAssetStats(assetId)
-        |> (switch (_.clearing) { case (#match x) { x.price }; case (_) { 0.0 } })
-        |> renderPrice(_),
-      );
-      ignore metrics.addPullValue(
-        "clearing_volume",
-        labels,
-        func() = auction.indicativeAssetStats(assetId)
-        |> (switch (_.clearing) { case (#match x) { x.volume }; case (_) { 0 } }),
-      );
-
-      ignore metrics.addPullValue(
         "last_price",
         labels,
         func() = auction.getPriceHistory([assetId], #desc, false).next()
@@ -636,12 +622,6 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       orderQuoteVolumeStep = auction.orders.quoteVolumeStep;
       orderPriceDigitsLimit = auction.orders.priceMaxDigits;
     };
-  };
-
-  public shared query func indicativeStats(icrc1Ledger : Principal) : async Auction.IndicativeStats {
-    if (icrc1Ledger == quoteLedgerPrincipal) throw Error.reject("Unknown asset");
-    let ?assetId = getAssetId(icrc1Ledger) else throw Error.reject("Unknown asset");
-    auction.indicativeAssetStats(assetId);
   };
 
   public shared query func totalPointsSupply() : async Nat = async auction.getTotalLoyaltyPointsSupply();

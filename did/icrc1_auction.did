@@ -165,21 +165,6 @@ type CancelOrderResponse = variant {
   }
 };
 
-type IndicativeStats = record {
-  clearing : variant {
-    match : record {
-      price : float64;
-      volume : nat
-    };
-    noMatch : record {
-      minAskPrice : opt float64;
-      maxBidPrice : opt float64
-    }
-  };
-  totalAskVolume : nat;
-  totalBidVolume : nat
-};
-
 service : (opt principal, opt principal) -> {
   // =========================================================== ICRC-84 API ===========================================================
   // helper function
@@ -394,9 +379,6 @@ service : (opt principal, opt principal) -> {
   //   Int.abs(10 ** Float.toInt(zf));
   // };
   settings : () -> (record { orderQuoteVolumeMinimum : nat; orderQuoteVolumeStep : nat; orderPriceDigitsLimit : nat }) query;
-
-  // returns information about auction results if acution session happened now
-  indicativeStats : (principal) -> (IndicativeStats) query;
 
   // ========================================================= USER API ==========================================================
 

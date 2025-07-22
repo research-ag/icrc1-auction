@@ -24,7 +24,7 @@ import C "./constants";
 import Credits "./credits";
 import Orders "./orders";
 import Users "./users";
-import { processAuction; clearAuction } "./auction_processor";
+import { processAuction } "./auction_processor";
 import T "./types";
 
 module {
@@ -61,21 +61,6 @@ module {
   public type PlaceOrderAction = Orders.PlaceOrderAction;
 
   public type CancellationResult = Orders.CancellationResult;
-
-  public type IndicativeStats = {
-    clearing : {
-      #match : {
-        price : Float;
-        volume : Nat;
-      };
-      #noMatch : {
-        minAskPrice : ?Float;
-        maxBidPrice : ?Float;
-      };
-    };
-    totalBidVolume : Nat;
-    totalAskVolume : Nat;
-  };
 
   public type ManageOrdersError = Orders.OrderManagementError or {
     #UnknownPrincipal;
@@ -141,27 +126,6 @@ module {
         if (surplus > 0) {
           credits.quoteSurplus += surplus;
         };
-      };
-    };
-
-    public func indicativeAssetStats(assetId : AssetId) : IndicativeStats {
-      let assetInfo = assets.getAsset(assetId);
-      let asksOrderBook = orders.asks.createOrderBookService(assetInfo);
-      let bidsOrderBook = orders.bids.createOrderBookService(assetInfo);
-      switch (clearAuction(asksOrderBook, bidsOrderBook)) {
-        case (?(price, volume)) ({
-          clearing = #match({ price; volume });
-          totalBidVolume = assetInfo.bids.totalVolume;
-          totalAskVolume = assetInfo.asks.totalVolume;
-        });
-        case (null) ({
-          clearing = #noMatch({
-            maxBidPrice = LinkedList.get(bidsOrderBook.queue(), 0) |> Option.map<(T.OrderId, T.Order), Float>(_, func(b) = b.1.price);
-            minAskPrice = LinkedList.get(asksOrderBook.queue(), 0) |> Option.map<(T.OrderId, T.Order), Float>(_, func(b) = b.1.price);
-          });
-          totalBidVolume = assetInfo.bids.totalVolume;
-          totalAskVolume = assetInfo.asks.totalVolume;
-        });
       };
     };
     // ============= assets interface =============
