@@ -1,68 +1,70 @@
 type Token = principal;
 type Amount = nat;
+type AccountRevision = nat;
+type SessionNumber = nat;
 
 type TokenInfo = record {
   allowance_fee : Amount;
   deposit_fee : Amount;
-  withdrawal_fee : Amount;
+  withdrawal_fee : Amount
 };
 
 type Subaccount = blob;
 
 type NotifyArg = record {
-  token : Token;
+  token : Token
 };
 
 type NotifyResult = record {
   deposit_inc : Amount;
   credit_inc : Amount;
-  credit : int;
+  credit : int
 };
 
 type NotifyResponse = variant {
   Ok : NotifyResult;
   Err : variant {
     CallLedgerError : record { message : text };
-    NotAvailable : record { message : text };
-  };
+    NotAvailable : record { message : text }
+  }
 };
 
 type WithdrawArgs = record {
   to : Account;
   amount : Amount;
   token : Token;
-  expected_fee : opt nat;
+  expected_fee : opt nat
 };
 
 type WithdrawResponse = variant {
   Ok : record {
     txid : nat;
-    amount : Amount;
+    amount : Amount
   };
   Err : variant {
     BadFee : record { expected_fee : nat };
     CallLedgerError : record { message : text };
     InsufficientCredit : record {};
-    AmountBelowMinimum : record {};
-  };
+    AmountBelowMinimum : record {}
+  }
 };
 
 type DepositArgs = record {
   token : Token;
   amount : Amount;
   from : Account;
-  expected_fee : opt nat;
+  expected_fee : opt nat
 };
 
 type Account = record {
   owner : principal;
-  subaccount : opt Subaccount;
+  subaccount : opt Subaccount
 };
 
 type DepositResult = record {
   txid : nat;
   credit_inc : Amount;
-  credit : int;
+  credit : int
 };
 
 type DepositResponse = variant {
@@ -72,25 +74,30 @@ type DepositResponse = variant {
     BadFee : record { expected_fee : nat };
     CallLedgerError : record { message : text };
     TransferError : record { message : text }; // insufficient allowance or insufficient funds
-  };
+  }
 };
 
 type OrderId = nat;
-type SessionNumber = nat;
+
+type OrderBookType = variant {
+  delayed;
+  immediate
+};
 
 type Order = record {
   icrc1Ledger : Token;
+  orderBookType : OrderBookType;
   price : float64;
-  volume : nat;
+  volume : nat
 };
 
 type CancellationArg = variant {
   all : opt vec Token;
-  orders : vec variant { ask : OrderId; bid : OrderId };
+  orders : vec variant { ask : OrderId; bid : OrderId }
 };
 type PlaceArg = vec variant {
-  ask : record { Token; nat; float64 };
-  bid : record { Token; nat; float64 };
+  ask : record { Token; OrderBookType; nat; float64 };
+  bid : record { Token; OrderBookType; nat; float64 }
 };
 
 type ManageOrdersResponse = variant {
@@ -98,20 +105,24 @@ type ManageOrdersResponse = variant {
     vec record {
       OrderId;
       Token;
+      OrderBookType;
       nat;
-      float64;
+      float64
     };
-    vec OrderId;
+    vec record {
+      OrderId;
+      variant { placed; executed : vec record { float64; nat } }
+    }
   };
   Err : variant {
-    SessionNumberMismatch : Token;
+    AccountRevisionMismatch;
     UnknownPrincipal;
     cancellation : record {
       index : nat;
       error : variant {
         UnknownAsset;
-        UnknownOrder;
-      };
+        UnknownOrder
+      }
     };
     placement : record {
       index : nat;
@@ -121,14 +132,17 @@ type ManageOrdersResponse = variant {
         TooLowOrder;
         UnknownAsset;
         PriceDigitsOverflow : record { maxDigits : nat };
-        VolumeStepViolated : record { baseVolumeStep : nat };
-      };
-    };
-  };
+        VolumeStepViolated : record { baseVolumeStep : nat }
+      }
+    }
+  }
 };
 
 type PlaceOrderResponse = variant {
-  Ok : OrderId;
+  Ok : record {
+    OrderId;
+    variant { placed; executed : vec record { float64; nat } }
+  };
   Err : variant {
     ConflictingOrder : record { variant { ask; bid }; opt OrderId };
     NoCredit;
@@ -137,11 +151,14 @@ type PlaceOrderResponse = variant {
     UnknownPrincipal;
     PriceDigitsOverflow : record { maxDigits : nat };
     VolumeStepViolated : record { baseVolumeStep : nat };
-    SessionNumberMismatch : Token;
-  };
+    AccountRevisionMismatch
+  }
 };
 type ReplaceOrderResponse = variant {
-  Ok : OrderId;
+  Ok : record {
+    OrderId;
+    variant { placed; executed : vec record { float64; nat } }
+  };
   Err : variant {
     ConflictingOrder : record { variant { ask; bid }; opt OrderId };
     NoCredit;
@@ -151,36 +168,37 @@ type ReplaceOrderResponse = variant {
     UnknownPrincipal;
     PriceDigitsOverflow : record { maxDigits : nat };
     VolumeStepViolated : record { baseVolumeStep : nat };
-    SessionNumberMismatch : Token;
-  };
+    AccountRevisionMismatch
+  }
 };
 type CancelOrderResponse = variant {
   Ok : record {
     OrderId;
     Token;
+    OrderBookType;
     nat;
-    float64;
+    float64
   };
   Err : variant {
     UnknownOrder;
     UnknownPrincipal;
-    SessionNumberMismatch : Token;
-  };
+    AccountRevisionMismatch
+  }
 };
 
 type IndicativeStats = record {
   clearing : variant {
     match : record {
       price : float64;
-      volume : nat;
+      volume : nat
     };
     noMatch : record {
       minAskPrice : opt float64;
-      maxBidPrice : opt float64;
-    };
+      maxBidPrice : opt float64
+    }
   };
   totalAskVolume : nat;
-  totalBidVolume : nat;
+  totalBidVolume : nat
 };
 
 service : (opt principal, opt principal) -> {
@@ -198,8 +216,8 @@ service : (opt principal, opt principal) -> {
       Token;
       record {
         credit : int;
-        tracked_deposit : opt Amount;
-      };
+        tracked_deposit : opt Amount
+      }
     }
   ) query;
 
@@ -218,14 +236,14 @@ service : (opt principal, opt principal) -> {
       Ok : record {
         credit : int;
         credit_inc : nat;
-        deposit_inc : nat;
+        deposit_inc : nat
       };
       Err : variant {
         AlreadyProcessing;
         CallLedgerError : record { message : text };
         GenericError : record {
           error_code : nat64;
-          error_message : text;
+          error_message : text
         };
         NoNewUtxos : record {
           current_confirmations : opt nat32;
@@ -233,31 +251,31 @@ service : (opt principal, opt principal) -> {
             confirmations : nat32;
             outpoint : record {
               txid : vec nat8;
-              vout : nat32;
+              vout : nat32
             };
-            value : nat64;
+            value : nat64
           };
           required_confirmations : nat32;
           suspended_utxos : opt vec record {
             earliest_retry : nat64;
             reason : variant {
               Quarantined;
-              ValueTooSmall;
+              ValueTooSmall
             };
             utxo : record {
               height : nat32;
               outpoint : record {
                 txid : vec nat8;
-                vout : nat32;
+                vout : nat32
               };
-              value : nat64;
-            };
-          };
+              value : nat64
+            }
+          }
         };
         NotAvailable : record { message : text };
         TemporarilyUnavailable : text;
-        NotMinted;
-      };
+        NotMinted
+      }
     }
   );
 
@@ -265,7 +283,7 @@ service : (opt principal, opt principal) -> {
   btc_withdraw : (
     record {
       amount : nat;
-      to : text;
+      to : text
     }
   ) -> (
     variant {
@@ -280,15 +298,15 @@ service : (opt principal, opt principal) -> {
         Expired : record { ledger_time : nat64 };
         GenericError : record {
           error_code : nat64;
-          error_message : text;
+          error_message : text
         };
         InsufficientAllowance : record { allowance : nat64 };
         InsufficientCredit : record {};
         InsufficientFunds : record { balance : reserved };
         MalformedAddress : text;
         TemporarilyUnavailable : reserved;
-        TooOld;
-      };
+        TooOld
+      }
     }
   );
   // check withdrawal status
@@ -300,7 +318,7 @@ service : (opt principal, opt principal) -> {
       Reimbursed : record {
         account : record {
           owner : principal;
-          subaccount : opt blob;
+          subaccount : opt blob
         };
         amount : nat64;
         mint_block_index : nat64;
@@ -308,9 +326,9 @@ service : (opt principal, opt principal) -> {
           CallFailed;
           TaintedDestination : record {
             kyt_fee : nat64;
-            kyt_provider : principal;
-          };
-        };
+            kyt_provider : principal
+          }
+        }
       };
       Sending : record { txid : blob };
       Signing;
@@ -319,17 +337,17 @@ service : (opt principal, opt principal) -> {
       WillReimburse : record {
         account : record {
           owner : principal;
-          subaccount : opt blob;
+          subaccount : opt blob
         };
         amount : nat64;
         reason : variant {
           CallFailed;
           TaintedDestination : record {
             kyt_fee : nat64;
-            kyt_provider : principal;
-          };
-        };
-      };
+            kyt_provider : principal
+          }
+        }
+      }
     }
   );
 
@@ -347,14 +365,14 @@ service : (opt principal, opt principal) -> {
             DestinationInvalid;
             Unknown;
             SysFatal;
-            CanisterReject;
+            CanisterReject
           };
           fee_block : opt nat;
-          rejection_reason : text;
+          rejection_reason : text
         };
         GenericError : record {
           error_code : nat64;
-          error_message : text;
+          error_message : text
         };
         TemporarilyUnavailable;
         Duplicate : record { duplicate_of : nat };
@@ -364,8 +382,8 @@ service : (opt principal, opt principal) -> {
         InvalidReceiver : record { receiver : principal };
         CreatedInFuture : record { ledger_time : nat64 };
         TooOld;
-        InsufficientFunds : record { balance : nat };
-      };
+        InsufficientFunds : record { balance : nat }
+      }
     }
   );
 
@@ -377,7 +395,7 @@ service : (opt principal, opt principal) -> {
   nextSession : () -> (
     record {
       timestamp : nat;
-      counter : nat;
+      counter : nat
     }
   ) query;
 
@@ -420,10 +438,12 @@ service : (opt principal, opt principal) -> {
       transaction_history : opt record { nat; nat };
       // aruments are (limit; skip; skipEmpty), implements pagination and filtering
       price_history : opt record { nat; nat; bool };
+      // aruments are (limit; skip), implements pagination
+      immediate_price_history : opt record { nat; nat };
       // reverses price, transaction and deposit history lists. ?true returns histories in descending chronological order
       reversed_history : opt bool;
-      last_prices : opt bool;
-    },
+      last_prices : opt bool
+    }
   ) -> (
     record {
       // session numbers per token
@@ -441,7 +461,7 @@ service : (opt principal, opt principal) -> {
       // Note: `total` is always equal to `available + locked`
       credits : vec record {
         Token;
-        record { total : nat; available : nat; locked : nat };
+        record { total : nat; available : nat; locked : nat }
       };
       // history of deposit events.
       // return values are: timestamp in nanoseconds; type; ICRC1 ledger principal; operation volume;
@@ -449,7 +469,7 @@ service : (opt principal, opt principal) -> {
         nat64;
         variant { deposit; withdrawal };
         Token;
-        nat;
+        nat
       };
       // history of transactions caused by order fulfillments.
       // return values are: timestamp in nanoseconds; number of auction session; transaction type; ICRC1 ledger principal; transaction volume; transaction price
@@ -459,15 +479,20 @@ service : (opt principal, opt principal) -> {
         variant { ask; bid };
         Token;
         nat;
-        float64;
+        float64
       };
       // history of clearing price per token / auction session.
       // return values are: timestamp in nanoseconds; number of auction session; ICRC1 ledger principal; volume sold; price
       price_history : vec record { nat64; nat; Token; nat; float64 };
+      // history of clearing price when immediate order book has been executed
+      // return values are: timestamp in nanoseconds; 0; ICRC1 ledger principal; volume sold; price
+      immediate_price_history : vec record { nat64; nat; Token; nat; float64 };
       // last non-zero clearing price per token
       last_prices : vec record { nat64; nat; Token; nat; float64 };
       // amount of caller's loyalty points
       points : nat;
+      // current caller's account revision
+      account_revision : nat
     }
   ) query;
 
@@ -475,39 +500,39 @@ service : (opt principal, opt principal) -> {
   // arguments are:
   // - cancellation: the rules which active orders should be cancelled
   // - placements: an array of orders to be placed
-  // - session number: optionally set expected current session number. If set and it does not match the actual session number, the function will return an error
+  // - account revision: optionally set expected current caller's account revision. If set and it does not match the actual account revision, the function will return an error
   // returns array of placed order id-s in case of success
-  manageOrders : (opt CancellationArg, PlaceArg, opt SessionNumber) -> (ManageOrdersResponse);
+  manageOrders : (opt CancellationArg, PlaceArg, opt AccountRevision) -> (ManageOrdersResponse);
 
   // A shortcut for `manageOrders` which only places asks
-  // arguments are: array of orders and session number (optional).
-  // If session number set and it does not match the actual session number, the function will return an error
-  placeAsks : (vec record { Token; nat; float64 }, opt SessionNumber) -> (vec PlaceOrderResponse);
+  // arguments are: array of orders and account revision (optional).
+  // If account revision set and it does not match the actual account revision, the function will return an error
+  placeAsks : (vec record { Token; OrderBookType; nat; float64 }, opt AccountRevision) -> (vec PlaceOrderResponse);
 
   // A shortcut for `manageOrders` which replaces single ask
-  // arguments are: order id, new order info and session number (optional).
-  // If session number set and it does not match the actual session number, the function will return an error
-  replaceAsk : (OrderId, nat, float64, opt SessionNumber) -> (ReplaceOrderResponse);
+  // arguments are: order id, new order info and account revision (optional).
+  // If account revision set and it does not match the actual account revision, the function will return an error
+  replaceAsk : (OrderId, nat, float64, opt AccountRevision) -> (ReplaceOrderResponse);
 
   // A shortcut for `manageOrders` which cancels asks by given order ids
-  // arguments are: order ids and session number (optional).
-  // If session number set and it does not match the actual session number, the function will return an error
-  cancelAsks : (vec OrderId, opt SessionNumber) -> (vec CancelOrderResponse);
+  // arguments are: order ids and account revision (optional).
+  // If account revision set and it does not match the actual account revision, the function will return an error
+  cancelAsks : (vec OrderId, opt AccountRevision) -> (vec CancelOrderResponse);
 
   // A shortcut for `manageOrders` which only places bids
-  // arguments are: array of orders and session number (optional).
-  // If session number set and it does not match the actual session number, the function will return an error
-  placeBids : (vec record { Token; nat; float64 }, opt SessionNumber) -> (vec PlaceOrderResponse);
+  // arguments are: array of orders and account revision (optional).
+  // If account revision set and it does not match the actual account revision, the function will return an error
+  placeBids : (vec record { Token; OrderBookType; nat; float64 }, opt AccountRevision) -> (vec PlaceOrderResponse);
 
   // A shortcut for `manageOrders` which replaces single bid
-  // arguments are: order id, new order info and session number (optional).
-  // If session number set and it does not match the actual session number, the function will return an error
-  replaceBid : (OrderId, nat, float64, opt SessionNumber) -> (ReplaceOrderResponse);
+  // arguments are: order id, new order info and account revision (optional).
+  // If account revision set and it does not match the actual account revision, the function will return an error
+  replaceBid : (OrderId, nat, float64, opt AccountRevision) -> (ReplaceOrderResponse);
 
   // A shortcut for `manageOrders` which cancels bids by given order ids
-  // arguments are: order ids and session number (optional).
-  // If session number set and it does not match the actual session number, the function will return an error
-  cancelBids : (vec OrderId, opt SessionNumber) -> (vec CancelOrderResponse);
+  // arguments are: order ids and account revision (optional).
+  // If account revision set and it does not match the actual account revision, the function will return an error
+  cancelBids : (vec OrderId, opt AccountRevision) -> (vec CancelOrderResponse);
 
   // =========================================================== ADMIN API ===========================================================
   // returns list of auction admins
@@ -520,5 +545,5 @@ service : (opt principal, opt principal) -> {
   removeAdmin : (principal) -> ();
 
   // register new base token
-  registerAsset : (principal, nat) -> (variant { Ok : nat; Err : variant { AlreadyRegistered } });
-};
+  registerAsset : (principal, nat) -> (variant { Ok : nat; Err : variant { AlreadyRegistered } })
+}
