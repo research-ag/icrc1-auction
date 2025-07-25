@@ -467,7 +467,14 @@ service : (opt principal, opt principal) -> {
       // return values are: timestamp in nanoseconds; type; ICRC1 ledger principal; operation volume;
       deposit_history : vec record {
         nat64;
-        variant { deposit; withdrawal };
+        variant {
+          deposit;
+          withdrawal : opt variant {
+            icrc1Address : record { principal; opt blob };
+            btcDirect : text;
+            cyclesDirect : principal;
+          };
+        };
         Token;
         nat
       };

@@ -289,15 +289,15 @@ module {
       res;
     };
 
-    public func appendCredit(p : Principal, assetId : AssetId, amount : Nat) : Nat {
+    public func appendCredit(p : Principal, assetId : AssetId, amount : Nat, depositMemo : ?Blob) : Nat {
       let userInfo = users.getOrCreate(p);
       let acc = credits.getOrCreate(userInfo, assetId);
-      Vec.add<T.DepositHistoryItem>(userInfo.depositHistory, (Prim.time(), #deposit, assetId, amount));
+      Vec.add<T.DepositHistoryItem>(userInfo.depositHistory, (Prim.time(), #deposit(depositMemo), assetId, amount));
       userInfo.accountRevision += 1;
       credits.appendCredit(acc, amount);
     };
 
-    public func deductCredit(p : Principal, assetId : AssetId, amount : Nat) : R.Result<(Nat, rollback : () -> (), doneCallback : () -> ()), { #NoCredit }> {
+    public func deductCredit(p : Principal, assetId : AssetId, amount : Nat, withdrawalMemo : ?Blob) : R.Result<(Nat, rollback : () -> (), doneCallback : () -> ()), { #NoCredit }> {
       let ?user = users.get(p) else return #err(#NoCredit);
       let ?creditAcc = credits.getAccount(user, assetId) else return #err(#NoCredit);
       switch (credits.deductCredit(creditAcc, amount)) {
@@ -307,13 +307,13 @@ module {
             #ok(
               0,
               func() = ignore credits.getOrCreate(user, assetId) |> credits.appendCredit(_, amount),
-              func() = Vec.add<T.DepositHistoryItem>(user.depositHistory, (Prim.time(), #withdrawal, assetId, amount)),
+              func() = Vec.add<T.DepositHistoryItem>(user.depositHistory, (Prim.time(), #withdrawal(withdrawalMemo), assetId, amount)),
             );
           } else {
             #ok(
               balance,
               func() = ignore credits.appendCredit(creditAcc, amount),
-              func() = Vec.add<T.DepositHistoryItem>(user.depositHistory, (Prim.time(), #withdrawal, assetId, amount)),
+              func() = Vec.add<T.DepositHistoryItem>(user.depositHistory, (Prim.time(), #withdrawal(withdrawalMemo), assetId, amount)),
             );
           };
         };

@@ -10,16 +10,16 @@ do {
   let seller = Principal.fromText("ocqy6-3dphi-xgf54-vkr2e-lk4oz-3exc6-446gr-5e72g-bsdfo-4nzrm-hqe");
 
   let ft1 = createFt(auction);
-  ignore auction.appendCredit(seller, ft1, 500_000_000);
+  ignore auction.appendCredit(seller, ft1, 500_000_000, null);
   ignore auction.placeOrder(seller, #ask, ft1, #delayed, 1_000, 100_000, null);
 
   let ft2 = createFt(auction);
-  ignore auction.appendCredit(seller, ft2, 500_000_000);
+  ignore auction.appendCredit(seller, ft2, 500_000_000, null);
   ignore auction.placeOrder(seller, #ask, ft2, #delayed, 1_000, 100_000, null);
 
   let ft3 = createFt(auction);
 
-  ignore auction.appendCredit(user, 0, 500_000_000);
+  ignore auction.appendCredit(user, 0, 500_000_000, null);
   ignore auction.placeOrder(user, #bid, ft1, #delayed, 1_000, 100_000, null);
   ignore auction.placeOrder(user, #bid, ft2, #delayed, 1_000, 100_000, null);
 
@@ -46,16 +46,16 @@ do {
   let seller = Principal.fromText("ocqy6-3dphi-xgf54-vkr2e-lk4oz-3exc6-446gr-5e72g-bsdfo-4nzrm-hqe");
 
   let ft1 = createFt(auction);
-  ignore auction.appendCredit(seller, ft1, 500_000_000);
+  ignore auction.appendCredit(seller, ft1, 500_000_000, null);
   ignore auction.placeOrder(seller, #ask, ft1, #delayed, 1_000, 100_000, null);
 
   let ft2 = createFt(auction);
-  ignore auction.appendCredit(seller, ft2, 500_000_000);
+  ignore auction.appendCredit(seller, ft2, 500_000_000, null);
   ignore auction.placeOrder(seller, #ask, ft2, #delayed, 1_000, 100_000, null);
 
   let ft3 = createFt(auction);
 
-  ignore auction.appendCredit(user, 0, 500_000_000);
+  ignore auction.appendCredit(user, 0, 500_000_000, null);
   ignore auction.placeOrder(user, #bid, ft1, #delayed, 1_000, 100_000, null);
   ignore auction.placeOrder(user, #bid, ft2, #delayed, 1_000, 100_000, null);
 
@@ -82,16 +82,16 @@ do {
   let seller = Principal.fromText("ocqy6-3dphi-xgf54-vkr2e-lk4oz-3exc6-446gr-5e72g-bsdfo-4nzrm-hqe");
 
   let ft1 = createFt(auction);
-  ignore auction.appendCredit(seller, ft1, 500_000_000);
+  ignore auction.appendCredit(seller, ft1, 500_000_000, null);
   ignore auction.placeOrder(seller, #ask, ft1, #delayed, 1_000, 100_000, null);
 
   let ft2 = createFt(auction);
-  ignore auction.appendCredit(seller, ft2, 500_000_000);
+  ignore auction.appendCredit(seller, ft2, 500_000_000, null);
   ignore auction.placeOrder(seller, #ask, ft2, #delayed, 1_000, 100_000, null);
 
   let ft3 = createFt(auction);
 
-  ignore auction.appendCredit(user, 0, 500_000_000);
+  ignore auction.appendCredit(user, 0, 500_000_000, null);
   ignore auction.placeOrder(user, #bid, ft1, #delayed, 1_000, 100_000, null);
   ignore auction.placeOrder(user, #bid, ft2, #delayed, 1_000, 100_000, null);
 
@@ -115,14 +115,14 @@ do {
   let seller = Principal.fromText("ocqy6-3dphi-xgf54-vkr2e-lk4oz-3exc6-446gr-5e72g-bsdfo-4nzrm-hqe");
 
   let ft1 = createFt(auction);
-  ignore auction.appendCredit(seller, ft1, 500_000_000);
+  ignore auction.appendCredit(seller, ft1, 500_000_000, null);
   ignore auction.placeOrder(seller, #ask, ft1, #delayed, 1_000, 100_000, null);
 
   let ft2 = createFt(auction);
-  ignore auction.appendCredit(seller, ft2, 500_000_000);
+  ignore auction.appendCredit(seller, ft2, 500_000_000, null);
   ignore auction.placeOrder(seller, #ask, ft2, #delayed, 1_000, 100_000, null);
 
-  ignore auction.appendCredit(user, 0, 500_000_000);
+  ignore auction.appendCredit(user, 0, 500_000_000, null);
   ignore auction.placeOrder(user, #bid, ft1, #delayed, 1_000, 100_000, null);
   ignore auction.placeOrder(user, #bid, ft2, #delayed, 1_000, 100_000, null);
 
@@ -140,14 +140,14 @@ do {
   let seller = Principal.fromText("ocqy6-3dphi-xgf54-vkr2e-lk4oz-3exc6-446gr-5e72g-bsdfo-4nzrm-hqe");
 
   let ft1 = createFt(auction);
-  ignore auction.appendCredit(seller, ft1, 500_000_000);
+  ignore auction.appendCredit(seller, ft1, 500_000_000, null);
   ignore auction.placeOrder(seller, #ask, ft1, #delayed, 1_000, 100_000, null);
 
   let ft2 = createFt(auction);
-  ignore auction.appendCredit(seller, ft2, 500_000_000);
+  ignore auction.appendCredit(seller, ft2, 500_000_000, null);
   ignore auction.placeOrder(seller, #ask, ft2, #delayed, 1_000, 100_000, null);
 
-  ignore auction.appendCredit(user, 0, 500_000_000);
+  ignore auction.appendCredit(user, 0, 500_000_000, null);
   ignore auction.placeOrder(user, #bid, ft1, #delayed, 1_000, 100_000, null);
   ignore auction.placeOrder(user, #bid, ft2, #delayed, 1_000, 100_000, null);
 
