@@ -80,6 +80,7 @@ module {
               delayed = AssetOrderBook.nil(#ask);
             };
             var lastRate = 0;
+            var lastImmediateRate = 0;
             var lastProcessingInstructions = 0;
             var totalExecutedVolumeBase = 0;
             var totalExecutedVolumeQuote = 0;

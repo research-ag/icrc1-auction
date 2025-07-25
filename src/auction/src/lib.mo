@@ -77,6 +77,7 @@ module {
     };
     {
       data with
+      assets = Vec.map<T.StableAssetInfoV1, T.StableAssetInfoV2>(data.assets, func(x) = { x with lastImmediateRate = 0.0 });
       sessions = {
         counter = data.sessions.counter;
         history = {
@@ -201,8 +202,7 @@ module {
           };
           Vec.add(ret, (price, volume));
           assets.pushToHistory(#immediate, (Prim.time(), 0, assetId, volume, price));
-          // TODO should we update asset last rate on immediate order book execution?
-          assetInfo.lastRate := price;
+          assetInfo.lastImmediateRate := price;
         };
         Vec.toArray(ret);
       }
@@ -471,10 +471,11 @@ module {
 
     // ============= system interface =============
     public func share() : T.StableDataV2 = {
-      assets = Vec.map<T.AssetInfo, T.StableAssetInfoV1>(
+      assets = Vec.map<T.AssetInfo, T.StableAssetInfoV2>(
         assets.assets,
         func(x) = {
           lastRate = x.lastRate;
+          lastImmediateRate = x.lastImmediateRate;
           lastProcessingInstructions = x.lastProcessingInstructions;
           totalExecutedVolumeBase = x.totalExecutedVolumeBase;
           totalExecutedVolumeQuote = x.totalExecutedVolumeQuote;
@@ -531,7 +532,7 @@ module {
     };
 
     public func unshare(data : T.StableDataV2) {
-      assets.assets := Vec.map<T.StableAssetInfoV1, T.AssetInfo>(
+      assets.assets := Vec.map<T.StableAssetInfoV2, T.AssetInfo>(
         data.assets,
         func(x) = {
           asks = {
@@ -543,6 +544,7 @@ module {
             immediate = AssetOrderBook.nil(#bid);
           };
           var lastRate = x.lastRate;
+          var lastImmediateRate = x.lastImmediateRate;
           var lastProcessingInstructions = x.lastProcessingInstructions;
           var totalExecutedVolumeBase = x.totalExecutedVolumeBase;
           var totalExecutedVolumeQuote = x.totalExecutedVolumeQuote;

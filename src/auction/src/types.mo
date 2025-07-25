@@ -50,6 +50,7 @@ module {
       delayed : AssetOrderBook;
     };
     var lastRate : Float;
+    var lastImmediateRate : Float;
     var lastProcessingInstructions : Nat;
     var totalExecutedVolumeBase : Nat;
     var totalExecutedVolumeQuote : Nat;
@@ -73,7 +74,7 @@ module {
 
   // stable data types
   public type StableDataV2 = {
-    assets : Vec.Vector<StableAssetInfoV1>;
+    assets : Vec.Vector<StableAssetInfoV2>;
     orders : { globalCounter : Nat };
     quoteToken : { surplus : Nat };
     sessions : {
@@ -96,8 +97,9 @@ module {
     };
   };
 
-  public type StableAssetInfoV1 = {
+  public type StableAssetInfoV2 = {
     lastRate : Float;
+    lastImmediateRate : Float;
     lastProcessingInstructions : Nat;
     totalExecutedVolumeBase : Nat;
     totalExecutedVolumeQuote : Nat;
@@ -140,6 +142,13 @@ module {
       };
       accountsAmount : Nat;
     };
+  };
+  public type StableAssetInfoV1 = {
+    lastRate : Float;
+    lastProcessingInstructions : Nat;
+    totalExecutedVolumeBase : Nat;
+    totalExecutedVolumeQuote : Nat;
+    totalExecutedOrders : Nat;
   };
   public type StableUserInfoV1 = {
     asks : UserOrderBook_<StableOrderDataV1>;
