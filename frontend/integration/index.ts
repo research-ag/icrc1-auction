@@ -4,8 +4,8 @@ import { useSnackbar } from 'notistack';
 import { useIdentity } from './identity';
 import { Principal } from '@dfinity/principal';
 import { useMemo } from 'react';
-import { createActor } from '@declarations/icrc1_auction_continuous';
-import { AuctionQueryResponse } from '@declarations/icrc1_auction_continuous/icrc1_auction_continuous.did';
+import { createActor } from '@declarations/icrc1_auction_development';
+import { AuctionQueryResponse } from '@declarations/icrc1_auction_development/icrc1_auction_development.did';
 import { createActor as createLedgerActor } from '@declarations/icrc1_ledger_mock';
 import { CKBTC_MINTER_MAINNET_XPUBKEY, Minter } from '@research-ag/ckbtc-address-js';
 
@@ -28,7 +28,7 @@ const replaceBigInts = <T>(obj: T): T => {
   return obj;
 };
 
-export const defaultAuctionCanisterId = 'kkmxt-jqaaa-aaaap-anwoq-cai';
+export const defaultAuctionCanisterId = 'farwr-jqaaa-aaaao-qj4ya-cai';
 
 let ckBtcMinter = new Minter(CKBTC_MINTER_MAINNET_XPUBKEY);
 
