@@ -2,7 +2,7 @@ import Array "mo:base/Array";
 import AssocList "mo:base/AssocList";
 import Float "mo:base/Float";
 import Int "mo:base/Int";
-import Iter "mo:base/Iter";
+import Iter "mo:core/Iter";
 import List "mo:base/List";
 import Nat "mo:base/Nat";
 import Option "mo:base/Option";
@@ -18,6 +18,7 @@ import Credits "./credits";
 import Users "./users";
 
 import T "./types";
+import AssetOrderBook "asset_order_book";
 
 module {
 
@@ -27,11 +28,12 @@ module {
   };
 
   public type PlaceOrderAction = {
-    #ask : (assetId : T.AssetId, volume : Nat, price : Float);
-    #bid : (assetId : T.AssetId, volume : Nat, price : Float);
+    #ask : (assetId : T.AssetId, orderBookType : T.OrderBookType, volume : Nat, price : Float);
+    #bid : (assetId : T.AssetId, orderBookType : T.OrderBookType, volume : Nat, price : Float);
   };
 
-  public type CancellationResult = (T.OrderId, assetId : T.AssetId, volume : Nat, price : Float);
+  public type CancellationResult = (T.OrderId, assetId : T.AssetId, orderBookType : T.OrderBookType, volume : Nat, price : Float);
+  public type PlaceOrderResult = (T.OrderId, { #placed; #executed : [(price : Float, volume : Nat)] });
 
   public type InternalCancelOrderError = {
     #UnknownOrder;
@@ -46,24 +48,58 @@ module {
   };
 
   public type OrderManagementError = {
-    #SessionNumberMismatch : T.AssetId;
+    #AccountRevisionMismatch;
     #cancellation : { index : Nat; error : InternalCancelOrderError };
     #placement : { index : Nat; error : InternalPlaceOrderError };
   };
 
-  /// helper class to work with orders of given asset
-  public class OrderBookService(service : OrdersService, assetInfo : T.AssetInfo) {
+  /// helper class to work with all orders of given asset
+  public class OrderBookExecutionService(service : OrdersService, assetInfo : T.AssetInfo, orderBookType : { #immediate; #combined }) {
 
-    public func queue() : List.List<(T.OrderId, T.Order)> = service.assetOrdersQueue(assetInfo);
-
-    public func nextOrder() : ?(T.OrderId, T.Order) = switch (queue()) {
-      case (?(x, _)) ?x;
-      case (_) null;
+    public func toIter() : Iter.Iter<(T.OrderId, T.Order)> {
+      switch (orderBookType) {
+        // Note: for immediate order book we always take only the first entry, because clearing happens for each ask-bid pair separately
+        case (#immediate) service.assetOrderBook(assetInfo, #immediate).queue |> List.toIter(_) |> Iter.take(_, 1);
+        case (#combined) {
+          var delayedCursor = service.assetOrderBook(assetInfo, #delayed).queue;
+          var immediateCursor = service.assetOrderBook(assetInfo, #immediate).queue;
+          object {
+            public func next() : ?(T.OrderId, T.Order) {
+              switch (delayedCursor, immediateCursor) {
+                case (?(d, nextD), ?(i, nextI)) switch (AssetOrderBook.comparePriority(service.kind)(d, i)) {
+                  case (#less) {
+                    immediateCursor := nextI;
+                    ?i;
+                  };
+                  // delayed order with the same price has greater priority
+                  case (_) {
+                    delayedCursor := nextD;
+                    ?d;
+                  };
+                };
+                case (?(x, next), null) {
+                  delayedCursor := next;
+                  ?x;
+                };
+                case (null, ?(x, next)) {
+                  immediateCursor := next;
+                  ?x;
+                };
+                case (_) null;
+              };
+            };
+          };
+        };
+      };
     };
+
+    public func nextOrder() : ?(T.OrderId, T.Order) = toIter().next();
 
     public func fulfilOrder(sessionNumber : Nat, orderId : T.OrderId, order : T.Order, maxVolume : Nat, price : Float) : (volume : Nat, quoteVol : Nat) {
       service.fulfil(assetInfo, sessionNumber, orderId, order, maxVolume, price);
     };
+
+    public func totalVolume() : Nat = service.assetOrderBook(assetInfo, #delayed).totalVolume + service.assetOrderBook(assetInfo, #immediate).totalVolume;
   };
 
   /// A class with functionality to operate on all orders of the given type across the auction
@@ -77,7 +113,7 @@ module {
     kind_ : { #ask; #bid },
   ) = self {
 
-    public func createOrderBookService(assetInfo : T.AssetInfo) : OrderBookService = OrderBookService(self, assetInfo);
+    public func createOrderBookExecutionService(assetInfo : T.AssetInfo, orderBookType : { #immediate; #combined }) : OrderBookExecutionService = OrderBookExecutionService(self, assetInfo, orderBookType);
 
     public let kind : { #ask; #bid } = kind_;
 
@@ -120,32 +156,25 @@ module {
       case (#bid) oppositeOrderPrice <= orderPrice;
     };
 
-    public func assetOrdersQueue(assetInfo : T.AssetInfo) : List.List<(T.OrderId, T.Order)> = switch (kind) {
-      case (#ask) assetInfo.asks.queue;
-      case (#bid) assetInfo.bids.queue;
-    };
+    public func assetOrderBook(assetInfo : T.AssetInfo, orderBookType : T.OrderBookType) : T.AssetOrderBook = assets.getOrderBook(assetInfo, kind, orderBookType);
 
-    public func place(userInfo : T.UserInfo, accountToCharge : T.Account, assetInfo : T.AssetInfo, orderId : T.OrderId, order : T.Order) {
+    public func place(userInfo : T.UserInfo, accountToCharge : T.Account, assetInfo : T.AssetInfo, orderId : T.OrderId, order : T.Order) : Nat {
       // charge user credits
       let (success, _) = credits.lockCredit(accountToCharge, srcVolume(order.volume, order.price));
       assert success;
       // insert into order lists
       users.putOrder(userInfo, kind, orderId, order);
       assets.putOrder(assetInfo, kind, orderId, order);
-      // add rewards
-      userInfo.loyaltyPoints += C.LOYALTY_REWARD.ORDER_MODIFICATION;
     };
 
     public func cancel(userInfo : T.UserInfo, orderId : T.OrderId) : ?T.Order {
       // find and remove from order lists
       let ?existingOrder = users.deleteOrder(userInfo, kind, orderId) else return null;
-      assets.getAsset(existingOrder.assetId) |> assets.deleteOrder(_, kind, orderId);
+      assets.getAsset(existingOrder.assetId) |> assets.deleteOrder(_, kind, existingOrder.orderBookType, orderId);
       // return deposit to user
       let ?sourceAcc = credits.getAccount(userInfo, srcAssetId(existingOrder.assetId)) else Prim.trap("Can never happen");
       let (success, _) = credits.unlockCredit(sourceAcc, srcVolume(existingOrder.volume, existingOrder.price));
       assert success;
-      // add rewards
-      userInfo.loyaltyPoints += C.LOYALTY_REWARD.ORDER_MODIFICATION;
 
       ?existingOrder;
     };
@@ -173,7 +202,7 @@ module {
         assets.deductOrderVolume(assetInfo, kind, order, baseVolume); // shrink order
       } else {
         users.deleteOrder(order.userInfoRef, kind, orderId) |> (ignore _); // delete order
-        assets.deleteOrder(assetInfo, kind, orderId); // delete order
+        assets.deleteOrder(assetInfo, kind, order.orderBookType, orderId); // delete order
       };
 
       // debit at source
@@ -194,6 +223,8 @@ module {
       if (not isPartial) {
         assetInfo.totalExecutedOrders += 1;
       };
+
+      order.userInfoRef.accountRevision += 1;
       order.userInfoRef.loyaltyPoints += C.LOYALTY_REWARD.ORDER_EXECUTION + quoteVolume / C.LOYALTY_REWARD.ORDER_VOLUME_DIVISOR;
       switch (kind) {
         case (#ask) assetInfo.totalExecutedVolumeQuote += quoteVolume;
@@ -220,6 +251,8 @@ module {
     public let quoteVolumeStep : Nat = 10 ** settings.volumeStepLog10;
     public let minQuoteVolume : Nat = settings.minVolumeSteps * quoteVolumeStep;
     public let priceMaxDigits : Nat = settings.priceMaxDigits;
+
+    public var executeImmediateOrderBooks : ?((assetId : T.AssetId, advantageFor : { #ask; #bid }) -> [(price : Float, volume : Nat)]) = null;
 
     public func getBaseVolumeStep(price : Float) : Nat {
       let p = price / Float.fromInt(10 ** settings.volumeStepLog10);
@@ -281,8 +314,17 @@ module {
       userInfo : T.UserInfo,
       cancellations : ?CancellationAction,
       placements : [PlaceOrderAction],
-      expectedSessionNumber : ?Nat,
-    ) : R.Result<([CancellationResult], [T.OrderId]), OrderManagementError> {
+      expectedAccountRevision : ?Nat,
+    ) : R.Result<([CancellationResult], [PlaceOrderResult]), OrderManagementError> {
+
+      switch (expectedAccountRevision) {
+        case (?rev) {
+          if (rev != userInfo.accountRevision) {
+            return #err(#AccountRevisionMismatch);
+          };
+        };
+        case (null) {};
+      };
 
       // temporary list of new balances for all affected user credit accounts
       var newBalances : AssocList.AssocList<T.AssetId, Nat> = null;
@@ -302,7 +344,7 @@ module {
 
       // array of functions which will write all changes to the state
       var cancellationCommitActions : List.List<() -> [CancellationResult]> = null;
-      let placementCommitActions : [var () -> T.OrderId] = Array.init<() -> T.OrderId>(placements.size(), func() = 0);
+      let placementCommitActions = Array.init<() -> PlaceOrderResult>(placements.size(), func() = (0, #placed));
 
       // update temporary balances: add unlocked credits for each cancelled order
       func affectNewBalancesWithCancellation(ordersService : OrdersService, order : T.Order) {
@@ -332,7 +374,7 @@ module {
               switch (userOrderBook.map) {
                 case (?((orderId, _), _)) {
                   let ?order = ordersService.cancel(userInfo, orderId) else Prim.trap("Can never happen");
-                  Vec.add(ret, (orderId, order.assetId, order.volume, order.price));
+                  Vec.add(ret, (orderId, order.assetId, order.orderBookType, order.volume, order.price));
                 };
                 case (_) break l;
               };
@@ -359,7 +401,7 @@ module {
             let ret : Vec.Vector<CancellationResult> = Vec.new();
             for (orderId in Vec.vals(orderIds)) {
               let ?order = ordersService.cancel(userInfo, orderId) else Prim.trap("Can never happen");
-              Vec.add(ret, (orderId, order.assetId, order.volume, order.price));
+              Vec.add(ret, (orderId, order.assetId, order.orderBookType, order.volume, order.price));
             };
             Vec.toArray(ret);
           },
@@ -369,40 +411,19 @@ module {
 
       switch (cancellations) {
         case (null) {};
-        case (? #all(null)) {
-          switch (expectedSessionNumber) {
-            case (?sn) {
-              for ((asset, aid) in Vec.items(assets.assets)) {
-                if (aid != quoteAssetId and asset.sessionsCounter != sn) {
-                  return #err(#SessionNumberMismatch(aid));
-                };
-              };
-            };
-            case (null) {};
-          };
+        case (?#all(null)) {
           asksDelta.isOrderCancelled := func(_, _) = true;
           bidsDelta.isOrderCancelled := func(_, _) = true;
           prepareBulkCancellation(asks);
           prepareBulkCancellation(bids);
         };
-        case (? #all(?aids)) {
-          switch (expectedSessionNumber) {
-            case (?sn) {
-              for (i in aids.keys()) {
-                let aid = aids[i];
-                if (Vec.get(assets.assets, aid).sessionsCounter != sn) {
-                  return #err(#SessionNumberMismatch(aid));
-                };
-              };
-            };
-            case (null) {};
-          };
+        case (?#all(?aids)) {
           asksDelta.isOrderCancelled := func(assetId, _) = Array.find<Nat>(aids, func(x) = x == assetId) |> not Option.isNull(_);
           bidsDelta.isOrderCancelled := func(assetId, _) = Array.find<Nat>(aids, func(x) = x == assetId) |> not Option.isNull(_);
           prepareBulkCancellationWithFilter(asks, asksDelta.isOrderCancelled);
           prepareBulkCancellationWithFilter(bids, bidsDelta.isOrderCancelled);
         };
-        case (? #orders(orders)) {
+        case (?#orders(orders)) {
           let cancelledAsks : RBTree.RBTree<T.OrderId, ()> = RBTree.RBTree(Nat.compare);
           let cancelledBids : RBTree.RBTree<T.OrderId, ()> = RBTree.RBTree(Nat.compare);
           asksDelta.isOrderCancelled := func(_, orderId) = cancelledAsks.get(orderId) |> not Option.isNull(_);
@@ -420,21 +441,11 @@ module {
             cancellationCommitActions := List.push<() -> [CancellationResult]>(
               func() {
                 let ?order = ordersService.cancel(userInfo, orderId) else return [];
-                [(orderId, order.assetId, order.volume, order.price)];
+                [(orderId, order.assetId, order.orderBookType, order.volume, order.price)];
               },
               cancellationCommitActions,
             );
             AssocList.replace<T.AssetId, Nat>(assetIdSet, oldOrder.assetId, Nat.equal, ?i) |> (assetIdSet := _.0);
-          };
-          switch (expectedSessionNumber) {
-            case (?sn) {
-              for ((aid, index) in List.toIter(assetIdSet)) {
-                if (Vec.get(assets.assets, aid).sessionsCounter != sn) {
-                  return #err(#SessionNumberMismatch(aid));
-                };
-              };
-            };
-            case (null) {};
           };
         };
       };
@@ -442,7 +453,7 @@ module {
       // validate and prepare placements
       var assetIdSet : AssocList.AssocList<T.AssetId, Nat> = null;
       for (i in placements.keys()) {
-        let (ordersService, (assetId, volume, rawPrice), ordersDelta, oppositeOrdersDelta) = switch (placements[i]) {
+        let (ordersService, (assetId, orderBookType, volume, rawPrice), ordersDelta, oppositeOrdersDelta) = switch (placements[i]) {
           case (#ask(args)) (asks, args, asksDelta, bidsDelta);
           case (#bid(args)) (bids, args, bidsDelta, asksDelta);
         };
@@ -512,8 +523,9 @@ module {
         let order : T.Order = {
           user = p;
           userInfoRef = userInfo;
-          assetId = assetId;
-          price = price;
+          assetId;
+          orderBookType;
+          price;
           var volume = volume;
         };
         ordersDelta.placed := List.push((null, order), ordersDelta.placed);
@@ -521,20 +533,20 @@ module {
         placementCommitActions[i] := func() {
           let orderId = ordersCounter;
           ordersCounter += 1;
-          ordersService.place(userInfo, chargeAcc, assetInfo, orderId, order);
-          orderId;
-        };
-        AssocList.replace<T.AssetId, Nat>(assetIdSet, assetId, Nat.equal, ?i) |> (assetIdSet := _.0);
-      };
-      switch (expectedSessionNumber) {
-        case (?sn) {
-          for ((aid, index) in List.toIter(assetIdSet)) {
-            if (Vec.get(assets.assets, aid).sessionsCounter != sn) {
-              return #err(#SessionNumberMismatch(aid));
+          switch (order.orderBookType, ordersService.place(userInfo, chargeAcc, assetInfo, orderId, order)) {
+            case (#immediate, 0) {
+              let ?executeFunc = executeImmediateOrderBooks else Prim.trap("execute function was not set");
+              let executionResults = executeFunc(order.assetId, ordersService.kind);
+              if (executionResults.size() > 0) {
+                (orderId, #executed(executionResults));
+              } else {
+                (orderId, #placed);
+              };
             };
+            case (_) (orderId, #placed);
           };
         };
-        case (null) {};
+        AssocList.replace<T.AssetId, Nat>(assetIdSet, assetId, Nat.equal, ?i) |> (assetIdSet := _.0);
       };
 
       // commit changes, return results
@@ -544,7 +556,12 @@ module {
           Vec.add(retCancellations, c);
         };
       };
-      let retPlacements = Array.tabulate<T.OrderId>(placementCommitActions.size(), func(i) = placementCommitActions[i]());
+      let retPlacements = Array.tabulate<PlaceOrderResult>(placementCommitActions.size(), func(i) = placementCommitActions[i]());
+
+      if (Vec.size(retCancellations) > 0 or placements.size() > 0) {
+        userInfo.accountRevision += 1;
+        userInfo.loyaltyPoints += (Vec.size(retCancellations) + placements.size()) * C.LOYALTY_REWARD.ORDER_MODIFICATION;
+      };
 
       if (placements.size() > 0) {
         let oldRecord = users.participantsArchive.replace(p, { lastOrderPlacement = Prim.time() });

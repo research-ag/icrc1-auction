@@ -226,6 +226,7 @@ export const useAuctionQuery = () => {
           deposit_history: [[BigInt(10000), BigInt(0)]],
           transaction_history: [[BigInt(10000), BigInt(0)]],
           price_history: [],
+          immediate_price_history: [],
           reversed_history: [true],
           last_prices: [],
         }),
@@ -357,9 +358,9 @@ export const usePlaceOrder = (kind: 'ask' | 'bid') => {
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
   return useMutation(
-    (formObj: { ledger: string; volume: number; price: number }) =>
+    (formObj: { ledger: string; volume: number; price: number; orderBookType: 'delayed' | 'immediate' }) =>
       (kind === 'bid' ? auction.placeBids : auction.placeAsks).bind(auction)(
-        [[Principal.fromText(formObj.ledger), BigInt(formObj.volume), Number(formObj.price)]],
+        [[Principal.fromText(formObj.ledger), { [formObj.orderBookType]: null } as any, BigInt(formObj.volume), Number(formObj.price)]],
         [],
       ),
     {
@@ -368,9 +369,15 @@ export const usePlaceOrder = (kind: 'ask' | 'bid') => {
           enqueueSnackbar(`Failed to place a ${kind}: ${JSON.stringify(res.Err, bigIntReplacer)}`, {
             variant: 'error',
           });
-        } else {
+        } else if ('Ok' in res) {
           queryClient.invalidateQueries('auctionQuery');
-          enqueueSnackbar(`${kind} placed`, { variant: 'success' });
+          let orderId = res['Ok'][0];
+          if ('placed' in res['Ok'][1]) {
+            enqueueSnackbar(`${kind} placed, order ID: ${orderId}`, { variant: 'success' });
+          } else if ('executed' in res['Ok'][1]) {
+            let [price, volumeExecuted] = res['Ok'][1]['executed'];
+            enqueueSnackbar(`${kind} executed with price ${price}, volume executed: ${volumeExecuted}`, { variant: 'success' });
+          }
         }
       },
       onError: err => {
@@ -431,6 +438,7 @@ export const usePriceHistory = (limit: number, offset: number) => {
         deposit_history: [],
         transaction_history: [],
         price_history: [[BigInt(limit), BigInt(offset), false]],
+        immediate_price_history: [],
         reversed_history: [true],
         last_prices: [],
       });

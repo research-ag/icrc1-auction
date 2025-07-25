@@ -1,5 +1,6 @@
 [dependencies]
-base = "0.14.9"
+base = "0.14.14"
+core = "0.6.0"
 promtracker = "0.5.4"
 vector = "0.4.1"
 bitcoin = "0.1.1"
@@ -7,6 +8,7 @@ icrc-84 = "0.1.0"
 token-handler = "0.0.4"
 ckbtc-address = "0.0.1"
 auction = "3.0.0"
+mrr = "https://github.com/research-ag/motoko-lib#9939f9e79ce37e975b64aec18c0f9b186514bdaf"
 
 [toolchain]
-moc = "0.14.9"
+moc = "0.14.14"

@@ -2,9 +2,21 @@ import { useEffect, useMemo } from 'react';
 import { Controller, SubmitHandler, useForm, useFormState } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z as zod } from 'zod';
-import { Box, Button, FormControl, FormLabel, Input, Modal, ModalClose, ModalDialog, Typography } from '@mui/joy';
+import {
+  Box,
+  Button,
+  FormControl,
+  FormLabel,
+  Input,
+  Modal,
+  ModalClose,
+  ModalDialog,
+  Radio,
+  RadioGroup,
+  Typography
+} from '@mui/joy';
 
-import { usePlaceOrder, useTokenInfoMap, useQuoteLedger } from '@fe/integration';
+import { usePlaceOrder, useQuoteLedger, useTokenInfoMap } from '@fe/integration';
 import ErrorAlert from '../../../components/error-alert';
 import { Principal } from '@dfinity/principal';
 import { useSnackbar } from 'notistack';
@@ -13,6 +25,7 @@ interface PlaceOrderFormValues {
   symbol: string;
   volume: number;
   price: number;
+  orderBookType: 'immediate' | 'delayed';
 }
 
 interface PlaceOrderModalProps {
@@ -33,6 +46,7 @@ const schema = zod.object({
     .string()
     .min(0)
     .refine(value => !isNaN(Number(value))),
+  orderBookType: zod.enum(['immediate', 'delayed']),
 });
 
 const PlaceOrderModal = ({ kind, isOpen, onClose }: PlaceOrderModalProps) => {
@@ -41,6 +55,7 @@ const PlaceOrderModal = ({ kind, isOpen, onClose }: PlaceOrderModalProps) => {
       symbol: '',
       volume: 0,
       price: 0,
+      orderBookType: 'delayed',
     }),
     [],
   );
@@ -89,6 +104,7 @@ const PlaceOrderModal = ({ kind, isOpen, onClose }: PlaceOrderModalProps) => {
       ledger: p.toText(),
       price: data.price * Math.pow(10, getQuoteDecimals() - decimals),
       volume: Math.round(data.volume * Math.pow(10, decimals)),
+      orderBookType: data.orderBookType,
     }, {
       onSuccess: () => {
         onClose();
@@ -104,10 +120,26 @@ const PlaceOrderModal = ({ kind, isOpen, onClose }: PlaceOrderModalProps) => {
   return (
     <Modal open={isOpen} onClose={onClose}>
       <ModalDialog sx={{ width: 'calc(100% - 50px)', maxWidth: '450px' }}>
-        <ModalClose />
+        <ModalClose/>
         <Typography level="h4">Place {kind}</Typography>
         <form onSubmit={handleSubmit(submit)} autoComplete="off">
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <Controller
+              name="orderBookType"
+              control={control}
+              render={({ field }) => (
+                <FormControl>
+                  <FormLabel>Order Book Type</FormLabel>
+                  <RadioGroup
+                    name={field.name}
+                    value={field.value}
+                    onChange={field.onChange}>
+                    <Radio value="delayed" label="Delayed"/>
+                    <Radio value="immediate" label="Immediate"/>
+                  </RadioGroup>
+                </FormControl>
+              )}
+            />
             <Controller
               name="symbol"
               control={control}
@@ -163,7 +195,7 @@ const PlaceOrderModal = ({ kind, isOpen, onClose }: PlaceOrderModalProps) => {
               )}
             />
           </Box>
-          {!!error && <ErrorAlert errorMessage={(error as Error).message} />}
+          {!!error && <ErrorAlert errorMessage={(error as Error).message}/>}
           <Button
             sx={{ marginTop: 2 }}
             variant="solid"

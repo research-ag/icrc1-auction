@@ -17,20 +17,23 @@ module {
     var lockedCredit : Nat;
   };
 
+  public type OrderBookType = { #delayed; #immediate };
+
   public type Order = {
     user : Principal;
     userInfoRef : UserInfo;
     assetId : AssetId;
+    orderBookType : OrderBookType;
     price : Float;
     var volume : Nat;
   };
 
-  type AssetOrderBook_<O> = {
-    var queue : PriorityQueue.PriorityQueue<(OrderId, O)>;
+  public type AssetOrderBook = {
+    kind : { #ask; #bid };
+    var queue : PriorityQueue.PriorityQueue<(OrderId, Order)>;
     var size : Nat;
     var totalVolume : Nat;
   };
-  public type AssetOrderBook = AssetOrderBook_<Order>;
 
   public type UserOrderBook_<O> = {
     var map : AssocList.AssocList<OrderId, O>;
@@ -38,9 +41,16 @@ module {
   public type UserOrderBook = UserOrderBook_<Order>;
 
   public type AssetInfo = {
-    asks : AssetOrderBook;
-    bids : AssetOrderBook;
+    asks : {
+      immediate : AssetOrderBook;
+      delayed : AssetOrderBook;
+    };
+    bids : {
+      immediate : AssetOrderBook;
+      delayed : AssetOrderBook;
+    };
     var lastRate : Float;
+    var lastImmediateRate : Float;
     var lastProcessingInstructions : Nat;
     var totalExecutedVolumeBase : Nat;
     var totalExecutedVolumeQuote : Nat;
@@ -52,23 +62,27 @@ module {
     asks : UserOrderBook;
     bids : UserOrderBook;
     var credits : AssocList.AssocList<AssetId, Account>;
+    var accountRevision : Nat;
     var loyaltyPoints : Nat;
     var depositHistory : Vec.Vector<DepositHistoryItem>;
     var transactionHistory : Vec.Vector<TransactionHistoryItem>;
   };
 
   public type PriceHistoryItem = (timestamp : Nat64, sessionNumber : Nat, assetId : AssetId, volume : Nat, price : Float);
-  public type DepositHistoryItem = (timestamp : Nat64, kind : { #deposit : ?Blob; #withdrawal : ?Blob }, assetId : AssetId, volume : Nat);
+  public type DepositHistoryItem = (timestamp : Nat64, kind : { #deposit; #withdrawal }, assetId : AssetId, volume : Nat);
   public type TransactionHistoryItem = (timestamp : Nat64, sessionNumber : Nat, kind : { #ask; #bid }, assetId : AssetId, volume : Nat, price : Float);
 
   // stable data types
   public type StableDataV2 = {
-    assets : Vec.Vector<StableAssetInfoV1>;
+    assets : Vec.Vector<StableAssetInfoV2>;
     orders : { globalCounter : Nat };
     quoteToken : { surplus : Nat };
     sessions : {
       counter : Nat;
-      history : Vec.Vector<PriceHistoryItem>;
+      history : {
+        immediate : ([var ?PriceHistoryItem], Nat, Nat);
+        delayed : Vec.Vector<PriceHistoryItem>;
+      };
     };
     users : {
       registry : {
@@ -83,24 +97,27 @@ module {
     };
   };
 
-  public type StableAssetInfoV1 = {
+  public type StableAssetInfoV2 = {
     lastRate : Float;
+    lastImmediateRate : Float;
     lastProcessingInstructions : Nat;
     totalExecutedVolumeBase : Nat;
     totalExecutedVolumeQuote : Nat;
     totalExecutedOrders : Nat;
   };
   public type StableUserInfoV2 = {
-    asks : UserOrderBook_<StableOrderDataV1>;
-    bids : UserOrderBook_<StableOrderDataV1>;
+    asks : UserOrderBook_<StableOrderDataV2>;
+    bids : UserOrderBook_<StableOrderDataV2>;
     credits : AssocList.AssocList<AssetId, Account>;
+    accountRevision : Nat;
     loyaltyPoints : Nat;
     depositHistory : Vec.Vector<DepositHistoryItem>;
     transactionHistory : Vec.Vector<TransactionHistoryItem>;
   };
-  public type StableOrderDataV1 = {
+  public type StableOrderDataV2 = {
     user : Principal;
     assetId : AssetId;
+    orderBookType : OrderBookType;
     price : Float;
     volume : Nat;
   };
@@ -126,13 +143,26 @@ module {
       accountsAmount : Nat;
     };
   };
+  public type StableAssetInfoV1 = {
+    lastRate : Float;
+    lastProcessingInstructions : Nat;
+    totalExecutedVolumeBase : Nat;
+    totalExecutedVolumeQuote : Nat;
+    totalExecutedOrders : Nat;
+  };
   public type StableUserInfoV1 = {
     asks : UserOrderBook_<StableOrderDataV1>;
     bids : UserOrderBook_<StableOrderDataV1>;
     credits : AssocList.AssocList<AssetId, Account>;
     loyaltyPoints : Nat;
-    depositHistory : Vec.Vector<(timestamp : Nat64, kind : { #deposit; #withdrawal }, assetId : AssetId, volume : Nat)>;
+    depositHistory : Vec.Vector<DepositHistoryItem>;
     transactionHistory : Vec.Vector<TransactionHistoryItem>;
+  };
+  public type StableOrderDataV1 = {
+    user : Principal;
+    assetId : AssetId;
+    price : Float;
+    volume : Nat;
   };
 
 };

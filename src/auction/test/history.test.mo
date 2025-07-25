@@ -11,17 +11,17 @@ do {
 
   let ft1 = createFt(auction);
   ignore auction.appendCredit(seller, ft1, 500_000_000, null);
-  ignore auction.placeOrder(seller, #ask, ft1, 1_000, 100_000, null);
+  ignore auction.placeOrder(seller, #ask, ft1, #delayed, 1_000, 100_000, null);
 
   let ft2 = createFt(auction);
   ignore auction.appendCredit(seller, ft2, 500_000_000, null);
-  ignore auction.placeOrder(seller, #ask, ft2, 1_000, 100_000, null);
+  ignore auction.placeOrder(seller, #ask, ft2, #delayed, 1_000, 100_000, null);
 
   let ft3 = createFt(auction);
 
   ignore auction.appendCredit(user, 0, 500_000_000, null);
-  ignore auction.placeOrder(user, #bid, ft1, 1_000, 100_000, null);
-  ignore auction.placeOrder(user, #bid, ft2, 1_000, 100_000, null);
+  ignore auction.placeOrder(user, #bid, ft1, #delayed, 1_000, 100_000, null);
+  ignore auction.placeOrder(user, #bid, ft2, #delayed, 1_000, 100_000, null);
 
   auction.processAsset(ft1);
   auction.processAsset(ft2);
@@ -47,17 +47,17 @@ do {
 
   let ft1 = createFt(auction);
   ignore auction.appendCredit(seller, ft1, 500_000_000, null);
-  ignore auction.placeOrder(seller, #ask, ft1, 1_000, 100_000, null);
+  ignore auction.placeOrder(seller, #ask, ft1, #delayed, 1_000, 100_000, null);
 
   let ft2 = createFt(auction);
   ignore auction.appendCredit(seller, ft2, 500_000_000, null);
-  ignore auction.placeOrder(seller, #ask, ft2, 1_000, 100_000, null);
+  ignore auction.placeOrder(seller, #ask, ft2, #delayed, 1_000, 100_000, null);
 
   let ft3 = createFt(auction);
 
   ignore auction.appendCredit(user, 0, 500_000_000, null);
-  ignore auction.placeOrder(user, #bid, ft1, 1_000, 100_000, null);
-  ignore auction.placeOrder(user, #bid, ft2, 1_000, 100_000, null);
+  ignore auction.placeOrder(user, #bid, ft1, #delayed, 1_000, 100_000, null);
+  ignore auction.placeOrder(user, #bid, ft2, #delayed, 1_000, 100_000, null);
 
   auction.processAsset(ft1);
   auction.processAsset(ft2);
@@ -83,17 +83,17 @@ do {
 
   let ft1 = createFt(auction);
   ignore auction.appendCredit(seller, ft1, 500_000_000, null);
-  ignore auction.placeOrder(seller, #ask, ft1, 1_000, 100_000, null);
+  ignore auction.placeOrder(seller, #ask, ft1, #delayed, 1_000, 100_000, null);
 
   let ft2 = createFt(auction);
   ignore auction.appendCredit(seller, ft2, 500_000_000, null);
-  ignore auction.placeOrder(seller, #ask, ft2, 1_000, 100_000, null);
+  ignore auction.placeOrder(seller, #ask, ft2, #delayed, 1_000, 100_000, null);
 
   let ft3 = createFt(auction);
 
   ignore auction.appendCredit(user, 0, 500_000_000, null);
-  ignore auction.placeOrder(user, #bid, ft1, 1_000, 100_000, null);
-  ignore auction.placeOrder(user, #bid, ft2, 1_000, 100_000, null);
+  ignore auction.placeOrder(user, #bid, ft1, #delayed, 1_000, 100_000, null);
+  ignore auction.placeOrder(user, #bid, ft2, #delayed, 1_000, 100_000, null);
 
   auction.processAsset(ft1);
   auction.processAsset(ft2);
@@ -116,15 +116,15 @@ do {
 
   let ft1 = createFt(auction);
   ignore auction.appendCredit(seller, ft1, 500_000_000, null);
-  ignore auction.placeOrder(seller, #ask, ft1, 1_000, 100_000, null);
+  ignore auction.placeOrder(seller, #ask, ft1, #delayed, 1_000, 100_000, null);
 
   let ft2 = createFt(auction);
   ignore auction.appendCredit(seller, ft2, 500_000_000, null);
-  ignore auction.placeOrder(seller, #ask, ft2, 1_000, 100_000, null);
+  ignore auction.placeOrder(seller, #ask, ft2, #delayed, 1_000, 100_000, null);
 
   ignore auction.appendCredit(user, 0, 500_000_000, null);
-  ignore auction.placeOrder(user, #bid, ft1, 1_000, 100_000, null);
-  ignore auction.placeOrder(user, #bid, ft2, 1_000, 100_000, null);
+  ignore auction.placeOrder(user, #bid, ft1, #delayed, 1_000, 100_000, null);
+  ignore auction.placeOrder(user, #bid, ft2, #delayed, 1_000, 100_000, null);
 
   auction.processAsset(ft1);
   auction.processAsset(ft2);
@@ -141,15 +141,15 @@ do {
 
   let ft1 = createFt(auction);
   ignore auction.appendCredit(seller, ft1, 500_000_000, null);
-  ignore auction.placeOrder(seller, #ask, ft1, 1_000, 100_000, null);
+  ignore auction.placeOrder(seller, #ask, ft1, #delayed, 1_000, 100_000, null);
 
   let ft2 = createFt(auction);
   ignore auction.appendCredit(seller, ft2, 500_000_000, null);
-  ignore auction.placeOrder(seller, #ask, ft2, 1_000, 100_000, null);
+  ignore auction.placeOrder(seller, #ask, ft2, #delayed, 1_000, 100_000, null);
 
   ignore auction.appendCredit(user, 0, 500_000_000, null);
-  ignore auction.placeOrder(user, #bid, ft1, 1_000, 100_000, null);
-  ignore auction.placeOrder(user, #bid, ft2, 1_000, 100_000, null);
+  ignore auction.placeOrder(user, #bid, ft1, #delayed, 1_000, 100_000, null);
+  ignore auction.placeOrder(user, #bid, ft2, #delayed, 1_000, 100_000, null);
 
   auction.processAsset(ft1);
   auction.processAsset(ft2);
