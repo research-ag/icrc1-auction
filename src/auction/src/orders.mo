@@ -2,7 +2,7 @@ import Array "mo:base/Array";
 import AssocList "mo:base/AssocList";
 import Float "mo:base/Float";
 import Int "mo:base/Int";
-import Iter "mo:base/Iter";
+import Iter "mo:core/Iter";
 import List "mo:base/List";
 import Nat "mo:base/Nat";
 import Option "mo:base/Option";
@@ -33,7 +33,7 @@ module {
   };
 
   public type CancellationResult = (T.OrderId, assetId : T.AssetId, orderBookType : T.OrderBookType, volume : Nat, price : Float);
-  public type PlaceOrderResult = (T.OrderId, { #placed; #executed : (price : Float, volume : Nat) });
+  public type PlaceOrderResult = (T.OrderId, { #placed; #executed : [(price : Float, volume : Nat)] });
 
   public type InternalCancelOrderError = {
     #UnknownOrder;
@@ -58,7 +58,8 @@ module {
 
     public func toIter() : Iter.Iter<(T.OrderId, T.Order)> {
       switch (orderBookType) {
-        case (#immediate) service.assetOrderBook(assetInfo, #immediate).queue |> List.toIter(_);
+        // Note: for immediate order book we always take only the first entry, because clearing happens for each ask-bid pair separately
+        case (#immediate) service.assetOrderBook(assetInfo, #immediate).queue |> List.toIter(_) |> Iter.take(_, 1);
         case (#combined) {
           var delayedCursor = service.assetOrderBook(assetInfo, #delayed).queue;
           var immediateCursor = service.assetOrderBook(assetInfo, #immediate).queue;
@@ -251,7 +252,7 @@ module {
     public let minQuoteVolume : Nat = settings.minVolumeSteps * quoteVolumeStep;
     public let priceMaxDigits : Nat = settings.priceMaxDigits;
 
-    public var executeImmediateOrderBooks : ?((assetId : T.AssetId) -> (price : Float, volume : Nat)) = null;
+    public var executeImmediateOrderBooks : ?((assetId : T.AssetId, advantageFor : { #ask; #bid }) -> [(price : Float, volume : Nat)]) = null;
 
     public func getBaseVolumeStep(price : Float) : Nat {
       let p = price / Float.fromInt(10 ** settings.volumeStepLog10);
@@ -535,9 +536,9 @@ module {
           switch (order.orderBookType, ordersService.place(userInfo, chargeAcc, assetInfo, orderId, order)) {
             case (#immediate, 0) {
               let ?executeFunc = executeImmediateOrderBooks else Prim.trap("execute function was not set");
-              let (price, clearingVolume) = executeFunc(order.assetId);
-              if (clearingVolume > 0) {
-                (orderId, #executed(price, Nat.min(volume, clearingVolume)));
+              let executionResults = executeFunc(order.assetId, ordersService.kind);
+              if (executionResults.size() > 0) {
+                (orderId, #executed(executionResults));
               } else {
                 (orderId, #placed);
               };

@@ -180,23 +180,31 @@ module {
       settings,
     );
     orders.executeImmediateOrderBooks := ?(
-      func(assetId : T.AssetId) : (price : Float, volume : Nat) {
-        if (assetId == quoteAssetId) return (0.0, 0);
+      func(assetId : T.AssetId, advantageFor : { #ask; #bid }) : [(price : Float, volume : Nat)] {
+        if (assetId == quoteAssetId) return [];
         let assetInfo = assets.getAsset(assetId);
-        let (price, volume, surplus) = processAuction(
-          0,
-          orders.asks.createOrderBookExecutionService(assetInfo, #immediate),
-          orders.bids.createOrderBookExecutionService(assetInfo, #immediate),
-        );
-        if (volume > 0) {
-          assets.pushToHistory(#immediate, (Prim.time(), 0, assetId, volume, price));
-          // TODO should we update asset last rate on immediate order book execution?
-          assetInfo.lastRate := price;
+        let ret = Vec.new<(Float, Nat)>();
+        let asks = orders.asks.createOrderBookExecutionService(assetInfo, #immediate);
+        let bids = orders.bids.createOrderBookExecutionService(assetInfo, #immediate);
+        label l while true {
+          let (_, volume) = clearAuction(asks, bids);
+          if (volume == 0) {
+            break l;
+          };
+          let ?(_, { price }) = switch (advantageFor) {
+            case (#ask) bids.nextOrder();
+            case (#bid) asks.nextOrder();
+          } else Prim.trap("Can never happen");
+          let surplus = processAuction(0, asks, bids, price, volume);
           if (surplus > 0) {
             credits.quoteSurplus += surplus;
           };
+          Vec.add(ret, (price, volume));
+          assets.pushToHistory(#immediate, (Prim.time(), 0, assetId, volume, price));
+          // TODO should we update asset last rate on immediate order book execution?
+          assetInfo.lastRate := price;
         };
-        (price, volume);
+        Vec.toArray(ret);
       }
     );
 
@@ -213,40 +221,41 @@ module {
       if (assetId == quoteAssetId) return;
       let startInstructions = settings.performanceCounter(0);
       let assetInfo = assets.getAsset(assetId);
-      let (price, volume, surplus) = processAuction(
-        sessionsCounter,
-        orders.asks.createOrderBookExecutionService(assetInfo, #combined),
-        orders.bids.createOrderBookExecutionService(assetInfo, #combined),
-      );
-      assets.pushToHistory(#delayed, (Prim.time(), sessionsCounter, assetId, volume, price));
-      assetInfo.lastProcessingInstructions := Nat64.toNat(settings.performanceCounter(0) - startInstructions);
-      assetInfo.sessionsCounter := sessionsCounter + 1;
+      let asks = orders.asks.createOrderBookExecutionService(assetInfo, #combined);
+      let bids = orders.bids.createOrderBookExecutionService(assetInfo, #combined);
+      let (price, volume) = clearAuction(asks, bids);
       if (volume > 0) {
-        assetInfo.lastRate := price;
+        let surplus = processAuction(sessionsCounter, asks, bids, price, volume);
         if (surplus > 0) {
           credits.quoteSurplus += surplus;
         };
+        assetInfo.lastRate := price;
       };
+      assets.pushToHistory(#delayed, (Prim.time(), sessionsCounter, assetId, volume, price));
+      assetInfo.lastProcessingInstructions := Nat64.toNat(settings.performanceCounter(0) - startInstructions);
+      assetInfo.sessionsCounter := sessionsCounter + 1;
     };
 
     public func indicativeAssetStats(assetId : AssetId) : IndicativeStats {
       let assetInfo = assets.getAsset(assetId);
       let asksOrderBook = orders.asks.createOrderBookExecutionService(assetInfo, #combined);
       let bidsOrderBook = orders.bids.createOrderBookExecutionService(assetInfo, #combined);
-      switch (clearAuction(asksOrderBook, bidsOrderBook)) {
-        case (?(price, volume)) ({
+      let (price, volume) = clearAuction(asksOrderBook, bidsOrderBook);
+      if (volume > 0) {
+        {
           clearing = #match({ price; volume });
           totalBidVolume = bidsOrderBook.totalVolume();
           totalAskVolume = asksOrderBook.totalVolume();
-        });
-        case (null) ({
+        };
+      } else {
+        {
           clearing = #noMatch({
             maxBidPrice = bidsOrderBook.nextOrder() |> Option.map<(T.OrderId, T.Order), Float>(_, func(b) = b.1.price);
             minAskPrice = asksOrderBook.nextOrder() |> Option.map<(T.OrderId, T.Order), Float>(_, func(b) = b.1.price);
           });
           totalBidVolume = bidsOrderBook.totalVolume();
           totalAskVolume = asksOrderBook.totalVolume();
-        });
+        };
       };
     };
     // ============= assets interface =============

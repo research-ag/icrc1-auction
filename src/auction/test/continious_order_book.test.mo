@@ -36,7 +36,8 @@ do {
   let (_, result) = U.requireOk(auction.placeOrder(seller, #ask, ft, #immediate, 2_000, 15_000, null));
   switch (result) {
     case (#placed) assert false;
-    case (#executed(price, volume)) {
+    case (#executed res) {
+      let (price, volume) = res[0];
       assert price == 15_000;
       assert volume == 2_000;
     };
@@ -94,9 +95,13 @@ do {
   let (oid, result2) = U.requireOk(auction.placeOrder(buyer, #bid, ft, #immediate, 5_000, 18_000, null));
   switch (result2) {
     case (#placed) assert false;
-    case (#executed(price, volume)) {
-      assert price == 18_000;
-      assert volume == 4_000;
+    case (#executed res) {
+      // 2_000 volume from seller0
+      assert res[0].0 == 15_000;
+      assert res[0].1 == 2_000;
+      // 2_000 volume from seller1
+      assert res[1].0 == 16_000;
+      assert res[1].1 == 2_000;
     };
   };
   let ?order = auction.getOrder(buyer, #bid, oid) else Prim.trap("order not found");
@@ -105,7 +110,6 @@ do {
 
   assert auction.getOrders(seller0, #ask, ?ft).size() == 0;
   assert auction.getOrders(seller1, #ask, ?ft).size() == 0;
-
 };
 
 do {
@@ -184,4 +188,137 @@ do {
   // sold with price 13_000 by seller1 (immediate ask)
   assert auction.getOrders(seller0, #ask, ?ft).size() == 1;
   assert auction.getOrders(seller1, #ask, ?ft).size() == 0;
+};
+
+do {
+  Prim.debugPrint("immediate orders should execute against multiple opposite orders with different prices (bid case)...");
+  let (auction, buyer) = init(0, 3, 5);
+  let ft = createFt(auction);
+  ignore auction.appendCredit(buyer, 0, 500_000_000);
+
+  let seller1 = Principal.fromText("sqez4-4bl6d-ymcv2-npdsk-p3xpk-zlwzb-isfiz-estoh-ioiez-rogoj-yqe");
+  ignore auction.appendCredit(seller1, ft, 500_000_000);
+  let seller2 = Principal.fromText("dkkzx-rn4st-jpxtx-c2q6z-wy2k7-uyffr-ks7hq-azcmt-zjwxi-btxoi-mqe");
+  ignore auction.appendCredit(seller2, ft, 500_000_000);
+
+  let (_, result1) = U.requireOk(auction.placeOrder(seller1, #ask, ft, #immediate, 500, 15_000, null));
+  switch (result1) {
+    case (#placed) {};
+    case (#executed _) assert false;
+  };
+  let (_, result2) = U.requireOk(auction.placeOrder(seller2, #ask, ft, #immediate, 500, 18_000, null));
+  switch (result2) {
+    case (#placed) {};
+    case (#executed _) assert false;
+  };
+  assert auction.getOrders(seller1, #ask, ?ft).size() == 1;
+  assert auction.getOrders(seller2, #ask, ?ft).size() == 1;
+
+  let (_, result3) = U.requireOk(auction.placeOrder(buyer, #bid, ft, #immediate, 1000, 20_000, null));
+  switch (result3) {
+    case (#placed) assert false;
+    case (#executed res) {
+      // 500 volume from seller1
+      assert res[0].0 == 15_000;
+      assert res[0].1 == 500;
+      // 500 volume from seller2
+      assert res[1].0 == 18_000;
+      assert res[1].1 == 500;
+    };
+  };
+
+  assert auction.getOrders(seller1, #ask, ?ft).size() == 0;
+  assert auction.getOrders(seller2, #ask, ?ft).size() == 0;
+
+  assert auction.getCredit(buyer, ft) == {
+    available = 1000;
+    locked = 0;
+    total = 1000;
+  };
+
+  assert auction.getCredit(seller1, 0) == {
+    available = 7_500_000;
+    locked = 0;
+    total = 7_500_000;
+  };
+  assert auction.getCredit(seller2, 0) == {
+    available = 9_000_000;
+    locked = 0;
+    total = 9_000_000;
+  };
+
+  let history = Iter.toArray(auction.getImmediatePriceHistory([ft], #desc));
+  assert history.size() == 2;
+  assert history[0].2 == ft;
+  assert history[0].3 == 500;
+  assert history[0].4 == 18_000;
+  assert history[1].2 == ft;
+  assert history[1].3 == 500;
+  assert history[1].4 == 15_000;
+};
+
+do {
+  Prim.debugPrint("immediate orders should execute against multiple opposite orders with different prices (ask case)...");
+  let (auction, seller) = init(0, 3, 5);
+  let ft = createFt(auction);
+  ignore auction.appendCredit(seller, ft, 500_000_000);
+  let buyer1 = Principal.fromText("sqez4-4bl6d-ymcv2-npdsk-p3xpk-zlwzb-isfiz-estoh-ioiez-rogoj-yqe");
+  ignore auction.appendCredit(buyer1, 0, 500_000_000);
+  let buyer2 = Principal.fromText("dkkzx-rn4st-jpxtx-c2q6z-wy2k7-uyffr-ks7hq-azcmt-zjwxi-btxoi-mqe");
+  ignore auction.appendCredit(buyer2, 0, 500_000_000);
+
+  let (_, result1) = U.requireOk(auction.placeOrder(buyer1, #bid, ft, #immediate, 500, 15_000, null));
+  switch (result1) {
+    case (#placed) {};
+    case (#executed _) assert false;
+  };
+  let (_, result2) = U.requireOk(auction.placeOrder(buyer2, #bid, ft, #immediate, 500, 18_000, null));
+  switch (result2) {
+    case (#placed) {};
+    case (#executed _) assert false;
+  };
+  assert auction.getOrders(buyer1, #bid, ?ft).size() == 1;
+  assert auction.getOrders(buyer2, #bid, ?ft).size() == 1;
+
+  let (_, result3) = U.requireOk(auction.placeOrder(seller, #ask, ft, #immediate, 1000, 14_000, null));
+  switch (result3) {
+    case (#placed) assert false;
+    case (#executed res) {
+      // 500 volume from buyer2
+      assert res[0].0 == 18_000;
+      assert res[0].1 == 500;
+      // 500 volume from buyer1
+      assert res[1].0 == 15_000;
+      assert res[1].1 == 500;
+    };
+  };
+
+  assert auction.getOrders(buyer1, #bid, ?ft).size() == 0;
+  assert auction.getOrders(buyer2, #bid, ?ft).size() == 0;
+
+  assert auction.getCredit(seller, 0) == {
+    available = 16_500_000;
+    locked = 0;
+    total = 16_500_000;
+  };
+
+  assert auction.getCredit(buyer1, ft) == {
+    available = 500;
+    locked = 0;
+    total = 500;
+  };
+  assert auction.getCredit(buyer2, ft) == {
+    available = 500;
+    locked = 0;
+    total = 500;
+  };
+
+  let history = Iter.toArray(auction.getImmediatePriceHistory([ft], #desc));
+  assert history.size() == 2;
+  assert history[0].2 == ft;
+  assert history[0].3 == 500;
+  assert history[0].4 == 15_000;
+  assert history[1].2 == ft;
+  assert history[1].3 == 500;
+  assert history[1].4 == 18_000;
 };
