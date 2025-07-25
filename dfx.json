@@ -38,7 +38,7 @@
           "js",
           "ts"
         ],
-        "output": "./declarations/icrc1_auction_development"
+        "output": "./declarations/icrc1_auction"
       },
       "optimize": "cycles"
     }
