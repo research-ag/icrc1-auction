@@ -277,7 +277,7 @@ do {
   Prim.debugPrint("should be able to cancel immediate orders by id...");
   let (auction, user) = init(0, 3, 5);
   let ft = createFt(auction);
-  ignore auction.appendCredit(user, 0, 500_000_000);
+  ignore auction.appendCredit(user, 0, 500_000_000, null);
   let placementResults = switch (
     auction.manageOrders(
       user,

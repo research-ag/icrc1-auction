@@ -30,6 +30,54 @@ import T "./types";
 
 module {
 
+  public func defaultStableDataV3() : T.StableDataV3 = {
+    assets = Vec.new();
+    orders = { globalCounter = 0 };
+    quoteToken = { surplus = 0 };
+    sessions = {
+      counter = 0;
+      history = {
+        immediate = ([var], 0, 0);
+        delayed = Vec.new<T.PriceHistoryItem>();
+      };
+    };
+    users = {
+      registry = {
+        tree = #leaf;
+        size = 0;
+      };
+      participantsArchive = {
+        tree = #leaf;
+        size = 0;
+      };
+      accountsAmount = 0;
+    };
+  };
+  public type StableDataV3 = T.StableDataV3;
+  public func migrateStableDataV3(data : StableDataV2) : StableDataV3 {
+    let usersTree : RBTree.RBTree<Principal, T.StableUserInfoV3> = RBTree.RBTree(Principal.compare);
+    for ((p, x) in RBTree.iter(data.users.registry.tree, #bwd)) {
+      usersTree.put(
+        p,
+        {
+          x with
+          depositHistory = Vec.map<(Nat64, { #deposit; #withdrawal }, AssetId, Nat), (Nat64, { #deposit : ?Blob; #withdrawal : ?Blob }, AssetId, Nat)>(
+            x.depositHistory,
+            func(x) = (x.0, switch (x.1) { case (#deposit) #deposit(null); case (#withdrawal) #withdrawal(null) }, x.2, x.3),
+          );
+        },
+      );
+    };
+    {
+      data with
+      users = {
+        data.users with registry = {
+          data.users.registry with tree = usersTree.share()
+        }
+      };
+    };
+  };
+
   public func defaultStableDataV2() : T.StableDataV2 = {
     assets = Vec.new();
     orders = { globalCounter = 0 };
@@ -470,7 +518,7 @@ module {
     // ============ history interface =============
 
     // ============= system interface =============
-    public func share() : T.StableDataV2 = {
+    public func share() : T.StableDataV3 = {
       assets = Vec.map<T.AssetInfo, T.StableAssetInfoV2>(
         assets.assets,
         func(x) = {
@@ -498,8 +546,8 @@ module {
       users = {
         registry = {
           tree = (
-            func() : RBTree.Tree<Principal, T.StableUserInfoV2> {
-              let stableUsers = RBTree.RBTree<Principal, T.StableUserInfoV2>(Principal.compare);
+            func() : RBTree.Tree<Principal, T.StableUserInfoV3> {
+              let stableUsers = RBTree.RBTree<Principal, T.StableUserInfoV3>(Principal.compare);
               for ((p, u) in users.users.entries()) {
                 stableUsers.put(
                   p,
@@ -531,7 +579,7 @@ module {
       };
     };
 
-    public func unshare(data : T.StableDataV2) {
+    public func unshare(data : T.StableDataV3) {
       assets.assets := Vec.map<T.StableAssetInfoV2, T.AssetInfo>(
         data.assets,
         func(x) = {
@@ -565,7 +613,7 @@ module {
       assets.history.delayed := data.sessions.history.delayed;
 
       users.usersAmount := data.users.registry.size;
-      let ud = RBTree.RBTree<Principal, T.StableUserInfoV2>(Principal.compare);
+      let ud = RBTree.RBTree<Principal, T.StableUserInfoV3>(Principal.compare);
       ud.unshare(data.users.registry.tree);
       for ((p, u) in ud.entries()) {
         let userData : UserInfo = {
