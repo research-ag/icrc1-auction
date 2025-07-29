@@ -31,35 +31,35 @@ import U "./utils";
 
 // arguments have to be provided on first canister install,
 // on upgrade quote ledger will be ignored
-actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Principal) = self {
+persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Principal) = self {
 
   // ensure compliance to ICRC84 standart.
   // actor won't compile in case of type mismatch here
-  let _ : ICRC84.ICRC84 = self;
+  transient let _ : ICRC84.ICRC84 = self;
 
-  stable let trustedLedgerPrincipal : Principal = U.requireMsg(quoteLedger_, "Quote ledger principal not provided");
-  stable let quoteLedgerPrincipal : Principal = trustedLedgerPrincipal;
+  let trustedLedgerPrincipal : Principal = U.requireMsg(quoteLedger_, "Quote ledger principal not provided");
+  let quoteLedgerPrincipal : Principal = trustedLedgerPrincipal;
 
-  stable var stableAdminsMap : Permissions.StableDataV1 = Permissions.defaultStableDataV1();
-  let permissions : Permissions.Permissions = Permissions.Permissions(stableAdminsMap, adminPrincipal_);
+  var stableAdminsMap : Permissions.StableDataV1 = Permissions.defaultStableDataV1();
+  transient let permissions : Permissions.Permissions = Permissions.Permissions(stableAdminsMap, adminPrincipal_);
 
-  stable var assetsDataV1 : Vec.Vector<StableAssetInfoV1> = Vec.new();
+  var assetsDataV1 : Vec.Vector<StableAssetInfoV1> = Vec.new();
 
-  stable var auctionDataV1 : Auction.StableDataV1 = Auction.defaultStableDataV1();
-  stable var auctionDataV2 : Auction.StableDataV2 = Auction.migrateStableDataV2(auctionDataV1);
+  var auctionDataV1 : Auction.StableDataV1 = Auction.defaultStableDataV1();
+  var auctionDataV2 : Auction.StableDataV2 = Auction.migrateStableDataV2(auctionDataV1);
 
-  stable var ptData : PT.StableData = null;
+  var ptData : PT.StableData = null;
 
-  stable var tokenHandlersJournal : Vec.Vector<(ledger : Principal, p : Principal, logEvent : TokenHandler.LogEvent)> = Vec.new();
+  var tokenHandlersJournal : Vec.Vector<(ledger : Principal, p : Principal, logEvent : TokenHandler.LogEvent)> = Vec.new();
 
-  stable var consolidationTimerEnabled : Bool = true;
+  var consolidationTimerEnabled : Bool = true;
 
   // constants
-  let AUCTION_INTERVAL_SECONDS : Nat64 = 120;
+  transient let AUCTION_INTERVAL_SECONDS : Nat64 = 120;
 
   // Bitcoin mainnet
-  let CKBTC_LEDGER_PRINCIPAL = Principal.fromText("mxzaz-hqaaa-aaaar-qaada-cai");
-  let CKBTC_MINTER = {
+  transient let CKBTC_LEDGER_PRINCIPAL = Principal.fromText("mxzaz-hqaaa-aaaar-qaada-cai");
+  transient let CKBTC_MINTER = {
     principal = Principal.fromText("mqygn-kiaaa-aaaar-qaadq-cai");
     xPubKey = {
       public_key : Blob = "\02\22\04\7A\81\D4\F8\A0\67\03\1C\89\27\3D\24\1B\79\A5\A0\07\C0\4D\FA\F3\6D\07\96\3D\B0\B9\90\97\EB";
@@ -73,8 +73,8 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   //   xPubKey = // load with "await* CkBtcAddress.fetchEcdsaKey(Principal.fromText("ml52i-qqaaa-aaaar-qaaba-cai"));"
   // };
 
-  let TCYCLES_LEDGER_PRINCIPAL = Principal.fromText("um5iw-rqaaa-aaaaq-qaaba-cai");
-  let tcyclesLedger : (
+  transient let TCYCLES_LEDGER_PRINCIPAL = Principal.fromText("um5iw-rqaaa-aaaaq-qaaba-cai");
+  transient let tcyclesLedger : (
     actor {
       withdraw : shared ({
         to : Principal;
@@ -217,7 +217,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     } or CyclesLedgerWithdrawError;
   };
 
-  let quoteAssetId : Auction.AssetId = 0;
+  transient let quoteAssetId : Auction.AssetId = 0;
 
   func createAssetInfo_(ledgerPrincipal : Principal, minAskVolume : Nat, decimals : Nat, symbol : Text, tokenHandlerStableData : ?TokenHandler.StableData) : AssetInfo {
     let ai = TokenHandler.buildLedgerApi(ledgerPrincipal)
@@ -241,11 +241,11 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     ai;
   };
 
-  let assets : Vec.Vector<AssetInfo> = Vec.map<StableAssetInfoV1, AssetInfo>(
+  transient let assets : Vec.Vector<AssetInfo> = Vec.map<StableAssetInfoV1, AssetInfo>(
     assetsDataV1,
     func(x) = createAssetInfo_(x.ledgerPrincipal, x.minAskVolume, x.decimals, x.symbol, ?x.handler),
   );
-  let auction : Auction.Auction = Auction.Auction(
+  transient let auction : Auction.Auction = Auction.Auction(
     0,
     {
       volumeStepLog10 = 3; // minimum quote volume step 1_000
@@ -259,9 +259,9 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   // will be set in startAuctionTimer_
   // this timestamp is set right before starting auction execution
-  var nextAuctionTickTimestamp = 0;
+  transient var nextAuctionTickTimestamp = 0;
   // this timestamp is set after auction session executed completely, sycnhronized with auction.sessionsCounter
-  var nextSessionTimestamp = 0;
+  transient var nextSessionTimestamp = 0;
 
   private func registerAsset_(ledgerPrincipal : Principal, minAskVolume : Nat) : async* R.Result<Nat, RegisterAssetError> {
     let id = Vec.size(assets);
@@ -284,11 +284,11 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     #ok(id);
   };
 
-  let metrics = PT.PromTracker("", 65);
+  transient let metrics = PT.PromTracker("", 65);
   metrics.addSystemValues();
-  let sessionStartTimeBaseOffsetMetric = metrics.addCounter("session_start_time_base_offset", "", false);
-  let sessionStartTimeGauge = metrics.addGauge("session_start_time_offset_ms", "", #none, [0, 1_000, 2_000, 4_000, 8_000, 16_000, 32_000, 64_000, 128_000], false);
-  let startupTime = Prim.time();
+  transient let sessionStartTimeBaseOffsetMetric = metrics.addCounter("session_start_time_base_offset", "", false);
+  transient let sessionStartTimeGauge = metrics.addGauge("session_start_time_offset_ms", "", #none, [0, 1_000, 2_000, 4_000, 8_000, 16_000, 32_000, 64_000, 128_000], false);
+  transient let startupTime = Prim.time();
   ignore metrics.addPullValue("uptime", "", func() = Nat64.toNat((Prim.time() - startupTime) / 1_000_000_000));
   ignore metrics.addPullValue("sessions_counter", "", func() = auction.sessionsCounter);
   ignore metrics.addPullValue("assets_count", "", func() = auction.assets.nAssets());
@@ -319,13 +319,13 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   ignore metrics.addPullValue("total_points_supply", "", func() = auction.getTotalLoyaltyPointsSupply());
 
   // call stats
-  let notifyCounter = metrics.addCounter("total_calls__icrc84_notify", "", true);
-  let depositCounter = metrics.addCounter("total_calls__icrc84_deposit", "", true);
-  let withdrawCounter = metrics.addCounter("total_calls__icrc84_withdraw", "", true);
-  let manageOrdersCounter = metrics.addCounter("total_calls__manageOrders", "", true);
-  let orderPlacementCounter = metrics.addCounter("total_calls__order_placement", "", true);
-  let orderReplacementCounter = metrics.addCounter("total_calls__order_replacement", "", true);
-  let orderCancellationCounter = metrics.addCounter("total_calls__order_cancellation", "", true);
+  transient let notifyCounter = metrics.addCounter("total_calls__icrc84_notify", "", true);
+  transient let depositCounter = metrics.addCounter("total_calls__icrc84_deposit", "", true);
+  transient let withdrawCounter = metrics.addCounter("total_calls__icrc84_withdraw", "", true);
+  transient let manageOrdersCounter = metrics.addCounter("total_calls__manageOrders", "", true);
+  transient let orderPlacementCounter = metrics.addCounter("total_calls__order_placement", "", true);
+  transient let orderReplacementCounter = metrics.addCounter("total_calls__order_replacement", "", true);
+  transient let orderCancellationCounter = metrics.addCounter("total_calls__order_cancellation", "", true);
 
   private func registerAssetMetrics_(assetId : Auction.AssetId) {
     let tokenHandler = Vec.get(assets, assetId).handler;
@@ -340,12 +340,12 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
       ignore metrics.addPullValue("asks_count", labels # ",order_book=\"immediate\"", func() = asset.asks.immediate.size);
       ignore metrics.addPullValue("asks_volume", labels # ",order_book=\"immediate\"", func() = asset.asks.immediate.totalVolume);
       ignore metrics.addPullValue("asks_count", labels # ",order_book=\"delayed\"", func() = asset.asks.delayed.size);
-    ignore metrics.addPullValue("asks_volume", labels # ",order_book=\"delayed\"", func() = asset.asks.delayed.totalVolume);
+      ignore metrics.addPullValue("asks_volume", labels # ",order_book=\"delayed\"", func() = asset.asks.delayed.totalVolume);
 
-    ignore metrics.addPullValue("bids_count", labels # ",order_book=\"immediate\"", func() = asset.bids.immediate.size);
+      ignore metrics.addPullValue("bids_count", labels # ",order_book=\"immediate\"", func() = asset.bids.immediate.size);
       ignore metrics.addPullValue("bids_volume", labels # ",order_book=\"immediate\"", func() = asset.bids.immediate.totalVolume);
-    ignore metrics.addPullValue("bids_count", labels # ",order_book=\"delayed\"", func() = asset.bids.delayed.size);
-    ignore metrics.addPullValue("bids_volume", labels # ",order_book=\"delayed\"", func() = asset.bids.delayed.totalVolume);
+      ignore metrics.addPullValue("bids_count", labels # ",order_book=\"delayed\"", func() = asset.bids.delayed.size);
+      ignore metrics.addPullValue("bids_volume", labels # ",order_book=\"delayed\"", func() = asset.bids.delayed.totalVolume);
 
       ignore metrics.addPullValue("processing_instructions", labels, func() = asset.lastProcessingInstructions);
       ignore metrics.addPullValue("total_executed_volume_base", labels, func() = asset.totalExecutedVolumeBase);
@@ -552,7 +552,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     };
   };
 
-  let btcHandler : BtcHandler.BtcHandler = BtcHandler.BtcHandler(Principal.fromActor(self), CKBTC_LEDGER_PRINCIPAL, CKBTC_MINTER);
+  transient let btcHandler : BtcHandler.BtcHandler = BtcHandler.BtcHandler(Principal.fromActor(self), CKBTC_LEDGER_PRINCIPAL, CKBTC_MINTER);
 
   public shared query ({ caller }) func btc_depositAddress(p : ?Principal) : async Text {
     let ?_ = getAssetId(CKBTC_LEDGER_PRINCIPAL) else throw Error.reject("BTC is not supported");
@@ -1079,14 +1079,14 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
 
   // Auction processing functionality
 
-  var nextAssetIdToProcess : Nat = 0;
+  transient var nextAssetIdToProcess : Nat = 0;
   // total instructions sent on last auction processing routine. Accumulated in case processing was splitted to few heartbeat calls
-  var lastBidProcessingInstructions : Nat64 = 0;
+  transient var lastBidProcessingInstructions : Nat64 = 0;
   // amount of chunks, used for processing all assets
-  var lastBidProcessingChunks : Nat8 = 0;
+  transient var lastBidProcessingChunks : Nat8 = 0;
   // when spent instructions on bids processing exceeds this value, we stop iterating over assets and commit processed ones.
   // Canister will continue processing them on next heartbeat
-  let BID_PROCESSING_INSTRUCTIONS_THRESHOLD : Nat64 = 1_000_000_000;
+  transient let BID_PROCESSING_INSTRUCTIONS_THRESHOLD : Nat64 = 1_000_000_000;
 
   // loops over asset ids, beginning from provided asset id and processes them one by one.
   // stops if we exceed instructions threshold and returns #nextIndex in this case
@@ -1170,7 +1170,7 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
   };
 
   // A timer for consolidating backlog subaccounts, runs each minute at 30th second
-  let consolidationSchedule = Scheduler.Scheduler(
+  transient let consolidationSchedule = Scheduler.Scheduler(
     60,
     30,
     func(_ : Nat) : async* () {
@@ -1193,8 +1193,8 @@ actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Princi
     };
   };
 
-  var _runAuction : () -> async () = func() : async () {};
-  let auctionSchedule = Scheduler.Scheduler(
+  transient var _runAuction : () -> async () = func() : async () {};
+  transient let auctionSchedule = Scheduler.Scheduler(
     AUCTION_INTERVAL_SECONDS,
     0,
     func(counter : Nat) : async* () {
