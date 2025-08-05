@@ -23,12 +23,58 @@ import AssetOrderBook "./asset_order_book";
 import Assets "./assets";
 import C "./constants";
 import Credits "./credits";
+import E "./encryption";
 import Orders "./orders";
 import Users "./users";
 import { processAuction; clearAuction } "./auction_processor";
 import T "./types";
 
 module {
+
+  public func defaultStableDataV3() : T.StableDataV3 = {
+    assets = Vec.new();
+    orders = { globalCounter = 0 };
+    quoteToken = { surplus = 0 };
+    sessions = {
+      counter = 0;
+      history = {
+        immediate = ([var], 0, 0);
+        delayed = Vec.new<T.PriceHistoryItem>();
+      };
+    };
+    users = {
+      registry = {
+        tree = #leaf;
+        size = 0;
+      };
+      participantsArchive = {
+        tree = #leaf;
+        size = 0;
+      };
+      accountsAmount = 0;
+    };
+  };
+  public type StableDataV3 = T.StableDataV3;
+  public func migrateStableDataV3(data : StableDataV2) : StableDataV3 {
+    let usersTree : RBTree.RBTree<Principal, T.StableUserInfoV3> = RBTree.RBTree(Principal.compare);
+    for ((p, x) in RBTree.iter(data.users.registry.tree, #bwd)) {
+      usersTree.put(
+        p,
+        {
+          x with
+          darkOrderBooks = null
+        },
+      );
+    };
+    {
+      data with
+      users = {
+        data.users with registry = {
+          data.users.registry with tree = usersTree.share()
+        }
+      };
+    };
+  };
 
   public func defaultStableDataV2() : T.StableDataV2 = {
     assets = Vec.new();
@@ -116,6 +162,7 @@ module {
   public type OrderId = T.OrderId;
   public type OrderBookType = T.OrderBookType;
   public type Order = T.Order;
+  public type EncryptedOrderBook = T.EncryptedOrderBook;
   public type CreditInfo = Credits.CreditInfo;
   public type UserInfo = T.UserInfo;
   public type DepositHistoryItem = T.DepositHistoryItem;
@@ -217,12 +264,32 @@ module {
 
     public func registerAssets(n : Nat) = assets.register(n, sessionsCounter);
 
-    public func processAsset(assetId : AssetId) : () {
+    public func decryptDarkOrderBooks(assetId : AssetId, decryptionKey : Blob) : async* () {
+      let assetInfo = assets.getAsset(assetId);
+      let darkOrderBook = assetInfo.darkOrderBooks.encrypted |> List.toArray(_);
+      let decrypted = await* E.decryptOrderBooks(
+        darkOrderBook |> Array.map<(Principal, T.EncryptedOrderBook), T.EncryptedOrderBook>(_, func(_, ob) = ob),
+        decryptionKey,
+      );
+      let decryptedOrderBooks : Vec.Vector<(Principal, [T.DecryptedOrderData])> = Vec.new();
+      for (i in decrypted.keys()) {
+        switch (decrypted[i]) {
+          case (?d) {
+            if (d.size() > 0) Vec.add(decryptedOrderBooks, (darkOrderBook[i].0, d));
+          };
+          case (_) {};
+        };
+      };
+      assetInfo.darkOrderBooks.decrypted := ?Vec.toArray(decryptedOrderBooks);
+    };
+
+    public func processAsset(assetId : AssetId) {
       if (assetId == quoteAssetId) return;
       let startInstructions = settings.performanceCounter(0);
       let assetInfo = assets.getAsset(assetId);
-      let asks = orders.asks.createOrderBookExecutionService(assetInfo, #combined);
-      let bids = orders.bids.createOrderBookExecutionService(assetInfo, #combined);
+      let (encAsks, encBids) = orders.processDarkOrderBooks(assetId, assetInfo);
+      let asks = orders.asks.createOrderBookExecutionService(assetInfo, #combined({ encryptedOrdersQueue = encAsks }));
+      let bids = orders.bids.createOrderBookExecutionService(assetInfo, #combined({ encryptedOrdersQueue = encBids }));
       let (price, volume) = clearAuction(asks, bids);
       if (volume > 0) {
         let surplus = processAuction(sessionsCounter, asks, bids, price, volume);
@@ -238,8 +305,8 @@ module {
 
     public func indicativeAssetStats(assetId : AssetId) : IndicativeStats {
       let assetInfo = assets.getAsset(assetId);
-      let asksOrderBook = orders.asks.createOrderBookExecutionService(assetInfo, #combined);
-      let bidsOrderBook = orders.bids.createOrderBookExecutionService(assetInfo, #combined);
+      let asksOrderBook = orders.asks.createOrderBookExecutionService(assetInfo, #combined({ encryptedOrdersQueue = null }));
+      let bidsOrderBook = orders.bids.createOrderBookExecutionService(assetInfo, #combined({ encryptedOrdersQueue = null }));
       let (price, volume) = clearAuction(asksOrderBook, bidsOrderBook);
       if (volume > 0) {
         {
@@ -250,8 +317,8 @@ module {
       } else {
         {
           clearing = #noMatch({
-            maxBidPrice = bidsOrderBook.nextOrder() |> Option.map<(T.OrderId, T.Order), Float>(_, func(b) = b.1.price);
-            minAskPrice = asksOrderBook.nextOrder() |> Option.map<(T.OrderId, T.Order), Float>(_, func(b) = b.1.price);
+            maxBidPrice = bidsOrderBook.nextOrder() |> Option.map<(?T.OrderId, T.Order), Float>(_, func(b) = b.1.price);
+            minAskPrice = asksOrderBook.nextOrder() |> Option.map<(?T.OrderId, T.Order), Float>(_, func(b) = b.1.price);
           });
           totalBidVolume = bidsOrderBook.totalVolume();
           totalAskVolume = asksOrderBook.totalVolume();
@@ -371,6 +438,11 @@ module {
       orders.manageOrders(p, userInfo, cancellations, placements, expectedAccountRevision);
     };
 
+    public func manageDarkOrderBooks(p : Principal, args : [(T.AssetId, ?T.EncryptedOrderBook)], expectedAccountRevision : ?Nat) : R.Result<[?T.EncryptedOrderBook], { #UnknownPrincipal; #AccountRevisionMismatch; #NoCredit }> {
+      let ?userInfo = users.get(p) else return #err(#UnknownPrincipal);
+      orders.manageDarkOrderBooks(p, userInfo, args, expectedAccountRevision);
+    };
+
     public func placeOrder(p : Principal, kind : { #ask; #bid }, assetId : AssetId, orderBookType : OrderBookType, volume : Nat, price : Float, expectedAccountRevision : ?Nat) : R.Result<PlaceOrderResult, PlaceOrderError> {
       let placement = switch (kind) {
         case (#ask) #ask(assetId, orderBookType, volume, price);
@@ -470,7 +542,7 @@ module {
     // ============ history interface =============
 
     // ============= system interface =============
-    public func share() : T.StableDataV2 = {
+    public func share() : T.StableDataV3 = {
       assets = Vec.map<T.AssetInfo, T.StableAssetInfoV2>(
         assets.assets,
         func(x) = {
@@ -498,8 +570,8 @@ module {
       users = {
         registry = {
           tree = (
-            func() : RBTree.Tree<Principal, T.StableUserInfoV2> {
-              let stableUsers = RBTree.RBTree<Principal, T.StableUserInfoV2>(Principal.compare);
+            func() : RBTree.Tree<Principal, T.StableUserInfoV3> {
+              let stableUsers = RBTree.RBTree<Principal, T.StableUserInfoV3>(Principal.compare);
               for ((p, u) in users.users.entries()) {
                 stableUsers.put(
                   p,
@@ -510,6 +582,7 @@ module {
                     bids = {
                       var map = List.map<(T.OrderId, T.Order), (T.OrderId, T.StableOrderDataV2)>(u.bids.map, func(oid, o) = (oid, { assetId = o.assetId; orderBookType = o.orderBookType; price = o.price; user = o.user; volume = o.volume }));
                     };
+                    darkOrderBooks = u.darkOrderBooks;
                     credits = u.credits;
                     accountRevision = u.accountRevision;
                     loyaltyPoints = u.loyaltyPoints;
@@ -531,7 +604,7 @@ module {
       };
     };
 
-    public func unshare(data : T.StableDataV2) {
+    public func unshare(data : T.StableDataV3) {
       assets.assets := Vec.map<T.StableAssetInfoV2, T.AssetInfo>(
         data.assets,
         func(x) = {
@@ -542,6 +615,10 @@ module {
           bids = {
             delayed = AssetOrderBook.nil(#bid);
             immediate = AssetOrderBook.nil(#bid);
+          };
+          darkOrderBooks = {
+            var encrypted = null;
+            var decrypted = null;
           };
           var lastRate = x.lastRate;
           var lastImmediateRate = x.lastImmediateRate;
@@ -565,7 +642,7 @@ module {
       assets.history.delayed := data.sessions.history.delayed;
 
       users.usersAmount := data.users.registry.size;
-      let ud = RBTree.RBTree<Principal, T.StableUserInfoV2>(Principal.compare);
+      let ud = RBTree.RBTree<Principal, T.StableUserInfoV3>(Principal.compare);
       ud.unshare(data.users.registry.tree);
       for ((p, u) in ud.entries()) {
         let userData : UserInfo = {
@@ -575,6 +652,7 @@ module {
           bids = {
             var map = null;
           };
+          var darkOrderBooks = u.darkOrderBooks;
           var credits = u.credits;
           var accountRevision = u.accountRevision;
           var loyaltyPoints = u.loyaltyPoints;
@@ -596,6 +674,9 @@ module {
           };
           users.putOrder(userData, #bid, oid, order);
           ignore assets.putOrder(assets.getAsset(order.assetId), #bid, oid, order);
+        };
+        for ((assetId, data) in List.toIter(u.darkOrderBooks)) {
+          ignore assets.putDarkOrderBook(assets.getAsset(assetId), p, ?data);
         };
         users.users.put(p, userData);
       };

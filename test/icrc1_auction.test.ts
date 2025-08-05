@@ -82,6 +82,7 @@ describe('ICRC1 Auction', () => {
     bids: [],
     credits: [],
     asks: [],
+    dark_order_books: [],
     deposit_history: [],
     price_history: [],
     immediate_price_history: [],
@@ -89,6 +90,10 @@ describe('ICRC1 Auction', () => {
     session_numbers: [],
     reversed_history: [],
     last_prices: [],
+  };
+
+  const encryptOrders = (orders: { kind: "ask" | "bid", volume: number, price: number }[]): string => {
+    return orders.map(v => v.kind + ':' + v.volume + ':' + v.price).join(";");
   };
 
   beforeAll(() => {
@@ -205,15 +210,25 @@ Consider gracefully handling failures from this canister or altering the caniste
 
       await startNewAuctionSession();
 
+      auction.setIdentity(user);
+      await auction.manageDarkOrderBooks([[
+        ledger2Principal,
+        [encryptOrders([{ kind: "ask", volume: 1000000, price: 42.5 }, { kind: "bid", volume: 12300, price: 13.2 }])]
+      ]], []);
+
       // check info before upgrade
       auction.setIdentity(user);
       expect(await auction.nextSession().then(({ counter }) => counter)).toEqual(3n);
-      expect(await queryCredit(quoteLedgerPrincipal)).toEqual(340_000_000n); // 500m - 150m paid - 10m locked
+      expect(await queryCredit(quoteLedgerPrincipal)).toEqual(339_000_000n); // 500m - 150m paid - 11m locked
       expect(await queryCredit(ledger1Principal)).toEqual(1_500n);
       expect((await auction.auction_query(
         [ledger2Principal],
         { ...auctionQueryEmpty, bids: [true] }
       )).bids).toHaveLength(1);
+      expect((await auction.auction_query(
+        [ledger2Principal],
+        { ...auctionQueryEmpty, dark_order_books: [true] }
+      )).dark_order_books).toHaveLength(1);
       let metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
@@ -229,12 +244,16 @@ Consider gracefully handling failures from this canister or altering the caniste
 
       // check info after upgrade
       expect(await auction.nextSession().then(({ counter }) => counter)).toEqual(3n);
-      expect(await queryCredit(quoteLedgerPrincipal)).toEqual(340_000_000n);
+      expect(await queryCredit(quoteLedgerPrincipal)).toEqual(339_000_000n);
       expect(await queryCredit(ledger1Principal)).toEqual(1_500n);
       expect((await auction.auction_query([ledger2Principal], {
         ...auctionQueryEmpty,
         bids: [true],
       })).bids).toHaveLength(1);
+      expect((await auction.auction_query(
+        [ledger2Principal],
+        { ...auctionQueryEmpty, dark_order_books: [true] }
+      )).dark_order_books).toHaveLength(1);
       metrics = await auction
         .http_request({ method: 'GET', url: '/metrics?', body: new Uint8Array(), headers: [] })
         .then(r => new TextDecoder().decode(r.body as Uint8Array));
@@ -423,6 +442,135 @@ Consider gracefully handling failures from this canister or altering the caniste
 
   });
 
+  describe('dark order books', () => {
+
+    test('should be able to place and remove dark orders', async () => {
+      await prepareDeposit(user);
+      await auction.manageDarkOrderBooks([[
+        ledger1Principal,
+        [encryptOrders([{ kind: "ask", volume: 1000000, price: 42.5 }, { kind: "bid", volume: 12300, price: 13.2 }])]
+      ]], []);
+      let queryResult = (await auction.auction_query([], {
+        ...auctionQueryEmpty,
+        dark_order_books: [true],
+      })).dark_order_books;
+      expect(queryResult).toHaveLength(1);
+      expect(queryResult[0][0]).toEqual(ledger1Principal);
+
+      await auction.manageDarkOrderBooks([[ledger1Principal, []]], []);
+
+      expect((await auction.auction_query([], {
+        ...auctionQueryEmpty,
+        asks: [true],
+      })).asks).toHaveLength(0);
+    });
+
+    test('should lock funds when dark order book set', async () => {
+      await prepareDeposit(user, quoteLedgerPrincipal);
+      await auction.manageDarkOrderBooks([
+        [ledger1Principal, [encryptOrders([
+          { kind: "bid", volume: 10000, price: 10 },
+          { kind: "bid", volume: 20000, price: 18 }
+        ])]],
+        [ledger2Principal, [encryptOrders([{ kind: "bid", volume: 10000, price: 12 }])]]
+      ], []);
+
+      let state = await auction.auction_query(
+        [quoteLedgerPrincipal, ledger1Principal, ledger2Principal],
+        { ...auctionQueryEmpty, dark_order_books: [true], credits: [true] }
+      );
+      expect(state.dark_order_books).toHaveLength(2);
+      expect(state.credits[0][1].locked).toEqual(2_000_000n);
+    });
+
+    test('should return old dark order book when overwriting', async () => {
+      await prepareDeposit(user);
+      let encryptedOrdersV1 = encryptOrders([{ kind: "ask", volume: 1000000, price: 42.5 }, {
+        kind: "bid",
+        volume: 12300,
+        price: 13.2
+      }]);
+      let resp = await auction.manageDarkOrderBooks([[ledger1Principal, [encryptedOrdersV1]]], []);
+      expect(resp).toEqual({ Ok: [[]] });
+      let resp2 = await auction.manageDarkOrderBooks([[
+        ledger1Principal,
+        [encryptOrders([{ kind: "ask", volume: 1120000, price: 39.5 }, { kind: "bid", volume: 10300, price: 9.2 }])]
+      ]], []);
+      expect(resp2).toEqual({ Ok: [[encryptedOrdersV1]] });
+    });
+
+    test('should process dark orders', async () => {
+      await prepareDeposit(user, quoteLedgerPrincipal, 1_000_000);
+      await auction.manageDarkOrderBooks([[ledger1Principal, [encryptOrders([{
+        kind: "bid",
+        volume: 10000,
+        price: 100
+      }])]]], []);
+      expect((await auction.auction_query(
+        [quoteLedgerPrincipal, ledger1Principal],
+        { ...auctionQueryEmpty, dark_order_books: [true] }
+      )).dark_order_books).toEqual([[ledger1Principal, encryptOrders([{ kind: "bid", volume: 10000, price: 100 }])]]);
+
+      const seller = createIdentity('seller');
+      await prepareDeposit(seller, ledger1Principal, 10_000);
+      auction.setIdentity(seller);
+      await auction.placeAsks([[ledger1Principal, { delayed: null }, 10_000n, 100.0]], []);
+
+      await startNewAuctionSession();
+
+      expect((await auction.auction_query(
+        [quoteLedgerPrincipal, ledger1Principal],
+        { ...auctionQueryEmpty, credits: [true] }
+      )).credits).toEqual([
+        [quoteLedgerPrincipal, { available: 1_000_000n, locked: 0n, total: 1_000_000n }],
+        [ledger1Principal, { available: 0n, locked: 0n, total: 0n }],
+      ]);
+
+      auction.setIdentity(user);
+      let state = (await auction.auction_query(
+        [quoteLedgerPrincipal, ledger1Principal],
+        { ...auctionQueryEmpty, credits: [true], dark_order_books: [true] }
+      ));
+      expect(state.credits).toEqual([
+        [quoteLedgerPrincipal, { available: 0n, locked: 0n, total: 0n }],
+        [ledger1Principal, { available: 10_000n, locked: 0n, total: 10_000n }],
+      ]);
+      expect(state.dark_order_books).toEqual([]);
+    });
+
+    test.skip('should process dark order partially when out of funds', async () => {
+      // TODO
+    });
+
+    test('should remove unfulfilled dark order after auction ran', async () => {
+      await prepareDeposit(user, quoteLedgerPrincipal);
+      await auction.manageDarkOrderBooks([[ledger1Principal, [encryptOrders([{
+        kind: "bid",
+        volume: 10000,
+        price: 100
+      }])]]], []);
+
+      let state0 = await auction.auction_query(
+        [quoteLedgerPrincipal, ledger1Principal],
+        { ...auctionQueryEmpty, dark_order_books: [true], credits: [true], bids: [true] }
+      );
+      expect(state0.dark_order_books).toHaveLength(1);
+      expect(state0.bids).toHaveLength(0);
+      expect(state0.credits[0][1].locked).toEqual(1_000_000n);
+
+      await startNewAuctionSession();
+
+      let state1 = await auction.auction_query(
+        [quoteLedgerPrincipal, ledger1Principal],
+        { ...auctionQueryEmpty, dark_order_books: [true], credits: [true], bids: [true] }
+      );
+      expect(state1.dark_order_books).toHaveLength(0);
+      expect(state1.bids).toHaveLength(0);
+      expect(state1.credits[0][1].locked).toEqual(0n);
+    });
+
+  });
+
   describe('credit', () => {
 
     test('should return #InsufficientCredit if not registered', async () => {
@@ -554,6 +702,7 @@ Consider gracefully handling failures from this canister or altering the caniste
         credits: [true],
         bids: [true],
         asks: [true],
+        dark_order_books: [true],
         session_numbers: [true],
         transaction_history: [[1000n, 0n]],
         price_history: [[1000n, 0n, true]],

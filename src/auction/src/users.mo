@@ -47,6 +47,7 @@ module {
         let data : T.UserInfo = {
           asks = { var map = null };
           bids = { var map = null };
+          var darkOrderBooks = null;
           var credits = null;
           var accountRevision = 0;
           var loyaltyPoints = 0;
@@ -85,6 +86,16 @@ module {
       let ?existingOrder = oldValue else return null;
       orderBook.map := updatedList;
       ?existingOrder;
+    };
+
+    public func findDarkOrderBook(user : T.UserInfo, asset : T.AssetId) : ?T.EncryptedOrderBook {
+      AssocList.find(user.darkOrderBooks, asset, Nat.equal);
+    };
+
+    public func putDarkOrderBook(user : T.UserInfo, asset : T.AssetId, data : ?T.EncryptedOrderBook) : ?T.EncryptedOrderBook {
+      let (upd, oldValue) = AssocList.replace(user.darkOrderBooks, asset, Nat.equal, data);
+      user.darkOrderBooks := upd;
+      oldValue;
     };
 
   };

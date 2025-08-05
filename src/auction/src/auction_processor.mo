@@ -12,8 +12,8 @@ import T "./types";
 module {
 
   public func clearAuction(asks : Orders.OrderBookExecutionService, bids : Orders.OrderBookExecutionService) : (price : Float, volume : Nat) {
-    let mapOrders = func(orders : Iter.Iter<(T.OrderId, T.Order)>) : Iter.Iter<(Float, Nat)> {
-      Iter.map<(T.OrderId, T.Order), (Float, Nat)>(orders, func(_, order) = (order.price, order.volume));
+    let mapOrders = func(orders : Iter.Iter<(?T.OrderId, T.Order)>) : Iter.Iter<(Float, Nat)> {
+      Iter.map<(?T.OrderId, T.Order), (Float, Nat)>(orders, func(_, order) = (order.price, order.volume));
     };
     clear(mapOrders(asks.toIter()), mapOrders(bids.toIter()), Float.less) |> Option.get(_, (0.0, 0));
   };

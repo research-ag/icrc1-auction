@@ -91,6 +91,8 @@ type Order = record {
   volume : nat
 };
 
+type EncryptedOrderBook = text;
+
 type CancellationArg = variant {
   all : opt vec Token;
   orders : vec variant { ask : OrderId; bid : OrderId }
@@ -432,6 +434,7 @@ service : (opt principal, opt principal) -> {
       asks : opt bool;
       bids : opt bool;
       credits : opt bool;
+      dark_order_books : opt bool;
       // aruments are (limit; skip), implements pagination
       deposit_history : opt record { nat; nat };
       // aruments are (limit; skip), implements pagination
@@ -462,6 +465,10 @@ service : (opt principal, opt principal) -> {
       credits : vec record {
         Token;
         record { total : nat; available : nat; locked : nat }
+      };
+      dark_order_books : vec record {
+        principal;
+        EncryptedOrderBook
       };
       // history of deposit events.
       // return values are: timestamp in nanoseconds; type; ICRC1 ledger principal; operation volume;
@@ -503,6 +510,29 @@ service : (opt principal, opt principal) -> {
   // - account revision: optionally set expected current caller's account revision. If set and it does not match the actual account revision, the function will return an error
   // returns array of placed order id-s in case of success
   manageOrders : (opt CancellationArg, PlaceArg, opt AccountRevision) -> (ManageOrdersResponse);
+
+  // An atomic function to manage caller's dark order books. In case of failure no changes will be applied
+  // arguments are:
+  // - dark order books: encrypted order books to set (per trading pair).
+  // - account revision: optionally set expected current caller's account revision. If set and it does not match the actual account revision, the function will return an error
+  // returns old states of dark order books that were set before the call
+  manageDarkOrderBooks : (
+    vec record {
+      principal;
+      opt EncryptedOrderBook
+    },
+    opt nat
+  ) -> (
+    variant {
+      Err : variant {
+        AccountRevisionMismatch;
+        NoCredit;
+        UnknownAsset : principal;
+        UnknownPrincipal
+      };
+      Ok : vec opt EncryptedOrderBook
+    }
+  );
 
   // A shortcut for `manageOrders` which only places asks
   // arguments are: array of orders and account revision (optional).

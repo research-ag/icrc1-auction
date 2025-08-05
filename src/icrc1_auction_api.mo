@@ -13,6 +13,7 @@ import Principal "mo:base/Principal";
 import R "mo:base/Result";
 import Text "mo:base/Text";
 import Timer "mo:base/Timer";
+import AssocList "mo:base/AssocList";
 
 import ICRC84 "mo:icrc-84";
 import PT "mo:promtracker";
@@ -20,6 +21,7 @@ import TokenHandler "mo:token-handler";
 import Vec "mo:vector";
 
 import Auction "./auction/src";
+import E "./auction/src/encryption";
 import AssetOrderBook "./auction/src/asset_order_book";
 import ICRC84Auction "./icrc84_auction";
 
@@ -47,6 +49,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
 
   var auctionDataV1 : Auction.StableDataV1 = Auction.defaultStableDataV1();
   var auctionDataV2 : Auction.StableDataV2 = Auction.migrateStableDataV2(auctionDataV1);
+  var auctionDataV3 : Auction.StableDataV3 = Auction.migrateStableDataV3(auctionDataV2);
 
   var ptData : PT.StableData = null;
 
@@ -136,6 +139,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     session_numbers : ?Bool;
     asks : ?Bool;
     bids : ?Bool;
+    dark_order_books : ?Bool;
     credits : ?Bool;
     deposit_history : ?(limit : Nat, skip : Nat);
     transaction_history : ?(limit : Nat, skip : Nat);
@@ -149,6 +153,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     session_numbers : [(Principal, Nat)];
     asks : [(Auction.OrderId, Order)];
     bids : [(Auction.OrderId, Order)];
+    dark_order_books : [(Principal, Auction.EncryptedOrderBook)];
     credits : [(Principal, Auction.CreditInfo)];
     deposit_history : [DepositHistoryItem];
     transaction_history : [TransactionHistoryItem];
@@ -255,7 +260,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
       performanceCounter = Prim.performanceCounter;
     },
   );
-  auction.unshare(auctionDataV2);
+  auction.unshare(auctionDataV3);
 
   // will be set in startAuctionTimer_
   // this timestamp is set right before starting auction execution
@@ -323,6 +328,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   transient let depositCounter = metrics.addCounter("total_calls__icrc84_deposit", "", true);
   transient let withdrawCounter = metrics.addCounter("total_calls__icrc84_withdraw", "", true);
   transient let manageOrdersCounter = metrics.addCounter("total_calls__manageOrders", "", true);
+  transient let manageDarkOrderBooksCounter = metrics.addCounter("total_calls__manageDarkOrderBooks", "", true);
   transient let orderPlacementCounter = metrics.addCounter("total_calls__order_placement", "", true);
   transient let orderReplacementCounter = metrics.addCounter("total_calls__order_replacement", "", true);
   transient let orderCancellationCounter = metrics.addCounter("total_calls__order_cancellation", "", true);
@@ -696,7 +702,8 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
       #ok(Array.freeze(res));
     };
 
-    let (sessionNumbers, asks, bids, credits) = switch (
+    let userInfo = auction.users.get(p);
+    let (sessionNumbers, asks, bids, credits, darkOrderBooks) = switch (
       retrieveElements<(Auction.AssetId, Nat)>(
         selection.session_numbers,
         func(assetId) = switch (assetId) {
@@ -713,9 +720,22 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
           case (?aid) [(aid, auction.getCredit(p, aid))];
         },
       ),
+      retrieveElements<(Auction.AssetId, Auction.EncryptedOrderBook)>(
+        selection.dark_order_books,
+        func(assetId) = switch (assetId, userInfo) {
+          case (null, ?ui) ui.darkOrderBooks |> List.toArray(_);
+          case (?aid, ?ui) AssocList.find(ui.darkOrderBooks, aid, Nat.equal) |> (
+            switch (_) {
+              case (?dob) [(aid, dob)];
+              case (null) [];
+            }
+          );
+          case (_) [];
+        },
+      ),
     ) {
-      case (#ok sn, #ok a, #ok b, #ok c) (sn, a, b, c);
-      case ((#err p, _, _, _) or (_, #err p, _, _) or (_, _, #err p, _) or (_, _, _, #err p)) return #err(p);
+      case (#ok sn, #ok a, #ok b, #ok c, #ok d) (sn, a, b, c, d);
+      case ((#err p, _, _, _, _) or (_, #err p, _, _, _) or (_, _, #err p, _, _) or (_, _, _, #err p, _) or (_, _, _, _, #err p)) return #err(p);
     };
     let historyListOrder = switch (selection.reversed_history) {
       case (?true) #desc;
@@ -725,6 +745,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
       session_numbers = sessionNumbers |> Array.tabulate<(Principal, Nat)>(_.size(), func(i) = (getIcrc1Ledger(_ [i].0), _ [i].1));
       asks = asks |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = (_ [i].0, mapOrder(_ [i].1)));
       bids = bids |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = (_ [i].0, mapOrder(_ [i].1)));
+      dark_order_books = darkOrderBooks |> Array.tabulate<(Principal, Auction.EncryptedOrderBook)>(_.size(), func(i) = (getIcrc1Ledger(_ [i].0), _ [i].1));
       credits = credits |> Array.tabulate<(Principal, Auction.CreditInfo)>(_.size(), func(i) = (getIcrc1Ledger(_ [i].0), _ [i].1));
       deposit_history = switch (selection.deposit_history) {
         case (?(limit, skip)) {
@@ -864,6 +885,20 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     };
     auction.manageOrders(caller, cancellationArg, Array.freeze(placementArg), expectedAccountRevision)
     |> ICRC84Auction.mapManageOrdersResult(_, getIcrc1Ledger);
+  };
+
+  public shared ({ caller }) func manageDarkOrderBooks(args : [(Principal, ?Auction.EncryptedOrderBook)], expectedAccountRevision : ?Nat) : async UpperResult<[?Auction.EncryptedOrderBook], { #AccountRevisionMismatch; #UnknownAsset : Principal; #UnknownPrincipal; #NoCredit }> {
+    manageDarkOrderBooksCounter.add(1);
+    let pureArgs = Array.init<(Auction.AssetId, ?Auction.EncryptedOrderBook)>(args.size(), (0, null));
+    for (i in args.keys()) {
+      let ?assetId = getAssetId(args[i].0) else return #Err(#UnknownAsset(args[i].0));
+      pureArgs[i] := (assetId, args[i].1);
+    };
+    let res = auction.manageDarkOrderBooks(caller, Array.freeze(pureArgs), expectedAccountRevision);
+    switch (res) {
+      case (#ok x) #Ok(x);
+      case (#err err) #Err(err);
+    };
   };
 
   public shared ({ caller }) func placeBids(arg : [(ledger : Principal, orderBookType : Auction.OrderBookType, volume : Nat, price : Float)], expectedAccountRevision : ?Nat) : async [UpperResult<Auction.PlaceOrderResult, ICRC84Auction.PlaceOrderError>] {
@@ -1090,7 +1125,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
 
   // loops over asset ids, beginning from provided asset id and processes them one by one.
   // stops if we exceed instructions threshold and returns #nextIndex in this case
-  private func processAssetsChunk(auction : Auction.Auction, startIndex : Nat) : {
+  private func processAssetsChunk(auction : Auction.Auction, startIndex : Nat) : async* {
     #done;
     #nextIndex : Nat;
   } {
@@ -1100,6 +1135,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     var nextAssetId = 0;
     label l for (assetId in Iter.range(startIndex, Vec.size(assets) - 1)) {
       nextAssetId := assetId + 1;
+      await* auction.decryptDarkOrderBooks(assetId, E.MOCK_DECRYPTION_KEY);
       auction.processAsset(assetId);
       if (Prim.performanceCounter(0) > startInstructions + BID_PROCESSING_INSTRUCTIONS_THRESHOLD) break l;
     };
@@ -1129,7 +1165,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
         nextAuctionTickTimestamp := next;
       };
     };
-    switch (processAssetsChunk(auction, nextAssetIdToProcess)) {
+    switch (await* processAssetsChunk(auction, nextAssetIdToProcess)) {
       case (#done) {
         auction.sessionsCounter += 1;
         nextSessionTimestamp := Nat64.toNat(auctionSchedule.nextExecutionAt() / 1_000_000_000);
@@ -1164,7 +1200,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
         symbol = x.symbol;
       },
     );
-    auctionDataV2 := auction.share();
+    auctionDataV3 := auction.share();
     ptData := metrics.share();
     stableAdminsMap := permissions.share();
   };

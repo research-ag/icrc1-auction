@@ -19,6 +19,7 @@ import Users "./users";
 
 import T "./types";
 import AssetOrderBook "asset_order_book";
+import PriorityQueue "priority_queue";
 
 module {
 
@@ -54,38 +55,69 @@ module {
   };
 
   /// helper class to work with all orders of given asset
-  public class OrderBookExecutionService(service : OrdersService, assetInfo : T.AssetInfo, orderBookType : { #immediate; #combined }) {
+  public class OrderBookExecutionService(
+    service : OrdersService,
+    assetInfo : T.AssetInfo,
+    orderBookType : {
+      #immediate;
+      #combined : { encryptedOrdersQueue : List.List<T.Order> };
+    },
+  ) {
 
-    public func toIter() : Iter.Iter<(T.OrderId, T.Order)> {
+    public func toIter() : Iter.Iter<(?T.OrderId, T.Order)> {
+      let mapOpt = func(iter : Iter.Iter<(T.OrderId, T.Order)>) : Iter.Iter<(?T.OrderId, T.Order)> {
+        Iter.map<(T.OrderId, T.Order), (?T.OrderId, T.Order)>(iter, func(oid, o) = (?oid, o));
+      };
+
       switch (orderBookType) {
         // Note: for immediate order book we always take only the first entry, because clearing happens for each ask-bid pair separately
-        case (#immediate) service.assetOrderBook(assetInfo, #immediate).queue |> List.toIter(_) |> Iter.take(_, 1);
-        case (#combined) {
+        case (#immediate) service.assetOrderBook(assetInfo, #immediate).queue |> List.toIter(_) |> Iter.take(_, 1) |> mapOpt(_);
+        case (#combined { encryptedOrdersQueue }) {
           var delayedCursor = service.assetOrderBook(assetInfo, #delayed).queue;
           var immediateCursor = service.assetOrderBook(assetInfo, #immediate).queue;
+          var encryptedCursor = encryptedOrdersQueue;
           object {
-            public func next() : ?(T.OrderId, T.Order) {
+            public func next() : ?(?T.OrderId, T.Order) {
+              var pickFrom : {
+                #delayed : (T.OrderId, T.Order);
+                #immediate : (T.OrderId, T.Order);
+                #encrypted : T.Order;
+                #none;
+              } = #none;
               switch (delayedCursor, immediateCursor) {
-                case (?(d, nextD), ?(i, nextI)) switch (AssetOrderBook.comparePriority(service.kind)(d, i)) {
-                  case (#less) {
-                    immediateCursor := nextI;
-                    ?i;
-                  };
-                  // delayed order with the same price has greater priority
-                  case (_) {
-                    delayedCursor := nextD;
-                    ?d;
-                  };
+                case (?(d, _), ?(i, _)) switch (AssetOrderBook.comparePriority(service.kind)(d, i)) {
+                  case (#less) pickFrom := #immediate(i);
+                  case (_) pickFrom := #delayed(d);
                 };
-                case (?(x, next), null) {
-                  delayedCursor := next;
-                  ?x;
+                case (?(item, _), null) pickFrom := #delayed(item);
+                case (null, ?(item, _)) pickFrom := #immediate(item);
+                case (_) {};
+              };
+              switch (encryptedCursor, pickFrom) {
+                case (?(order, _), #none) pickFrom := #encrypted(order);
+                case (?(order, _), #delayed x or #immediate x) switch (AssetOrderBook.comparePriority(service.kind)((0, order), x)) {
+                  case (#less) {};
+                  case (_) pickFrom := #encrypted(order);
                 };
-                case (null, ?(x, next)) {
-                  immediateCursor := next;
-                  ?x;
+                case (_) {};
+              };
+              switch (pickFrom) {
+                case (#immediate(oid, order)) {
+                  let ?c = immediateCursor else Prim.trap("");
+                  immediateCursor := c.1;
+                  ?(?oid, order);
                 };
-                case (_) null;
+                case (#delayed(oid, order)) {
+                  let ?c = delayedCursor else Prim.trap("");
+                  delayedCursor := c.1;
+                  ?(?oid, order);
+                };
+                case (#encrypted(order)) {
+                  let ?c = encryptedCursor else Prim.trap("");
+                  encryptedCursor := c.1;
+                  ?(null, order);
+                };
+                case (#none) null;
               };
             };
           };
@@ -93,9 +125,9 @@ module {
       };
     };
 
-    public func nextOrder() : ?(T.OrderId, T.Order) = toIter().next();
+    public func nextOrder() : ?(?T.OrderId, T.Order) = toIter().next();
 
-    public func fulfilOrder(sessionNumber : Nat, orderId : T.OrderId, order : T.Order, maxVolume : Nat, price : Float) : (volume : Nat, quoteVol : Nat) {
+    public func fulfilOrder(sessionNumber : Nat, orderId : ?T.OrderId, order : T.Order, maxVolume : Nat, price : Float) : (volume : Nat, quoteVol : Nat) {
       service.fulfil(assetInfo, sessionNumber, orderId, order, maxVolume, price);
     };
 
@@ -113,7 +145,13 @@ module {
     kind_ : { #ask; #bid },
   ) = self {
 
-    public func createOrderBookExecutionService(assetInfo : T.AssetInfo, orderBookType : { #immediate; #combined }) : OrderBookExecutionService = OrderBookExecutionService(self, assetInfo, orderBookType);
+    public func createOrderBookExecutionService(
+      assetInfo : T.AssetInfo,
+      orderBookType : {
+        #immediate;
+        #combined : { encryptedOrdersQueue : List.List<T.Order> };
+      },
+    ) : OrderBookExecutionService = OrderBookExecutionService(self, assetInfo, orderBookType);
 
     public let kind : { #ask; #bid } = kind_;
 
@@ -181,10 +219,13 @@ module {
 
     // bid: source = quote, dest = base
     // ask: source = base, dest = quote
-    public func fulfil(assetInfo : T.AssetInfo, sessionNumber : Nat, orderId : T.OrderId, order : T.Order, maxVolume : Nat, price : Float) : (volume : Nat, quoteVol : Nat) {
+    public func fulfil(assetInfo : T.AssetInfo, sessionNumber : Nat, orderId : ?T.OrderId, order : T.Order, maxVolume : Nat, price : Float) : (volume : Nat, quoteVol : Nat) {
       let ?sourceAcc = credits.getAccount(order.userInfoRef, srcAssetId(order.assetId)) else Prim.trap("Can never happen");
 
-      credits.unlockCredit(sourceAcc, srcVolume(order.volume, order.price)) |> (assert _.0);
+      switch (orderId) {
+        case (?oid) credits.unlockCredit(sourceAcc, srcVolume(order.volume, order.price)) |> (assert _.0);
+        case (null) {};
+      };
 
       let isPartial = maxVolume < order.volume;
       let baseVolume = Nat.min(maxVolume, order.volume); // = executed volume
@@ -197,12 +238,17 @@ module {
       let destVol = destVolume(baseVolume, price);
 
       // adjust orders
-      if (isPartial) {
-        credits.lockCredit(sourceAcc, srcVolume(order.volume - baseVolume, order.price)) |> (assert _.0); // re-lock credit
-        assets.deductOrderVolume(assetInfo, kind, order, baseVolume); // shrink order
-      } else {
-        users.deleteOrder(order.userInfoRef, kind, orderId) |> (ignore _); // delete order
-        assets.deleteOrder(assetInfo, kind, order.orderBookType, orderId); // delete order
+      switch (orderId) {
+        case (?oid) {
+          if (isPartial) {
+            credits.lockCredit(sourceAcc, srcVolume(order.volume - baseVolume, order.price)) |> (assert _.0); // re-lock credit
+            assets.deductOrderVolume(assetInfo, kind, order, baseVolume); // shrink order
+          } else {
+            users.deleteOrder(order.userInfoRef, kind, oid) |> (ignore _); // delete order
+            assets.deleteOrder(assetInfo, kind, order.orderBookType, oid); // delete order
+          };
+        };
+        case (null) {};
       };
 
       // debit at source
@@ -572,6 +618,111 @@ module {
       };
 
       #ok(Vec.toArray(retCancellations), retPlacements);
+    };
+
+    public func manageDarkOrderBooks(
+      p : Principal,
+      userInfo : T.UserInfo,
+      placements : [(assetId : T.AssetId, data : ?T.EncryptedOrderBook)],
+      expectedAccountRevision : ?Nat,
+    ) : R.Result<[?T.EncryptedOrderBook], { #AccountRevisionMismatch; #NoCredit }> {
+      let ret = Array.init<?T.EncryptedOrderBook>(placements.size(), null);
+      switch (expectedAccountRevision) {
+        case (?rev) {
+          if (rev != userInfo.accountRevision) {
+            return #err(#AccountRevisionMismatch);
+          };
+        };
+        case (null) {};
+      };
+      let ?quoteAccount = credits.getAccount(userInfo, quoteAssetId) else return #err(#NoCredit);
+      var newDarkOrderBooksPlaced : Int = 0;
+      for ((assetId, newData) in placements.values()) {
+        switch (newData, users.findDarkOrderBook(userInfo, assetId)) {
+          case (?_, null) newDarkOrderBooksPlaced += 1;
+          case (null, ?_) newDarkOrderBooksPlaced -= 1;
+          case (_) {};
+        };
+      };
+      if (newDarkOrderBooksPlaced > 0) {
+        let (locked, _) = credits.lockCredit(quoteAccount, Int.abs(newDarkOrderBooksPlaced) * C.DARK_ORDER_BOOK_LOCK_AMOUNT);
+        if (not locked) {
+          return #err(#NoCredit);
+        };
+      } else if (newDarkOrderBooksPlaced < 0) {
+        ignore credits.unlockCredit(quoteAccount, Int.abs(newDarkOrderBooksPlaced) * C.DARK_ORDER_BOOK_LOCK_AMOUNT);
+      };
+      for (i in placements.keys()) {
+        let (assetId, data) = placements[i];
+        let asset = assets.getAsset(assetId);
+        ignore assets.putDarkOrderBook(asset, p, data);
+        let oldValue = users.putDarkOrderBook(userInfo, assetId, data);
+        ret[i] := oldValue;
+      };
+      #ok(Array.freeze(ret));
+    };
+
+    public func processDarkOrderBooks(assetId : T.AssetId, asset : T.AssetInfo) : (asks : List.List<T.Order>, bids : List.List<T.Order>) {
+      if (Option.isNull(asset.darkOrderBooks.encrypted)) return (null, null);
+      let ?decryptedOrderBooks = asset.darkOrderBooks.decrypted else Prim.trap("Dark order books were not decrypted");
+      var asksQueue : List.List<T.Order> = null;
+      var bidsQueue : List.List<T.Order> = null;
+      label l for ((user, orders) in decryptedOrderBooks.vals()) {
+        let ?userInfo = users.get(user) else continue l;
+        let ?quoteAccount = credits.getAccount(userInfo, quoteAssetId) else Prim.trap("Can never happen");
+        ignore credits.unlockCredit(quoteAccount, C.DARK_ORDER_BOOK_LOCK_AMOUNT);
+        // we do not acutally lock funds for encrypted orders, because we should then unlock them for all the encrypted orders, even not fulfilled
+        // so we just check that user has enough funds for them
+        let baseAccount = credits.getAccount(userInfo, assetId);
+        var quoteToLock = 0;
+        var baseToLock = 0;
+        label il for ({ kind; price; volume } in orders.vals()) {
+          let ordersService = (switch (kind) { case (#ask) { asks }; case (#bid) { bids } });
+          let order : T.Order = {
+            user;
+            userInfoRef = userInfo;
+            assetId;
+            orderBookType = #delayed;
+            price;
+            var volume = volume;
+          };
+          let lockVolume = ordersService.srcVolume(order.volume, order.price);
+          let lockSuccess = switch (kind) {
+            case (#ask) {
+              switch (baseAccount) {
+                case (null) false;
+                case (?ba) {
+                  if (baseToLock + lockVolume + ba.lockedCredit <= ba.credit) {
+                    baseToLock += lockVolume;
+                    true;
+                  } else { false };
+                };
+              };
+            };
+            case (#bid) {
+              if (quoteToLock + lockVolume + quoteAccount.lockedCredit <= quoteAccount.credit) {
+                quoteToLock += lockVolume;
+                true;
+              } else { false };
+            };
+          };
+          if (not lockSuccess) continue il;
+          switch (kind) {
+            case (#ask) {
+              let (queueUpd, _) = PriorityQueue.insert<T.Order>(asksQueue, order, func(a, b) = Float.compare(b.price, a.price));
+              asksQueue := queueUpd;
+            };
+            case (#bid) {
+              let (queueUpd, _) = PriorityQueue.insert<T.Order>(bidsQueue, order, func(a, b) = Float.compare(a.price, b.price));
+              bidsQueue := queueUpd;
+            };
+          };
+        };
+        ignore users.putDarkOrderBook(userInfo, assetId, null);
+      };
+      asset.darkOrderBooks.encrypted := null;
+      asset.darkOrderBooks.decrypted := null;
+      (asksQueue, bidsQueue);
     };
   };
 
