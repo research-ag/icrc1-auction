@@ -65,17 +65,20 @@ module {
   ) {
 
     public func toIter() : Iter.Iter<(?T.OrderId, T.Order)> {
-      let mapOpt = func(iter : Iter.Iter<(T.OrderId, T.Order)>) : Iter.Iter<(?T.OrderId, T.Order)> {
-        Iter.map<(T.OrderId, T.Order), (?T.OrderId, T.Order)>(iter, func(oid, o) = (?oid, o));
-      };
-
       switch (orderBookType) {
         // Note: for immediate order book we always take only the first entry, because clearing happens for each ask-bid pair separately
-        case (#immediate) service.assetOrderBook(assetInfo, #immediate).queue |> List.toIter(_) |> Iter.take(_, 1) |> mapOpt(_);
+        case (#immediate) {
+          service.assetOrderBook(assetInfo, #immediate).queue
+          |> List.toIter(_)
+          |> Iter.take(_, 1)
+          |> Iter.map<(T.OrderId, T.Order), (?T.OrderId, T.Order)>(_, func(oid, o) = (?oid, o));
+        };
         case (#combined { encryptedOrdersQueue }) {
+
           var delayedCursor = service.assetOrderBook(assetInfo, #delayed).queue;
           var immediateCursor = service.assetOrderBook(assetInfo, #immediate).queue;
           var encryptedCursor = encryptedOrdersQueue;
+
           object {
             public func next() : ?(?T.OrderId, T.Order) {
               var pickFrom : {

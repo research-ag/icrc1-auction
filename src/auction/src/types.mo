@@ -28,7 +28,7 @@ module {
     var volume : Nat;
   };
 
-  public type EncryptedOrderBook = Text;
+  public type EncryptedOrderBook = (Blob, Blob);
 
   public type DecryptedOrderData = {
     kind : { #ask; #bid };
@@ -125,7 +125,7 @@ module {
     bids : {
       var map : AssocList.AssocList<OrderId, StableOrderDataV2>;
     };
-    darkOrderBooks : AssocList.AssocList<AssetId, Text>;
+    darkOrderBooks : AssocList.AssocList<AssetId, EncryptedOrderBook>;
     credits : AssocList.AssocList<AssetId, Account>;
     accountRevision : Nat;
     loyaltyPoints : Nat;

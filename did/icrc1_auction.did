@@ -91,7 +91,7 @@ type Order = record {
   volume : nat
 };
 
-type EncryptedOrderBook = text;
+type EncryptedOrderBook = record { blob; blob };
 
 type CancellationArg = variant {
   all : opt vec Token;

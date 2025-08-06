@@ -92,8 +92,14 @@ describe('ICRC1 Auction', () => {
     last_prices: [],
   };
 
-  const encryptOrders = (orders: { kind: "ask" | "bid", volume: number, price: number }[]): string => {
-    return orders.map(v => v.kind + ':' + v.volume + ':' + v.price).join(";");
+  const encryptOrders = (orders: {
+    kind: "ask" | "bid",
+    volume: number,
+    price: number
+  }[]): [Uint8Array, Uint8Array] => {
+    let text = orders.map(v => v.kind + ':' + v.volume + ':' + v.price).join(";");
+    let blob = Uint8Array.from(Buffer.from(text, 'utf-8'));
+    return [blob, blob];
   };
 
   beforeAll(() => {
@@ -538,8 +544,43 @@ Consider gracefully handling failures from this canister or altering the caniste
       expect(state.dark_order_books).toEqual([]);
     });
 
-    test.skip('should process dark order partially when out of funds', async () => {
-      // TODO
+    test('should process dark order partially when out of funds', async () => {
+      await prepareDeposit(user, quoteLedgerPrincipal, 1_000_000);
+      await auction.manageDarkOrderBooks([[ledger1Principal, [encryptOrders([
+        { kind: "bid", volume: 10_000, price: 100 }, // consumes all of the user credits
+        { kind: "bid", volume: 10_000, price: 120 }, // will be thrown away as user does not have funds for that
+      ])]]], []);
+
+      const seller = createIdentity('seller');
+      await prepareDeposit(seller, ledger1Principal, 20_000);
+      auction.setIdentity(seller);
+      await auction.placeAsks([[ledger1Principal, { delayed: null }, 20_000n, 100.0]], []);
+
+      await startNewAuctionSession();
+      // check that user bought 10_000
+      auction.setIdentity(user);
+      let state = (await auction.auction_query(
+        [quoteLedgerPrincipal, ledger1Principal],
+        { ...auctionQueryEmpty, credits: [true], dark_order_books: [true] }
+      ));
+      expect(state.credits).toEqual([
+        [quoteLedgerPrincipal, { available: 0n, locked: 0n, total: 0n }],
+        [ledger1Principal, { available: 10_000n, locked: 0n, total: 10_000n }],
+      ]);
+      expect(state.dark_order_books).toEqual([]);
+
+      // check that seller sold 10_000
+      auction.setIdentity(seller);
+      state = (await auction.auction_query(
+        [quoteLedgerPrincipal, ledger1Principal],
+        { ...auctionQueryEmpty, credits: [true], asks: [true] }
+      ));
+      expect(state.credits).toEqual([
+        [quoteLedgerPrincipal, { available: 1_000_000n, locked: 0n, total: 1_000_000n }],
+        [ledger1Principal, { available: 0n, locked: 10_000n, total: 10_000n }],
+      ]);
+      expect(state.asks.length).toBe(1);
+      expect(state.asks[0][1].volume).toEqual(10_000n);
     });
 
     test('should remove unfulfilled dark order after auction ran', async () => {

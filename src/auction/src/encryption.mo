@@ -46,7 +46,8 @@ module {
     Array.map<T.EncryptedOrderBook, ?[T.DecryptedOrderData]>(
       encryptedOrderBooks,
       func(encryptedOrders) {
-        let orders = Text.split(encryptedOrders, #char ';') |> Iter.toArray(_);
+        let ?text = Text.decodeUtf8(encryptedOrders.0) else return null;
+        let orders = Text.split(text, #char ';') |> Iter.toArray(_);
         let ret = VarArray.repeat<T.DecryptedOrderData>({ kind = #ask; volume = 0; price = 0 }, orders.size());
         for (i in orders.keys()) {
           let ?decrypted = parseOrder(orders[i]) else return null;
