@@ -1,0 +1,16 @@
+[package]
+name = "crypto"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+path = "lib.rs"
+
+[dependencies]
+candid = "0.10.10"
+ic-cdk = "0.16.0"
+serde = { version = "1.0.219", features = ["derive"] }
+
+[dev-dependencies]
+candid-extractor = "0.1.6"

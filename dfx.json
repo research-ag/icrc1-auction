@@ -41,6 +41,23 @@
         "output": "./declarations/icrc1_auction"
       },
       "optimize": "cycles"
+    },
+    "crypto": {
+      "candid": "crypto_canister/crypto.did",
+      "type": "custom",
+      "shrink": true,
+      "gzip": true,
+      "wasm": "target/wasm32-unknown-unknown/release/crypto.wasm",
+      "build": [
+        "cargo build --target wasm32-unknown-unknown --release -p crypto",
+        "cargo install candid-extractor --version 0.1.6",
+        "candid-extractor target/wasm32-unknown-unknown/release/crypto.wasm > crypto_canister/crypto.did"
+      ],
+      "metadata": [
+        {
+          "name": "candid:service"
+        }
+      ]
     }
   },
   "defaults": {
