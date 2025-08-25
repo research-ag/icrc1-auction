@@ -21,7 +21,6 @@ import TokenHandler "mo:token-handler";
 import Vec "mo:vector";
 
 import Auction "./auction/src";
-import E "./auction/src/encryption";
 import AssetOrderBook "./auction/src/asset_order_book";
 import ICRC84Auction "./icrc84_auction";
 
@@ -33,7 +32,7 @@ import U "./utils";
 
 // arguments have to be provided on first canister install,
 // on upgrade quote ledger will be ignored
-persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Principal) = self {
+persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Principal, cryptoCanisterId : ?Principal) = self {
 
   // ensure compliance to ICRC84 standart.
   // actor won't compile in case of type mismatch here
@@ -1135,7 +1134,10 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     var nextAssetId = 0;
     label l for (assetId in Iter.range(startIndex, Vec.size(assets) - 1)) {
       nextAssetId := assetId + 1;
-      await* auction.decryptDarkOrderBooks(assetId, E.MOCK_DECRYPTION_KEY);
+      switch (cryptoCanisterId) {
+        case (?ccid) await* auction.decryptDarkOrderBooks(assetId, ccid, "\00\01\02"); // TODO real private key here
+        case (null) {};
+      };
       auction.processAsset(assetId);
       if (Prim.performanceCounter(0) > startInstructions + BID_PROCESSING_INSTRUCTIONS_THRESHOLD) break l;
     };
@@ -1153,7 +1155,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     };
   };
 
-  private func runAuction() : async () {
+  func runAuction() : async () {
     if (nextAssetIdToProcess == 0) {
       let startTimeDiff : Int = Nat64.toNat(Prim.time() / 1_000_000) - nextAuctionTickTimestamp * 1_000;
       sessionStartTimeGauge.update(Int.max(startTimeDiff, 0) |> Int.abs(_));

@@ -3,6 +3,8 @@ import Blob "mo:core/Blob";
 import Float "mo:core/Float";
 import Iter "mo:core/Iter";
 import Nat "mo:core/Nat";
+import Prim "mo:prim";
+import Principal "mo:core/Principal";
 import Text "mo:core/Text";
 import VarArray "mo:core/VarArray";
 
@@ -10,11 +12,19 @@ import T "./types";
 
 module {
 
-  // TODO temporary constant. Check where it is used and refactor appropriately
-  public let MOCK_DECRYPTION_KEY : Blob = "\00\01\02";
-
-  public func decryptOrderBooks(encryptedOrderBooks : [T.EncryptedOrderBook], encryptionKey : Blob) : async* [?[T.DecryptedOrderData]] {
-    assert encryptionKey == MOCK_DECRYPTION_KEY;
+  public func decryptOrderBooks(
+    cryptoCanisterId : Principal,
+    privateKey : Blob,
+    encryptedOrderBooks : [T.EncryptedOrderBook],
+  ) : async* [?[T.DecryptedOrderData]] {
+    let crypto : (
+      actor {
+        decrypt_blocks : query (arg : { private_key : Blob; data_blocks : [Blob] }) -> async {
+          #Ok : [Blob];
+          #Err : Text;
+        };
+      }
+    ) = actor (Principal.toText(cryptoCanisterId));
 
     func parseOrder(order : Text) : ?T.DecryptedOrderData {
       let words = Text.split(order, #char ':');
@@ -43,10 +53,15 @@ module {
       };
     };
 
-    Array.map<T.EncryptedOrderBook, ?[T.DecryptedOrderData]>(
-      encryptedOrderBooks,
-      func(encryptedOrders) {
-        let ?text = Text.decodeUtf8(encryptedOrders.0) else return null;
+    let decrypted = switch (await crypto.decrypt_blocks({ private_key = privateKey; data_blocks = Array.map<T.EncryptedOrderBook, Blob>(encryptedOrderBooks, func(x, _) = x) })) {
+      case (#Ok x) x;
+      case (#Err msg) Prim.trap("Could not decrypt orders: " # msg);
+    };
+
+    Array.map<Blob, ?[T.DecryptedOrderData]>(
+      decrypted,
+      func(data) {
+        let ?text = Text.decodeUtf8(data) else return null;
         let orders = Text.split(text, #char ';') |> Iter.toArray(_);
         let ret = VarArray.repeat<T.DecryptedOrderData>({ kind = #ask; volume = 0; price = 0 }, orders.size());
         for (i in orders.keys()) {

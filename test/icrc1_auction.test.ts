@@ -11,6 +11,9 @@ import {
   idlFactory as A_IDL,
   init as aInit,
 } from '../declarations/icrc1_auction/icrc1_auction_development.did';
+import {
+  idlFactory as C_IDL,
+} from '../declarations/crypto/crypto.did';
 import { IDL } from '@dfinity/candid';
 import { resolve } from 'node:path';
 import { Principal } from '@dfinity/principal';
@@ -133,8 +136,15 @@ describe('ICRC1 Auction', () => {
     ledger2.setIdentity(user);
 
     f = await pic.setupCanister({
+      wasm: resolve(__dirname, '../.dfx/local/canisters/crypto/crypto.wasm'),
+      sender: controller.getPrincipal(),
+      idlFactory: C_IDL,
+    });
+    let cryptoCanister = f.canisterId;
+
+    f = await pic.setupCanister({
       wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction_development/icrc1_auction_development.wasm'),
-      arg: IDL.encode(aInit({ IDL }), [[quoteLedgerPrincipal], [admin.getPrincipal()]]),
+      arg: IDL.encode(aInit({ IDL }), [[quoteLedgerPrincipal], [admin.getPrincipal()], [cryptoCanister]]),
       sender: controller.getPrincipal(),
       idlFactory: A_IDL,
     });
@@ -166,7 +176,7 @@ describe('ICRC1 Auction', () => {
       await expect(pic.installCode({
         canisterId: p,
         wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction_development/icrc1_auction_development.wasm'),
-        arg: IDL.encode(aInit({ IDL }), [[], []]),
+        arg: IDL.encode(aInit({ IDL }), [[], [], []]),
         sender: controller.getPrincipal(),
       })).rejects.toThrow(`Error from Canister ${p.toText()}: Canister called \`ic0.trap\` with message: Quote ledger principal not provided.
 Consider gracefully handling failures from this canister or altering the canister to handle exceptions. See documentation: http://internetcomputer.org/docs/current/references/execution-errors#trapped-explicitly`);
@@ -183,7 +193,7 @@ Consider gracefully handling failures from this canister or altering the caniste
       await pic.upgradeCanister({
         canisterId: auctionPrincipal,
         wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction_development/icrc1_auction_development.wasm'),
-        arg: IDL.encode(aInit({ IDL }), [[], []]),
+        arg: IDL.encode(aInit({ IDL }), [[], [], []]),
         sender: controller.getPrincipal(),
       });
       expect((await auction.getQuoteLedger()).toText()).toBe(quoteLedgerPrincipal.toText());
@@ -197,7 +207,7 @@ Consider gracefully handling failures from this canister or altering the caniste
       await pic.upgradeCanister({
         canisterId: auctionPrincipal,
         wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction_development/icrc1_auction_development.wasm'),
-        arg: IDL.encode(aInit({ IDL }), [[fakeLedger.getPrincipal()], []]),
+        arg: IDL.encode(aInit({ IDL }), [[fakeLedger.getPrincipal()], [], []]),
         sender: controller.getPrincipal(),
       });
       expect((await auction.getQuoteLedger()).toText()).toBe(quoteLedgerPrincipal.toText());
@@ -244,7 +254,7 @@ Consider gracefully handling failures from this canister or altering the caniste
       await pic.upgradeCanister({
         canisterId: auctionPrincipal,
         wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction_development/icrc1_auction_development.wasm'),
-        arg: IDL.encode(aInit({ IDL }), [[], []]),
+        arg: IDL.encode(aInit({ IDL }), [[], [], []]),
         sender: controller.getPrincipal(),
       });
 

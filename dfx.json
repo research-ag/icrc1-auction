@@ -46,7 +46,6 @@
       "candid": "crypto_canister/crypto.did",
       "type": "custom",
       "shrink": true,
-      "gzip": true,
       "wasm": "target/wasm32-unknown-unknown/release/crypto.wasm",
       "build": [
         "cargo build --target wasm32-unknown-unknown --release -p crypto",
@@ -57,7 +56,14 @@
         {
           "name": "candid:service"
         }
-      ]
+      ],
+      "declarations": {
+        "bindings": [
+          "js",
+          "ts"
+        ],
+        "output": "./declarations/crypto"
+      }
     }
   },
   "defaults": {

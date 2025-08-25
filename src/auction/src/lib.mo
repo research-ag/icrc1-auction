@@ -264,12 +264,17 @@ module {
 
     public func registerAssets(n : Nat) = assets.register(n, sessionsCounter);
 
-    public func decryptDarkOrderBooks(assetId : AssetId, decryptionKey : Blob) : async* () {
+    public func decryptDarkOrderBooks(assetId : AssetId, cryptoCanisterId : Principal, decryptionKey : Blob) : async* () {
       let assetInfo = assets.getAsset(assetId);
       let darkOrderBook = assetInfo.darkOrderBooks.encrypted |> List.toArray(_);
+      if (darkOrderBook.size() == 0) {
+        assetInfo.darkOrderBooks.decrypted := ?[];
+        return;
+      };
       let decrypted = await* E.decryptOrderBooks(
-        darkOrderBook |> Array.map<(Principal, T.EncryptedOrderBook), T.EncryptedOrderBook>(_, func(_, ob) = ob),
+        cryptoCanisterId,
         decryptionKey,
+        darkOrderBook |> Array.map<(Principal, T.EncryptedOrderBook), T.EncryptedOrderBook>(_, func(_, ob) = ob),
       );
       let decryptedOrderBooks : Vec.Vector<(Principal, [T.DecryptedOrderData])> = Vec.new();
       for (i in decrypted.keys()) {

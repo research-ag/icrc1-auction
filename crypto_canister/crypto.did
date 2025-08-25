@@ -1,10 +1,6 @@
 type DecryptionInput = record { private_key : blob; data_blocks : vec blob };
-type DecryptionResult = record {
-  decrypted_blocks : vec blob;
-  error_message : text;
-  success : bool;
-};
+type DecryptionResult = variant { Ok : vec blob; Err : text };
 service : {
-  decrypt_blocks : (DecryptionInput) -> (DecryptionResult);
-  get_public_key : () -> (blob);
+  decrypt_blocks : (DecryptionInput) -> (DecryptionResult) query;
+  get_public_key : () -> (blob) query;
 }
