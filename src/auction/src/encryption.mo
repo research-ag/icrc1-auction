@@ -19,7 +19,7 @@ module {
   ) : async* [?[T.DecryptedOrderData]] {
     let crypto : (
       actor {
-        decrypt_blocks : query (arg : { private_key : Blob; data_blocks : [Blob] }) -> async {
+        decrypt_blocks : (arg : { private_key : Blob; data_blocks : [Blob] }) -> async {
           #Ok : [Blob];
           #Err : Text;
         };
