@@ -11,6 +11,9 @@ path = "lib.rs"
 candid = "0.10.10"
 ic-cdk = "0.16.0"
 serde = { version = "1.0.219", features = ["derive"] }
+chacha20poly1305 = { version = "0.10", default-features = false, features = ["alloc"] }
+hkdf = "0.12"
+sha2 = "0.10"
 
 [dev-dependencies]
 candid-extractor = "0.1.6"

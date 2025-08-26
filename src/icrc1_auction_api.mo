@@ -1135,7 +1135,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     label l for (assetId in Iter.range(startIndex, Vec.size(assets) - 1)) {
       nextAssetId := assetId + 1;
       switch (cryptoCanisterId) {
-        case (?ccid) await* auction.decryptDarkOrderBooks(assetId, ccid, "\00\01\02"); // TODO real private key here
+        case (?ccid) await* auction.decryptDarkOrderBooks(assetId, ccid, Text.encodeUtf8(Nat.toText(nextSessionTimestamp)));
         case (null) {};
       };
       auction.processAsset(assetId);
