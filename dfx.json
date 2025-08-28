@@ -45,6 +45,7 @@
     "crypto": {
       "candid": "crypto_canister/crypto.did",
       "type": "custom",
+      "init_arg": "\"123qwe\"",
       "shrink": true,
       "wasm": "target/wasm32-unknown-unknown/release/crypto.wasm",
       "build": [
@@ -61,6 +62,7 @@
     "crypto_mock": {
       "candid": "test/mocks/crypto_canister_mock/crypto.did",
       "type": "custom",
+      "init_arg": "\"123qwe\"",
       "shrink": true,
       "wasm": "target/wasm32-unknown-unknown/release/crypto_mock.wasm",
       "build": [
