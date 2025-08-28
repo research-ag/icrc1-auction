@@ -3,7 +3,6 @@ import Blob "mo:core/Blob";
 import Float "mo:core/Float";
 import Iter "mo:core/Iter";
 import Nat "mo:core/Nat";
-import Prim "mo:prim";
 import Principal "mo:core/Principal";
 import Text "mo:core/Text";
 import VarArray "mo:core/VarArray";
@@ -19,10 +18,7 @@ module {
   ) : async* [?[T.DecryptedOrderData]] {
     let crypto : (
       actor {
-        decrypt_blocks : (arg : { private_key : Blob; data_blocks : [Blob] }) -> async {
-          #Ok : [Blob];
-          #Err : Text;
-        };
+        decrypt : (identity : Blob, data_blocks : [Blob]) -> async [Blob];
       }
     ) = actor (Principal.toText(cryptoCanisterId));
 
@@ -53,10 +49,7 @@ module {
       };
     };
 
-    let decrypted = switch (await crypto.decrypt_blocks({ private_key = privateKey; data_blocks = Array.map<T.EncryptedOrderBook, Blob>(encryptedOrderBooks, func(x, _) = x) })) {
-      case (#Ok x) x;
-      case (#Err msg) Prim.trap("Could not decrypt orders: " # msg);
-    };
+    let decrypted = await crypto.decrypt(privateKey, Array.map<T.EncryptedOrderBook, Blob>(encryptedOrderBooks, func(x, _) = x));
 
     Array.map<Blob, ?[T.DecryptedOrderData]>(
       decrypted,

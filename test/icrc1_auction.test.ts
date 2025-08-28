@@ -97,21 +97,36 @@ describe('ICRC1 Auction', () => {
     last_prices: [],
   };
 
-  const encryptOrders = async (orders: {
-    kind: "ask" | "bid",
-    volume: number,
-    price: number
-  }[]): Promise<[Uint8Array, Uint8Array | number[]]> => {
-    const text = orders.map(v => v.kind + ':' + v.volume + ':' + v.price).join(";");
-    const plaintext = Uint8Array.from(Buffer.from(text, 'utf-8'));
-    const { timestamp } = await auction.nextSession();
-    const identity = Uint8Array.from(Buffer.from(String(timestamp), 'utf-8'));
-    const ciphertext = await cryptoCanister.encrypt_block({ identity, plaintext });
-    if ('Ok' in ciphertext) {
-      return [plaintext, ciphertext['Ok']]
-    } else {
-      throw new Error(JSON.stringify(ciphertext));
+  const encryptOrders = async (
+    user: Principal,
+    orders: {
+      kind: "ask" | "bid",
+      volume: number,
+      price: number
+    }[]): Promise<[Uint8Array, Uint8Array | number[]]> => {
+
+    async function encryptIBE(data: Uint8Array, userIdentity: Principal): Promise<Uint8Array> {
+      // real encryption example:
+      // const { DerivedPublicKey, IbeCiphertext, IbeIdentity, IbeSeed } = await import("@dfinity/vetkeys");
+      // const publicKey = DerivedPublicKey.deserialize(new Uint8Array(await cryptoCanister.get_ibe_public_key()));
+      // const ciphertext = IbeCiphertext.encrypt(
+      //   publicKey,
+      //   IbeIdentity.fromBytes(userIdentity.toUint8Array()),
+      //   data,
+      //   IbeSeed.random(),
+      // );
+      // return ciphertext.serialize();
+
+      // we use mocked encryption. Return pure data here
+      return data
     }
+    async function encryptLocal(data: Uint8Array, userIdentity: Principal): Promise<Uint8Array> {
+      return data;
+    }
+
+    const text = orders.map(v => v.kind + ':' + v.volume + ':' + v.price).join(";");
+    const data = Uint8Array.from(Buffer.from(text, 'utf-8'));
+    return [await encryptLocal(data, user), await encryptIBE(data, user)];
   };
 
   beforeAll(() => {
@@ -239,7 +254,11 @@ Consider gracefully handling failures from this canister or altering the caniste
       auction.setIdentity(user);
       await auction.manageDarkOrderBooks([[
         ledger2Principal,
-        [await encryptOrders([{ kind: "ask", volume: 1000000, price: 42.5 }, { kind: "bid", volume: 12300, price: 13.2 }])]
+        [await encryptOrders([{ kind: "ask", volume: 1000000, price: 42.5 }, {
+          kind: "bid",
+          volume: 12300,
+          price: 13.2
+        }])]
       ]], []);
 
       // check info before upgrade
@@ -474,7 +493,11 @@ Consider gracefully handling failures from this canister or altering the caniste
       await prepareDeposit(user);
       await auction.manageDarkOrderBooks([[
         ledger1Principal,
-        [await encryptOrders([{ kind: "ask", volume: 1000000, price: 42.5 }, { kind: "bid", volume: 12300, price: 13.2 }])]
+        [await encryptOrders([{ kind: "ask", volume: 1000000, price: 42.5 }, {
+          kind: "bid",
+          volume: 12300,
+          price: 13.2
+        }])]
       ]], []);
       let queryResult = (await auction.auction_query([], {
         ...auctionQueryEmpty,
@@ -520,7 +543,11 @@ Consider gracefully handling failures from this canister or altering the caniste
       expect(resp).toEqual({ Ok: [[]] });
       let resp2 = await auction.manageDarkOrderBooks([[
         ledger1Principal,
-        [await encryptOrders([{ kind: "ask", volume: 1120000, price: 39.5 }, { kind: "bid", volume: 10300, price: 9.2 }])]
+        [await encryptOrders([{ kind: "ask", volume: 1120000, price: 39.5 }, {
+          kind: "bid",
+          volume: 10300,
+          price: 9.2
+        }])]
       ]], []);
       expect(resp2).toEqual({ Ok: [[encryptedOrdersV1]] });
     });
@@ -535,7 +562,11 @@ Consider gracefully handling failures from this canister or altering the caniste
       expect((await auction.auction_query(
         [quoteLedgerPrincipal, ledger1Principal],
         { ...auctionQueryEmpty, dark_order_books: [true] }
-      )).dark_order_books).toEqual([[ledger1Principal, await encryptOrders([{ kind: "bid", volume: 10000, price: 100 }])]]);
+      )).dark_order_books).toEqual([[ledger1Principal, await encryptOrders([{
+        kind: "bid",
+        volume: 10000,
+        price: 100
+      }])]]);
 
       const seller = createIdentity('seller');
       await prepareDeposit(seller, ledger1Principal, 10_000);
