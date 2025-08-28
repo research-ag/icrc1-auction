@@ -196,6 +196,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "crypto_mock"
+version = "0.1.0"
+dependencies = [
+ "candid",
+ "getrandom",
+ "ic-cdk",
+ "ic-cdk-macros",
+ "ic-stable-structures",
+ "ic-vetkeys",
+ "serde_bytes",
+]
+
+[[package]]
 name = "darling"
 version = "0.20.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -1,5 +1,6 @@
 [workspace]
 members = [
     "crypto_canister",
+    "test/mocks/crypto_canister_mock",
 ]
 resolver = "2"
