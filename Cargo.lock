@@ -200,11 +200,7 @@ name = "crypto_mock"
 version = "0.1.0"
 dependencies = [
  "candid",
- "getrandom",
  "ic-cdk",
- "ic-cdk-macros",
- "ic-stable-structures",
- "ic-vetkeys",
  "serde_bytes",
 ]
 

@@ -11,10 +11,7 @@ import {
   idlFactory as A_IDL,
   init as aInit,
 } from '../declarations/icrc1_auction/icrc1_auction_development.did';
-import {
-  _SERVICE as CService,
-  idlFactory as C_IDL,
-} from '../declarations/crypto/crypto.did';
+import { _SERVICE as CService, idlFactory as C_IDL, init as cInit } from '../declarations/crypto_mock/crypto_mock.did';
 import { IDL } from '@dfinity/candid';
 import { resolve } from 'node:path';
 import { Principal } from '@dfinity/principal';
@@ -98,7 +95,7 @@ describe('ICRC1 Auction', () => {
   };
 
   const encryptOrders = async (
-    user: Principal,
+    identity: Principal,
     orders: {
       kind: "ask" | "bid",
       volume: number,
@@ -120,13 +117,14 @@ describe('ICRC1 Auction', () => {
       // we use mocked encryption. Return pure data here
       return data
     }
+
     async function encryptLocal(data: Uint8Array, userIdentity: Principal): Promise<Uint8Array> {
       return data;
     }
 
     const text = orders.map(v => v.kind + ':' + v.volume + ':' + v.price).join(";");
     const data = Uint8Array.from(Buffer.from(text, 'utf-8'));
-    return [await encryptLocal(data, user), await encryptIBE(data, user)];
+    return [await encryptLocal(data, identity), await encryptIBE(data, identity)];
   };
 
   beforeAll(() => {
@@ -160,7 +158,8 @@ describe('ICRC1 Auction', () => {
     ledger2.setIdentity(user);
 
     f = await pic.setupCanister({
-      wasm: resolve(__dirname, '../.dfx/local/canisters/crypto/crypto.wasm'),
+      wasm: resolve(__dirname, '../.dfx/local/canisters/crypto_mock/crypto_mock.wasm'),
+      arg: IDL.encode(cInit({ IDL }), ["123qwe"]),
       sender: controller.getPrincipal(),
       idlFactory: C_IDL,
     });
@@ -254,7 +253,7 @@ Consider gracefully handling failures from this canister or altering the caniste
       auction.setIdentity(user);
       await auction.manageDarkOrderBooks([[
         ledger2Principal,
-        [await encryptOrders([{ kind: "ask", volume: 1000000, price: 42.5 }, {
+        [await encryptOrders(user.getPrincipal(), [{ kind: "ask", volume: 1000000, price: 42.5 }, {
           kind: "bid",
           volume: 12300,
           price: 13.2
@@ -493,7 +492,7 @@ Consider gracefully handling failures from this canister or altering the caniste
       await prepareDeposit(user);
       await auction.manageDarkOrderBooks([[
         ledger1Principal,
-        [await encryptOrders([{ kind: "ask", volume: 1000000, price: 42.5 }, {
+        [await encryptOrders(user.getPrincipal(), [{ kind: "ask", volume: 1000000, price: 42.5 }, {
           kind: "bid",
           volume: 12300,
           price: 13.2
@@ -517,11 +516,11 @@ Consider gracefully handling failures from this canister or altering the caniste
     test('should lock funds when dark order book set', async () => {
       await prepareDeposit(user, quoteLedgerPrincipal);
       await auction.manageDarkOrderBooks([
-        [ledger1Principal, [await encryptOrders([
+        [ledger1Principal, [await encryptOrders(user.getPrincipal(), [
           { kind: "bid", volume: 10000, price: 10 },
           { kind: "bid", volume: 20000, price: 18 }
         ])]],
-        [ledger2Principal, [await encryptOrders([{ kind: "bid", volume: 10000, price: 12 }])]]
+        [ledger2Principal, [await encryptOrders(user.getPrincipal(), [{ kind: "bid", volume: 10000, price: 12 }])]]
       ], []);
 
       let state = await auction.auction_query(
@@ -534,7 +533,7 @@ Consider gracefully handling failures from this canister or altering the caniste
 
     test('should return old dark order book when overwriting', async () => {
       await prepareDeposit(user);
-      let encryptedOrdersV1 = await encryptOrders([{ kind: "ask", volume: 1000000, price: 42.5 }, {
+      let encryptedOrdersV1 = await encryptOrders(user.getPrincipal(), [{ kind: "ask", volume: 1000000, price: 42.5 }, {
         kind: "bid",
         volume: 12300,
         price: 13.2
@@ -543,7 +542,7 @@ Consider gracefully handling failures from this canister or altering the caniste
       expect(resp).toEqual({ Ok: [[]] });
       let resp2 = await auction.manageDarkOrderBooks([[
         ledger1Principal,
-        [await encryptOrders([{ kind: "ask", volume: 1120000, price: 39.5 }, {
+        [await encryptOrders(user.getPrincipal(), [{ kind: "ask", volume: 1120000, price: 39.5 }, {
           kind: "bid",
           volume: 10300,
           price: 9.2
@@ -554,7 +553,7 @@ Consider gracefully handling failures from this canister or altering the caniste
 
     test('should process dark orders', async () => {
       await prepareDeposit(user, quoteLedgerPrincipal, 1_000_000);
-      await auction.manageDarkOrderBooks([[ledger1Principal, [await encryptOrders([{
+      await auction.manageDarkOrderBooks([[ledger1Principal, [await encryptOrders(user.getPrincipal(), [{
         kind: "bid",
         volume: 10000,
         price: 100
@@ -562,7 +561,7 @@ Consider gracefully handling failures from this canister or altering the caniste
       expect((await auction.auction_query(
         [quoteLedgerPrincipal, ledger1Principal],
         { ...auctionQueryEmpty, dark_order_books: [true] }
-      )).dark_order_books).toEqual([[ledger1Principal, await encryptOrders([{
+      )).dark_order_books).toEqual([[ledger1Principal, await encryptOrders(user.getPrincipal(), [{
         kind: "bid",
         volume: 10000,
         price: 100
@@ -597,7 +596,7 @@ Consider gracefully handling failures from this canister or altering the caniste
 
     test('should process dark order partially when out of funds', async () => {
       await prepareDeposit(user, quoteLedgerPrincipal, 1_000_000);
-      await auction.manageDarkOrderBooks([[ledger1Principal, [await encryptOrders([
+      await auction.manageDarkOrderBooks([[ledger1Principal, [await encryptOrders(user.getPrincipal(), [
         { kind: "bid", volume: 10_000, price: 100 }, // consumes all of the user credits
         { kind: "bid", volume: 10_000, price: 120 }, // will be thrown away as user does not have funds for that
       ])]]], []);
@@ -636,7 +635,7 @@ Consider gracefully handling failures from this canister or altering the caniste
 
     test('should remove unfulfilled dark order after auction ran', async () => {
       await prepareDeposit(user, quoteLedgerPrincipal);
-      await auction.manageDarkOrderBooks([[ledger1Principal, [await encryptOrders([{
+      await auction.manageDarkOrderBooks([[ledger1Principal, [await encryptOrders(user.getPrincipal(), [{
         kind: "bid",
         volume: 10000,
         price: 100

@@ -78,7 +78,7 @@
           "js",
           "ts"
         ],
-        "output": "./declarations/crypto"
+        "output": "./declarations/crypto_mock"
       }
     }
   },

@@ -9,9 +9,5 @@ path = "lib.rs"
 
 [dependencies]
 candid = "0.10.10"
-getrandom = { version = "0.2", features = ["custom"]}
 ic-cdk = "0.18.3"
-ic-cdk-macros = "0.18.3"
-ic-stable-structures = "0.6.8"
-ic-vetkeys = "0.3.0"
 serde_bytes = "0.11.15"
