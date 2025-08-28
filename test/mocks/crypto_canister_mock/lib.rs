@@ -13,8 +13,8 @@ async fn get_ibe_public_key() -> VetKeyPublicKey {
 }
 
 #[update]
-async fn decrypt(_identity: Vec<u8>, ciphertexts: Vec<Vec<u8>>) -> Vec<Vec<u8>> {
-    ciphertexts
+async fn decrypt(_identity: Vec<u8>, ciphertexts: Vec<Vec<u8>>) -> Vec<Option<Vec<u8>>> {
+    ciphertexts.into_iter().map(|c| Some(c)).collect()
 }
 
 ic_cdk::export_candid!();

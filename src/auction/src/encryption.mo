@@ -18,7 +18,7 @@ module {
   ) : async* [?[T.DecryptedOrderData]] {
     let crypto : (
       actor {
-        decrypt : (identity : Blob, data_blocks : [Blob]) -> async [Blob];
+        decrypt : (identity : Blob, data_blocks : [Blob]) -> async [?Blob];
       }
     ) = actor (Principal.toText(cryptoCanisterId));
 
@@ -51,9 +51,10 @@ module {
 
     let decrypted = await crypto.decrypt(privateKey, Array.map<T.EncryptedOrderBook, Blob>(encryptedOrderBooks, func(x, _) = x));
 
-    Array.map<Blob, ?[T.DecryptedOrderData]>(
+    Array.map<?Blob, ?[T.DecryptedOrderData]>(
       decrypted,
-      func(data) {
+      func(dataOpt) {
+        let ?data = dataOpt else return null;
         let ?text = Text.decodeUtf8(data) else return null;
         let orders = Text.split(text, #char ';') |> Iter.toArray(_);
         let ret = VarArray.repeat<T.DecryptedOrderData>({ kind = #ask; volume = 0; price = 0 }, orders.size());

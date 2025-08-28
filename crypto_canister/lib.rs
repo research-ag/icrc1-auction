@@ -55,7 +55,7 @@ async fn get_ibe_public_key() -> VetKeyPublicKey {
 }
 
 #[update]
-async fn decrypt(identity: Vec<u8>, ciphertexts: Vec<Vec<u8>>) -> Vec<Vec<u8>> {
+async fn decrypt(identity: Vec<u8>, ciphertexts: Vec<Vec<u8>>) -> Vec<Option<Vec<u8>>> {
     let dummy_seed = vec![0; 32];
     let transport_secret_key = ic_vetkeys::TransportSecretKey::from_seed(dummy_seed.clone())
         .expect("failed to create transport secret key");
@@ -82,10 +82,13 @@ async fn decrypt(identity: Vec<u8>, ciphertexts: Vec<Vec<u8>>) -> Vec<Vec<u8>> {
     ciphertexts
         .into_iter()
         .map(|ciphertext| {
-            let c = ic_vetkeys::IbeCiphertext::deserialize(&ciphertext)
-                .expect("failed to deserialize ibe ciphertext");
-            c.decrypt(&ibe_decryption_key)
-                .expect("failed to decrypt ibe ciphertext")
+            match ic_vetkeys::IbeCiphertext::deserialize(&ciphertext) {
+                Ok(c) => match c.decrypt(&ibe_decryption_key) {
+                    Ok(plain) => Some(plain),
+                    Err(_) => None,
+                },
+                Err(_) => None,
+            }
         })
         .collect()
 }
