@@ -28,6 +28,7 @@ module {
     var volume : Nat;
   };
 
+  // first blob is user-encrypted data, which only user can decrypt, second is the IBE-encrypted data
   public type EncryptedOrderBook = (Blob, Blob);
 
   public type DecryptedOrderData = {

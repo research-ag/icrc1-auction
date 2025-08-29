@@ -1,8 +1,10 @@
 import Array "mo:core/Array";
 import Blob "mo:core/Blob";
+import Error "mo:core/Error";
 import Float "mo:core/Float";
 import Iter "mo:core/Iter";
 import Nat "mo:core/Nat";
+import Prim "mo:prim";
 import Principal "mo:core/Principal";
 import Text "mo:core/Text";
 import VarArray "mo:core/VarArray";
@@ -49,7 +51,12 @@ module {
       };
     };
 
-    let decrypted = await crypto.decrypt(privateKey, Array.map<T.EncryptedOrderBook, Blob>(encryptedOrderBooks, func(x, _) = x));
+    let decrypted = try {
+      await crypto.decrypt(privateKey, Array.map<T.EncryptedOrderBook, Blob>(encryptedOrderBooks, func(_, x) = x));
+    } catch (err) {
+      Prim.debugPrint("Error while calling crypto canister to decrypt data: " # Error.message(err));
+      return Array.tabulate<?[T.DecryptedOrderData]>(encryptedOrderBooks.size(), func(_) = null);
+    };
 
     Array.map<?Blob, ?[T.DecryptedOrderData]>(
       decrypted,

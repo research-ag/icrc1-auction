@@ -276,16 +276,16 @@ module {
         decryptionKey,
         darkOrderBook |> Array.map<(Principal, T.EncryptedOrderBook), T.EncryptedOrderBook>(_, func(_, ob) = ob),
       );
-      let decryptedOrderBooks : Vec.Vector<(Principal, [T.DecryptedOrderData])> = Vec.new();
-      for (i in decrypted.keys()) {
-        switch (decrypted[i]) {
-          case (?d) {
-            if (d.size() > 0) Vec.add(decryptedOrderBooks, (darkOrderBook[i].0, d));
-          };
-          case (_) {};
-        };
-      };
-      assetInfo.darkOrderBooks.decrypted := ?Vec.toArray(decryptedOrderBooks);
+      assetInfo.darkOrderBooks.decrypted := ?Array.tabulate<(Principal, [T.DecryptedOrderData])>(
+        decrypted.size(),
+        func(i) = (
+          darkOrderBook[i].0,
+          switch (decrypted[i]) {
+            case (?d) d;
+            case (null) [];
+          },
+        ),
+      );
     };
 
     public func processAsset(assetId : AssetId) {

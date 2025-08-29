@@ -741,11 +741,11 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
       case (_) #asc;
     };
     #ok({
-      session_numbers = sessionNumbers |> Array.tabulate<(Principal, Nat)>(_.size(), func(i) = (getIcrc1Ledger(_ [i].0), _ [i].1));
-      asks = asks |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = (_ [i].0, mapOrder(_ [i].1)));
-      bids = bids |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = (_ [i].0, mapOrder(_ [i].1)));
-      dark_order_books = darkOrderBooks |> Array.tabulate<(Principal, Auction.EncryptedOrderBook)>(_.size(), func(i) = (getIcrc1Ledger(_ [i].0), _ [i].1));
-      credits = credits |> Array.tabulate<(Principal, Auction.CreditInfo)>(_.size(), func(i) = (getIcrc1Ledger(_ [i].0), _ [i].1));
+      session_numbers = sessionNumbers |> Array.tabulate<(Principal, Nat)>(_.size(), func(i) = (getIcrc1Ledger(_[i].0), _[i].1));
+      asks = asks |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = (_[i].0, mapOrder(_[i].1)));
+      bids = bids |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = (_[i].0, mapOrder(_[i].1)));
+      dark_order_books = darkOrderBooks |> Array.tabulate<(Principal, Auction.EncryptedOrderBook)>(_.size(), func(i) = (getIcrc1Ledger(_[i].0), _[i].1));
+      credits = credits |> Array.tabulate<(Principal, Auction.CreditInfo)>(_.size(), func(i) = (getIcrc1Ledger(_[i].0), _[i].1));
       deposit_history = switch (selection.deposit_history) {
         case (?(limit, skip)) {
           (
@@ -1133,6 +1133,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     Vec.add(newSwapRates, (quoteAssetId, 1.0));
     var nextAssetId = 0;
     label l for (assetId in Iter.range(startIndex, Vec.size(assets) - 1)) {
+      if (assetId == quoteAssetId) continue l;
       nextAssetId := assetId + 1;
       switch (cryptoCanisterId) {
         case (?ccid) await* auction.decryptDarkOrderBooks(assetId, ccid, Text.encodeUtf8(Nat.toText(nextSessionTimestamp)));
