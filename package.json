@@ -8,7 +8,7 @@
   "type": "module",
   "scripts": {
     "create": "dfx canister create --all",
-    "setup": "dfx generate icrc1_ledger_mock && dfx generate crypto_mock && dfx generate icrc1_auction_development && dfx deploy",
+    "setup": "dfx generate icrc1_ledger_mock && dfx generate crypto && dfx generate icrc1_auction_development && dfx deploy",
     "dev:frontend": "vite --port 3993 --host",
     "build:frontend": "rm -rf ./dist/ && tsc && vite build",
     "prettier-format": "prettier --config frontend/.prettierrc 'frontend/**/*.ts' --write",

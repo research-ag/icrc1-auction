@@ -57,7 +57,14 @@
         {
           "name": "candid:service"
         }
-      ]
+      ],
+      "declarations": {
+        "bindings": [
+          "js",
+          "ts"
+        ],
+        "output": "./declarations/crypto"
+      }
     },
     "crypto_mock": {
       "candid": "test/mocks/crypto_canister_mock/crypto.did",
@@ -74,14 +81,7 @@
         {
           "name": "candid:service"
         }
-      ],
-      "declarations": {
-        "bindings": [
-          "js",
-          "ts"
-        ],
-        "output": "./declarations/crypto_mock"
-      }
+      ]
     }
   },
   "defaults": {

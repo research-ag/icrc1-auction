@@ -11,7 +11,7 @@ import {
   idlFactory as A_IDL,
   init as aInit,
 } from '../declarations/icrc1_auction/icrc1_auction_development.did';
-import { _SERVICE as CService, idlFactory as C_IDL, init as cInit } from '../declarations/crypto_mock/crypto_mock.did';
+import { _SERVICE as CService, idlFactory as C_IDL, init as cInit } from '../declarations/crypto/crypto.did';
 import { IDL } from '@dfinity/candid';
 import { resolve } from 'node:path';
 import { Principal } from '@dfinity/principal';
