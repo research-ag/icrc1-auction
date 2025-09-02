@@ -52,7 +52,24 @@ module {
     };
 
     let decrypted = try {
-      await crypto.decrypt(privateKey, Array.map<T.EncryptedOrderBook, Blob>(encryptedOrderBooks, func(_, x) = x));
+      let chunkSize = 10;
+
+      let total = encryptedOrderBooks.size();
+      let fullChunks = total / chunkSize;
+      let remainder = total % chunkSize;
+
+      var results = VarArray.tabulate<?Blob>(total, func(i) = null);
+      var offset = 0;
+      while (offset < total) {
+        let len = Nat.min(chunkSize, total - offset);
+        let chunk = Array.tabulate<Blob>(len, func(j) = encryptedOrderBooks[offset + j].1);
+        let part = await crypto.decrypt(privateKey, chunk);
+        for (j in part.keys()) {
+          results[offset + j] := part[j];
+        };
+        offset += len;
+      };
+      Array.fromVarArray<?Blob>(results);
     } catch (err) {
       Prim.debugPrint("Error while calling crypto canister to decrypt data: " # Error.message(err));
       return Array.tabulate<?[T.DecryptedOrderData]>(encryptedOrderBooks.size(), func(_) = null);
