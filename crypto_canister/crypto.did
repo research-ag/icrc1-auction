@@ -1,4 +1,5 @@
 service : (text) -> {
-  decrypt : (blob, vec blob) -> (vec opt blob);
+  decrypt_ciphertext : (blob, vec blob) -> (vec opt blob);
+  decrypt_vetkey : (blob) -> (blob);
   get_ibe_public_key : () -> (blob);
 }

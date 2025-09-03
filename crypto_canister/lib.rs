@@ -4,7 +4,7 @@ use ic_cdk::management_canister::{VetKDCurve, VetKDDeriveKeyArgs, VetKDKeyId, Ve
 use ic_cdk::{init, update};
 use ic_stable_structures::memory_manager::{MemoryId, MemoryManager, VirtualMemory};
 use ic_stable_structures::{Cell as StableCell, DefaultMemoryImpl};
-use ic_vetkeys::{DerivedPublicKey, EncryptedVetKey};
+use ic_vetkeys::{DerivedPublicKey, EncryptedVetKey, VetKey};
 use std::cell::RefCell;
 
 type Memory = VirtualMemory<DefaultMemoryImpl>;
@@ -55,7 +55,7 @@ async fn get_ibe_public_key() -> VetKeyPublicKey {
 }
 
 #[update]
-async fn decrypt(identity: Vec<u8>, ciphertexts: Vec<Vec<u8>>) -> Vec<Option<Vec<u8>>> {
+async fn decrypt_vetkey(identity: Vec<u8>) -> Vec<u8> {
     let dummy_seed = vec![0; 32];
     let transport_secret_key = ic_vetkeys::TransportSecretKey::from_seed(dummy_seed.clone())
         .expect("failed to create transport secret key");
@@ -79,11 +79,21 @@ async fn decrypt(identity: Vec<u8>, ciphertexts: Vec<Vec<u8>>) -> Vec<Option<Vec
         .decrypt_and_verify(&transport_secret_key, &ibe_public_key, identity.as_ref())
         .expect("failed to decrypt ibe key");
 
+    ibe_decryption_key.serialize().to_vec()
+}
+
+#[update]
+async fn decrypt_ciphertext(ibe_decryption_key: Vec<u8>, ciphertexts: Vec<Vec<u8>>) -> Vec<Option<Vec<u8>>> {
+    let vetkey = match VetKey::deserialize(&ibe_decryption_key) {
+        Ok(k) => k,
+        Err(_) => return vec![None; ciphertexts.len()],
+    };
+
     ciphertexts
         .into_iter()
         .map(|ciphertext| {
             match ic_vetkeys::IbeCiphertext::deserialize(&ciphertext) {
-                Ok(c) => match c.decrypt(&ibe_decryption_key) {
+                Ok(c) => match c.decrypt(&vetkey) {
                     Ok(plain) => Some(plain),
                     Err(_) => None,
                 },

@@ -13,16 +13,22 @@ import T "./types";
 
 module {
 
+  public type Crypto = actor {
+    decrypt_vetkey : (identity : Blob) -> async Blob;
+    decrypt_ciphertext : (ibe_decryption_key : Blob, data_blocks : [Blob]) -> async [?Blob];
+  };
+
+  public func decryptVetKey(cryptoCanisterId : Principal, identity : Blob) : async* Blob {
+    let crypto : Crypto = actor (Principal.toText(cryptoCanisterId));
+    await crypto.decrypt_vetkey(identity);
+  };
+
   public func decryptOrderBooks(
     cryptoCanisterId : Principal,
-    privateKey : Blob,
+    vetKey : Blob,
     encryptedOrderBooks : [T.EncryptedOrderBook],
   ) : async* [?[T.DecryptedOrderData]] {
-    let crypto : (
-      actor {
-        decrypt : (identity : Blob, data_blocks : [Blob]) -> async [?Blob];
-      }
-    ) = actor (Principal.toText(cryptoCanisterId));
+    let crypto : Crypto = actor (Principal.toText(cryptoCanisterId));
 
     func parseOrder(order : Text) : ?T.DecryptedOrderData {
       let words = Text.split(order, #char ':');
@@ -63,7 +69,7 @@ module {
       while (offset < total) {
         let len = Nat.min(chunkSize, total - offset);
         let chunk = Array.tabulate<Blob>(len, func(j) = encryptedOrderBooks[offset + j].1);
-        let part = await crypto.decrypt(privateKey, chunk);
+        let part = await crypto.decrypt_ciphertext(vetKey, chunk);
         for (j in part.keys()) {
           results[offset + j] := part[j];
         };

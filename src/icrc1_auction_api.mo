@@ -22,6 +22,7 @@ import Vec "mo:vector";
 
 import Auction "./auction/src";
 import AssetOrderBook "./auction/src/asset_order_book";
+import E "./auction/src/encryption";
 import ICRC84Auction "./icrc84_auction";
 
 import BtcHandler "./btc_handler";
@@ -1122,6 +1123,8 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   // Canister will continue processing them on next heartbeat
   transient let BID_PROCESSING_INSTRUCTIONS_THRESHOLD : Nat64 = 1_000_000_000;
 
+  transient var vetKey : ?Blob = null;
+
   // loops over asset ids, beginning from provided asset id and processes them one by one.
   // stops if we exceed instructions threshold and returns #nextIndex in this case
   private func processAssetsChunk(auction : Auction.Auction, startIndex : Nat) : async* {
@@ -1129,15 +1132,29 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     #nextIndex : Nat;
   } {
     let startInstructions = Prim.performanceCounter(0);
+    if (startIndex == 0) {
+      vetKey := null;
+    };
     let newSwapRates : Vec.Vector<(Auction.AssetId, Float)> = Vec.new();
     Vec.add(newSwapRates, (quoteAssetId, 1.0));
     var nextAssetId = 0;
     label l for (assetId in Iter.range(startIndex, Vec.size(assets) - 1)) {
       if (assetId == quoteAssetId) continue l;
       nextAssetId := assetId + 1;
-      switch (cryptoCanisterId) {
-        case (?ccid) await* auction.decryptDarkOrderBooks(assetId, ccid, Text.encodeUtf8(Nat.toText(nextSessionTimestamp)));
-        case (null) {};
+      if (auction.nDarkOrderBooks(assetId) > 0) {
+        switch (cryptoCanisterId, vetKey) {
+          case (?ccid, ?vk) await* auction.decryptDarkOrderBooks(assetId, ccid, vk);
+          case (?ccid, null) {
+            try {
+              let vk = await* E.decryptVetKey(ccid, Text.encodeUtf8(Nat.toText(nextSessionTimestamp)));
+              await* auction.decryptDarkOrderBooks(assetId, ccid, vk);
+              vetKey := ?vk;
+            } catch (err) {
+              Prim.debugPrint("Cannot decrypt vetkey: " # Error.message(err));
+            };
+          };
+          case (null, _) Prim.debugPrint("Cannot decrypt dark order books: crypto canister id not set");
+        };
       };
       auction.processAsset(assetId);
       if (Prim.performanceCounter(0) > startInstructions + BID_PROCESSING_INSTRUCTIONS_THRESHOLD) break l;
