@@ -4,3 +4,6 @@ members = [
     "test/mocks/crypto_canister_mock",
 ]
 resolver = "2"
+
+[profile.release.package.crypto]
+opt-level = 3
