@@ -12,7 +12,6 @@
     "dev:frontend": "vite --port 3993 --host",
     "build:frontend": "rm -rf ./dist/ && tsc && vite build",
     "dev:crypto-test": "vite --config vite.crypto-test.config.ts --port 4001 --host",
-    "build:crypto-test": "vite build --config vite.crypto-test.config.ts",
     "prettier-format": "prettier --config frontend/.prettierrc 'frontend/**/*.ts' --write",
     "test": "jest -c ./test/jest.config.ts"
   },
