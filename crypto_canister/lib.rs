@@ -132,4 +132,22 @@ fn always_fail(_buf: &mut [u8]) -> Result<(), getrandom::Error> {
     Err(getrandom::Error::UNSUPPORTED)
 }
 
+#[update]
+async fn encrypted_symmetric_key_for_user(transport_public_key: Vec<u8>) -> Vec<u8> {
+    let input = ic_cdk::api::msg_caller().as_slice().to_vec();
+
+    let request = VetKDDeriveKeyArgs {
+        context: DOMAIN_SEPARATOR.as_bytes().to_vec(),
+        input,
+        key_id: key_id(),
+        transport_public_key,
+    };
+
+    let result = ic_cdk::management_canister::vetkd_derive_key(&request)
+        .await
+        .expect("call to vetkd_derive_key failed");
+
+    result.encrypted_key
+}
+
 ic_cdk::export_candid!();

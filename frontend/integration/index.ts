@@ -7,9 +7,10 @@ import { useMemo } from 'react';
 import { createActor } from '@declarations/icrc1_auction';
 import { AuctionQueryResponse } from '@declarations/icrc1_auction/icrc1_auction_development.did';
 import { createActor as createLedgerActor } from '@declarations/icrc1_ledger_mock';
-import { createActor as createCryptoActor } from '@declarations/crypto';
+import { createActor as createCryptoActor, canisterId as CRYPTO_CANISTER_ID } from '@declarations/crypto';
 import { CKBTC_MINTER_MAINNET_XPUBKEY, Minter } from '@research-ag/ckbtc-address-js';
 import { DerivedPublicKey, IbeCiphertext, IbeIdentity, IbeSeed } from '@dfinity/vetkeys';
+import { encryptWithVetKD } from '@fe/crypto/vetkd';
 
 // Custom replacer function for JSON.stringify
 const bigIntReplacer = (key: string, value: any): any => {
@@ -620,9 +621,12 @@ export const useManageDarkOrderBook = () => {
   const { auction } = useAuction();
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
+  const { identity } = useIdentity();
 
   const encryptIbe = async (data: Uint8Array, nextSessionTimestamp: number) => {
-    const publicKey = DerivedPublicKey.deserialize(new Uint8Array(await createCryptoActor("6jrls-gqaaa-aaaao-a4pgq-cai").get_ibe_public_key()));
+    const canister = CRYPTO_CANISTER_ID ?? '6jrls-gqaaa-aaaao-a4pgq-cai';
+    const cryptoActor = createCryptoActor(canister);
+    const publicKey = DerivedPublicKey.deserialize(new Uint8Array(await cryptoActor.get_ibe_public_key()));
     const ciphertext = IbeCiphertext.encrypt(
       publicKey,
       IbeIdentity.fromBytes(new TextEncoder().encode(nextSessionTimestamp.toString())),
@@ -632,17 +636,13 @@ export const useManageDarkOrderBook = () => {
     return ciphertext.serialize();
   };
 
-  const encryptLocal = (data: Uint8Array, nextSessionTimestamp: number) => {
-    return data;
-  }
-
   return useMutation(
     async (arg: { ledger: Principal; orders: { kind: 'ask' | 'bid'; volume: number; price: number }[] }) => {
       const text = arg.orders.map(v => `${v.kind}:${v.volume}:${v.price}`).join(';');
       const raw = new TextEncoder().encode(text);
 
       const nextSessionTimestamp = Number((await auction.nextSession()).timestamp);
-      const data = await Promise.all([encryptLocal(raw, nextSessionTimestamp), encryptIbe(raw, nextSessionTimestamp)]);
+      const data = await Promise.all([encryptWithVetKD(identity, raw), encryptIbe(raw, nextSessionTimestamp)]);
       return auction.manageDarkOrderBooks([[arg.ledger, [data]]], []);
     },
     {

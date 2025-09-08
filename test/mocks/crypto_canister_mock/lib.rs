@@ -22,4 +22,9 @@ async fn decrypt_ciphertext(_ibe_decryption_key: Vec<u8>, ciphertexts: Vec<Vec<u
     ciphertexts.into_iter().map(|c| Some(c)).collect()
 }
 
+#[update]
+async fn encrypted_symmetric_key_for_user(transport_public_key: Vec<u8>) -> Vec<u8> {
+    transport_public_key
+}
+
 ic_cdk::export_candid!();

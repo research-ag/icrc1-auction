@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Box, Button, Table, Typography } from '@mui/joy';
 import PageTemplate from '@fe/components/page-template';
 import InfoItem from '@fe/components/root/info-item';
@@ -8,8 +8,10 @@ import {
   useDeleteDarkOrderBook,
   useListDarkOrderBooks,
   useQuoteLedger,
-  useTokenInfoMap
+  useTokenInfoMap,
 } from '@fe/integration';
+import { useIdentity } from '@fe/integration/identity';
+import { decryptWithVetKD } from '@fe/crypto/vetkd';
 import DarkOrdersModal from './dark-orders.modal';
 
 type ParsedOrder = { kind: 'ask' | 'bid'; volume: number; price: number };
@@ -26,17 +28,21 @@ const DarkOrders = () => {
   };
   const openEdit = (ledger: Principal) => {
     setEditLedger(ledger);
-    const found = rows.find(r => r.ledger.toText() === ledger.toText());
+    const found = tableRows.find(r => r.ledger.toText() === ledger.toText());
     setEditOrders(found ? found.orders : null);
     setIsModalOpen(true);
   };
-  const closeModal = () => { setIsModalOpen(false); setEditOrders(null); };
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setEditOrders(null);
+  };
 
   const { data: auctionQuery } = useAuctionQuery();
   const { data: darkBooks } = useListDarkOrderBooks(auctionQuery);
   const { data: symbols } = useTokenInfoMap();
   const { data: quoteLedger } = useQuoteLedger();
   const { mutate: deleteBook } = useDeleteDarkOrderBook();
+  const { identity } = useIdentity();
 
   const getInfo = (ledger: Principal): { symbol: string; decimals: number } => {
     const mapItem = (symbols || []).find(([p]) => p.toText() == ledger.toText());
@@ -48,9 +54,9 @@ const DarkOrders = () => {
     return mapItem ? mapItem[1].decimals : 0;
   };
 
-  const decodeOrders = (enc: [Uint8Array | number[], Uint8Array | number[]], baseDecimals: number, quoteDecimals: number): ParsedOrder[] => {
+  const parseOrdersFromBytes = (bytes: Uint8Array, baseDecimals: number, quoteDecimals: number): ParsedOrder[] => {
     try {
-      const text = String.fromCharCode(...Object.values(enc[0]));
+      const text = new TextDecoder().decode(bytes);
       if (!text) return [];
       const scaleExp = quoteDecimals - baseDecimals;
       const scaleDiv = Math.pow(10, scaleExp);
@@ -69,14 +75,24 @@ const DarkOrders = () => {
     }
   };
 
-  const rows = useMemo(() => {
-    const qd = getQuoteDecimals();
-    return (darkBooks ?? []).map(([ledger, enc]) => {
-      const info = getInfo(ledger);
-      const orders = decodeOrders(enc, info.decimals, qd);
-      return { ledger, symbol: info.symbol, orders };
-    });
-  }, [darkBooks, symbols, quoteLedger]);
+  const [tableRows, setTableRows] = useState<{ ledger: Principal; symbol: string; orders: ParsedOrder[] }[]>([]);
+  useEffect(() => {
+    const run = async () => {
+      const qd = getQuoteDecimals();
+      const list = await Promise.all((darkBooks ?? []).map(async ([ledger, enc]) => {
+        const info = getInfo(ledger);
+        const localEnc = new Uint8Array(Object.values(enc[0]));
+        let plain = await decryptWithVetKD(identity, localEnc);
+        if (!plain) {
+          plain = localEnc;
+        }
+        const orders = parseOrdersFromBytes(plain, info.decimals, qd);
+        return { ledger, symbol: info.symbol, orders };
+      }));
+      setTableRows(list);
+    };
+    run().catch(() => setTableRows([]));
+  }, [darkBooks, symbols, quoteLedger, identity]);
 
   return (
     <PageTemplate title="Dark Orders" addButtonTitle="Set dark order book" onAddButtonClick={openCreate}>
@@ -97,7 +113,7 @@ const DarkOrders = () => {
           </tr>
           </thead>
           <tbody>
-          {rows.map(({ ledger, symbol, orders }, i) => (
+          {tableRows.map(({ ledger, symbol, orders }, i) => (
             <tr key={i}>
               <td><InfoItem content={symbol} withCopy={true}/></td>
               <td><Typography level="body-sm">{ledger.toText()}</Typography></td>
