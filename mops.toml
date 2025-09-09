@@ -1,5 +1,5 @@
 [dependencies]
-base = "0.14.14"
+base = "0.16.0"
 core = "0.6.0"
 promtracker = "0.5.4"
 vector = "0.4.1"
@@ -11,4 +11,4 @@ auction = "3.0.0"
 mrr = "https://github.com/research-ag/motoko-lib#9939f9e79ce37e975b64aec18c0f9b186514bdaf"
 
 [toolchain]
-moc = "0.14.14"
+moc = "0.16.0"
