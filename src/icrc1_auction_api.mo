@@ -58,7 +58,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   var consolidationTimerEnabled : Bool = true;
 
   // constants
-  transient let AUCTION_INTERVAL_SECONDS : Nat64 = 120;
+  transient let AUCTION_INTERVAL_SECONDS : Nat64 = 1800;
 
   // Bitcoin mainnet
   transient let CKBTC_LEDGER_PRINCIPAL = Principal.fromText("mxzaz-hqaaa-aaaar-qaada-cai");

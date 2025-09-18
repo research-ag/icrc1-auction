@@ -40,7 +40,7 @@ describe('ICRC1 Auction', () => {
 
   const startNewAuctionSession = async () => {
     const expectedCounter = await auction.nextSession().then(({ counter }) => counter) + 1n;
-    await pic.advanceTime(2 * 60_000);
+    await pic.advanceTime(30 * 60_000);
     await pic.tick();
     let retries = 20;
     while (await auction.nextSession().then(({ counter }) => counter) < expectedCounter) {
