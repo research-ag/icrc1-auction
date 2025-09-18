@@ -86,7 +86,7 @@
   },
   "defaults": {
     "build": {
-      "args": "",
+      "args": "--legacy-persistence",
       "packtool": "mops sources"
     }
   },
