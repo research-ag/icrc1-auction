@@ -92,6 +92,7 @@ describe('ICRC1 Auction', () => {
     session_numbers: [],
     reversed_history: [],
     last_prices: [],
+    last_immediate_prices: [],
   };
 
   const encryptOrders = async (
@@ -811,6 +812,7 @@ Consider gracefully handling failures from this canister or altering the caniste
         deposit_history: [[1000n, 0n]],
         reversed_history: [true],
         last_prices: [true],
+        last_immediate_prices: [true],
       });
 
       expect(res.credits).toEqual([

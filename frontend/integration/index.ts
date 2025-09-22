@@ -233,6 +233,7 @@ export const useAuctionQuery = () => {
           immediate_price_history: [],
           reversed_history: [true],
           last_prices: [],
+          last_immediate_prices: [],
         }),
       );
     },
@@ -446,6 +447,7 @@ export const usePriceHistory = (limit: number, offset: number) => {
         immediate_price_history: [],
         reversed_history: [true],
         last_prices: [],
+        last_immediate_prices: [],
       });
       return res.price_history;
     },

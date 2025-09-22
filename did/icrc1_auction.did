@@ -445,7 +445,8 @@ service : (opt principal, opt principal) -> {
       immediate_price_history : opt record { nat; nat };
       // reverses price, transaction and deposit history lists. ?true returns histories in descending chronological order
       reversed_history : opt bool;
-      last_prices : opt bool
+      last_prices : opt bool;
+      last_immediate_prices : opt bool
     }
   ) -> (
     record {
@@ -496,6 +497,8 @@ service : (opt principal, opt principal) -> {
       immediate_price_history : vec record { nat64; nat; Token; nat; float64 };
       // last non-zero clearing price per token
       last_prices : vec record { nat64; nat; Token; nat; float64 };
+      // last non-zero clearing price per token. Returns items, same as in `immediate_price_history`
+      last_immediate_prices : vec record { nat64; nat; Token; nat; float64 };
       // amount of caller's loyalty points
       points : nat;
       // current caller's account revision

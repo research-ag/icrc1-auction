@@ -147,6 +147,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     immediate_price_history : ?(limit : Nat, skip : Nat);
     reversed_history : ?Bool;
     last_prices : ?Bool;
+    last_immediate_prices : ?Bool;
   };
 
   type AuctionQueryResponse = {
@@ -160,6 +161,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     price_history : [PriceHistoryItem];
     immediate_price_history : [PriceHistoryItem];
     last_prices : [PriceHistoryItem];
+    last_immediate_prices : [PriceHistoryItem];
     points : Nat;
     account_revision : Nat;
   };
@@ -702,6 +704,10 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
       #ok(Array.freeze(res));
     };
 
+    func mapHistoryItem(x : Auction.PriceHistoryItem) : PriceHistoryItem {
+      (x.0, x.1, Vec.get(assets, x.2).ledgerPrincipal, x.3, x.4);
+    };
+
     let userInfo = auction.users.get(p);
     let (sessionNumbers, asks, bids, credits, darkOrderBooks) = switch (
       retrieveElements<(Auction.AssetId, Nat)>(
@@ -785,7 +791,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
           )
           |> auction.getPriceHistory(_, historyListOrder, skipEmpty)
           |> U.sliceIter(_, limit, skip)
-          |> Array.map<Auction.PriceHistoryItem, PriceHistoryItem>(_, func(x) = (x.0, x.1, Vec.get(assets, x.2).ledgerPrincipal, x.3, x.4));
+          |> Array.map<Auction.PriceHistoryItem, PriceHistoryItem>(_, mapHistoryItem);
         };
         case (null) [];
       };
@@ -799,7 +805,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
           )
           |> auction.getImmediatePriceHistory(_, historyListOrder)
           |> U.sliceIter(_, limit, skip)
-          |> Array.map<Auction.PriceHistoryItem, PriceHistoryItem>(_, func(x) = (x.0, x.1, Vec.get(assets, x.2).ledgerPrincipal, x.3, x.4));
+          |> Array.map<Auction.PriceHistoryItem, PriceHistoryItem>(_, mapHistoryItem);
         };
         case (null) [];
       };
@@ -832,7 +838,40 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
             },
           )
           |> U.sliceIter(_, itemsAmount, 0)
-          |> Array.map<Auction.PriceHistoryItem, PriceHistoryItem>(_, func(x) = (x.0, x.1, Vec.get(assets, x.2).ledgerPrincipal, x.3, x.4));
+          |> Array.map<Auction.PriceHistoryItem, PriceHistoryItem>(_, mapHistoryItem);
+        };
+        case (_) [];
+      };
+      last_immediate_prices = switch (selection.last_immediate_prices) {
+        case (?true) {
+          let (assetIds : List.List<Auction.AssetId>, itemsAmount : Nat) = switch (tokens.size()) {
+            case (0) (Iter.toList(Vec.keys(auction.assets.assets)), auction.assets.nAssets());
+            case (_) {
+              var list : List.List<Auction.AssetId> = List.nil();
+              for (p in tokens.vals()) {
+                let ?aid = getAssetId(p) else return #err(p);
+                list := List.push(aid, list);
+              };
+              (list, tokens.size());
+            };
+          };
+          var pendingAssetIds = assetIds;
+          auction.getImmediatePriceHistory([], #desc)
+          |> Iter.filter<Auction.PriceHistoryItem>(
+            _,
+            func(item : Auction.PriceHistoryItem) {
+              let (upd, deletedAid) = U.listFindOneAndDelete<Auction.AssetId>(pendingAssetIds, func(x) = Nat.equal(x, item.2));
+              switch (deletedAid) {
+                case (?_) {
+                  pendingAssetIds := upd;
+                  true;
+                };
+                case (null) false;
+              };
+            },
+          )
+          |> U.sliceIter(_, itemsAmount, 0)
+          |> Array.map<Auction.PriceHistoryItem, PriceHistoryItem>(_, mapHistoryItem);
         };
         case (_) [];
       };
