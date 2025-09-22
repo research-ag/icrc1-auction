@@ -64,6 +64,7 @@ module {
     };
     var lastRate : Float;
     var lastImmediateRate : Float;
+    var immediateExecutionsCounter : Nat;
     var lastProcessingInstructions : Nat;
     var totalExecutedVolumeBase : Nat;
     var totalExecutedVolumeQuote : Nat;
@@ -87,8 +88,8 @@ module {
   public type TransactionHistoryItem = (timestamp : Nat64, sessionNumber : Nat, kind : { #ask; #bid }, assetId : AssetId, volume : Nat, price : Float);
 
   // stable data types
-  public type StableDataV3 = {
-    assets : Vec.Vector<StableAssetInfoV2>;
+  public type StableDataV4 = {
+    assets : Vec.Vector<StableAssetInfoV3>;
     orders : { globalCounter : Nat };
     quoteToken : { surplus : Nat };
     sessions : {
@@ -111,9 +112,10 @@ module {
     };
   };
 
-  public type StableAssetInfoV2 = {
+  public type StableAssetInfoV3 = {
     lastRate : Float;
     lastImmediateRate : Float;
+    immediateExecutionsCounter : Nat;
     lastProcessingInstructions : Nat;
     totalExecutedVolumeBase : Nat;
     totalExecutedVolumeQuote : Nat;
@@ -142,6 +144,29 @@ module {
   };
 
   // old stable data types
+  public type StableDataV3 = {
+    assets : Vec.Vector<StableAssetInfoV2>;
+    orders : { globalCounter : Nat };
+    quoteToken : { surplus : Nat };
+    sessions : {
+      counter : Nat;
+      history : {
+        immediate : ([var ?PriceHistoryItem], Nat, Nat);
+        delayed : Vec.Vector<PriceHistoryItem>;
+      };
+    };
+    users : {
+      registry : {
+        tree : RBTree.Tree<Principal, StableUserInfoV3>;
+        size : Nat;
+      };
+      participantsArchive : {
+        tree : RBTree.Tree<Principal, { lastOrderPlacement : Nat64 }>;
+        size : Nat;
+      };
+      accountsAmount : Nat;
+    };
+  };
   public type StableDataV2 = {
     assets : Vec.Vector<StableAssetInfoV2>;
     orders : { globalCounter : Nat };
@@ -164,6 +189,14 @@ module {
       };
       accountsAmount : Nat;
     };
+  };
+  public type StableAssetInfoV2 = {
+    lastRate : Float;
+    lastImmediateRate : Float;
+    lastProcessingInstructions : Nat;
+    totalExecutedVolumeBase : Nat;
+    totalExecutedVolumeQuote : Nat;
+    totalExecutedOrders : Nat;
   };
   public type StableUserInfoV2 = {
     asks : {

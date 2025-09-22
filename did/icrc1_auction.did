@@ -493,9 +493,9 @@ service : (opt principal, opt principal) -> {
       // return values are: timestamp in nanoseconds; number of auction session; ICRC1 ledger principal; volume sold; price
       price_history : vec record { nat64; nat; Token; nat; float64 };
       // history of clearing price when immediate order book has been executed
-      // return values are: timestamp in nanoseconds; 0; ICRC1 ledger principal; volume sold; price
+      // return values are: timestamp in nanoseconds; serial number of immediate execution (per trading pair); ICRC1 ledger principal; volume sold; price
       immediate_price_history : vec record { nat64; nat; Token; nat; float64 };
-      // last non-zero clearing price per token
+      // last non-zero clearing price per token. Returns items, same as in `price_history`
       last_prices : vec record { nat64; nat; Token; nat; float64 };
       // last non-zero clearing price per token. Returns items, same as in `immediate_price_history`
       last_immediate_prices : vec record { nat64; nat; Token; nat; float64 };

@@ -50,6 +50,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   var auctionDataV1 : Auction.StableDataV1 = Auction.defaultStableDataV1();
   var auctionDataV2 : Auction.StableDataV2 = Auction.migrateStableDataV2(auctionDataV1);
   var auctionDataV3 : Auction.StableDataV3 = Auction.migrateStableDataV3(auctionDataV2);
+  var auctionDataV4 : Auction.StableDataV4 = Auction.migrateStableDataV4(auctionDataV3);
 
   var ptData : PT.StableData = null;
 
@@ -262,7 +263,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
       performanceCounter = Prim.performanceCounter;
     },
   );
-  auction.unshare(auctionDataV3);
+  auction.unshare(auctionDataV4);
 
   // will be set in startAuctionTimer_
   // this timestamp is set right before starting auction execution
@@ -1259,7 +1260,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
         symbol = x.symbol;
       },
     );
-    auctionDataV3 := auction.share();
+    auctionDataV4 := auction.share();
     ptData := metrics.share();
     stableAdminsMap := permissions.share();
   };

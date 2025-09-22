@@ -31,6 +31,37 @@ import T "./types";
 
 module {
 
+  public func defaultStableDataV4() : T.StableDataV4 = {
+    assets = Vec.new();
+    orders = { globalCounter = 0 };
+    quoteToken = { surplus = 0 };
+    sessions = {
+      counter = 0;
+      history = {
+        immediate = ([var], 0, 0);
+        delayed = Vec.new<T.PriceHistoryItem>();
+      };
+    };
+    users = {
+      registry = {
+        tree = #leaf;
+        size = 0;
+      };
+      participantsArchive = {
+        tree = #leaf;
+        size = 0;
+      };
+      accountsAmount = 0;
+    };
+  };
+  public type StableDataV4 = T.StableDataV4;
+  public func migrateStableDataV4(data : StableDataV3) : StableDataV4 {
+    {
+      data with
+      assets = Vec.map<T.StableAssetInfoV2, T.StableAssetInfoV3>(data.assets, func(x) = { x with immediateExecutionsCounter = 0 })
+    };
+  };
+
   public func defaultStableDataV3() : T.StableDataV3 = {
     assets = Vec.new();
     orders = { globalCounter = 0 };
@@ -248,7 +279,9 @@ module {
             credits.quoteSurplus += surplus;
           };
           Vec.add(ret, (price, volume));
-          assets.pushToHistory(#immediate, (Prim.time(), 0, assetId, volume, price));
+          let executionsCounter = assetInfo.immediateExecutionsCounter;
+          assetInfo.immediateExecutionsCounter += 1;
+          assets.pushToHistory(#immediate, (Prim.time(), executionsCounter, assetId, volume, price));
           assetInfo.lastImmediateRate := price;
         };
         Vec.toArray(ret);
@@ -552,12 +585,13 @@ module {
     // ============ history interface =============
 
     // ============= system interface =============
-    public func share() : T.StableDataV3 = {
-      assets = Vec.map<T.AssetInfo, T.StableAssetInfoV2>(
+    public func share() : T.StableDataV4 = {
+      assets = Vec.map<T.AssetInfo, T.StableAssetInfoV3>(
         assets.assets,
         func(x) = {
           lastRate = x.lastRate;
           lastImmediateRate = x.lastImmediateRate;
+          immediateExecutionsCounter = x.immediateExecutionsCounter;
           lastProcessingInstructions = x.lastProcessingInstructions;
           totalExecutedVolumeBase = x.totalExecutedVolumeBase;
           totalExecutedVolumeQuote = x.totalExecutedVolumeQuote;
@@ -614,8 +648,8 @@ module {
       };
     };
 
-    public func unshare(data : T.StableDataV3) {
-      assets.assets := Vec.map<T.StableAssetInfoV2, T.AssetInfo>(
+    public func unshare(data : T.StableDataV4) {
+      assets.assets := Vec.map<T.StableAssetInfoV3, T.AssetInfo>(
         data.assets,
         func(x) = {
           asks = {
@@ -632,6 +666,7 @@ module {
           };
           var lastRate = x.lastRate;
           var lastImmediateRate = x.lastImmediateRate;
+          var immediateExecutionsCounter = x.immediateExecutionsCounter;
           var lastProcessingInstructions = x.lastProcessingInstructions;
           var totalExecutedVolumeBase = x.totalExecutedVolumeBase;
           var totalExecutedVolumeQuote = x.totalExecutedVolumeQuote;
