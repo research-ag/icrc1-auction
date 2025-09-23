@@ -134,7 +134,12 @@ module {
       service.fulfil(assetInfo, sessionNumber, orderId, order, maxVolume, price);
     };
 
-    public func totalVolume() : Nat = service.assetOrderBook(assetInfo, #delayed).totalVolume + service.assetOrderBook(assetInfo, #immediate).totalVolume;
+    public func totalVolume() : Nat {
+      switch (orderBookType) {
+        case (#immediate) service.assetOrderBook(assetInfo, #immediate).totalVolume;
+        case (#combined _) service.assetOrderBook(assetInfo, #delayed).totalVolume + service.assetOrderBook(assetInfo, #immediate).totalVolume;
+      };
+    };
   };
 
   /// A class with functionality to operate on all orders of the given type across the auction

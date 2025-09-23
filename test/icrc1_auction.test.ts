@@ -883,6 +883,56 @@ Consider gracefully handling failures from this canister or altering the caniste
           totalAskVolume: 0n,
           totalBidVolume: 0n
         }]);
+      expect(res.immediate_order_book_info).toEqual([
+        { maxBidPrice: [], minAskPrice: [], totalAskVolume: 0n, totalBidVolume: 0n },
+        { maxBidPrice: [], minAskPrice: [], totalAskVolume: 0n, totalBidVolume: 0n },
+        { maxBidPrice: [], minAskPrice: [], totalAskVolume: 0n, totalBidVolume: 0n }
+      ]);
+    });
+    test('should public info to not registered user', async () => {
+      await prepareDeposit(user);
+      await prepareDeposit(user, ledger1Principal);
+      await auction.placeBids([[ledger1Principal, { immediate: null }, 1_500n, 100_000]], []);
+
+      const guest = createIdentity('guest');
+      auction.setIdentity(guest);
+
+      const res = await auction.auction_query([], {
+        credits: [true],
+        bids: [true],
+        asks: [true],
+        dark_order_books: [true],
+        session_numbers: [true],
+        transaction_history: [[1000n, 0n]],
+        price_history: [[1000n, 0n, true]],
+        immediate_price_history: [],
+        deposit_history: [[1000n, 0n]],
+        last_prices: [true],
+        last_immediate_prices: [true],
+        order_book_info: [true],
+        immediate_order_book_info: [true],
+        reversed_history: [true],
+      });
+
+      expect(res.credits).toHaveLength(0);
+      expect(res.asks).toHaveLength(0);
+      expect(res.bids).toHaveLength(0);
+      expect(res.transaction_history).toHaveLength(0);
+      expect(res.deposit_history).toHaveLength(0);
+      expect(res.order_book_info).toEqual([
+        { clearing: { noMatch: { maxBidPrice: [], minAskPrice: [] } }, totalAskVolume: 0n, totalBidVolume: 0n },
+        {
+          clearing: { noMatch: { maxBidPrice: [100000], minAskPrice: [] } },
+          totalAskVolume: 0n,
+          totalBidVolume: 1500n
+        },
+        { clearing: { noMatch: { maxBidPrice: [], minAskPrice: [] } }, totalAskVolume: 0n, totalBidVolume: 0n }
+      ]);
+      expect(res.immediate_order_book_info).toEqual([
+        { maxBidPrice: [], minAskPrice: [], totalAskVolume: 0n, totalBidVolume: 0n },
+        { maxBidPrice: [100000], minAskPrice: [], totalAskVolume: 0n, totalBidVolume: 1500n },
+        { maxBidPrice: [], minAskPrice: [], totalAskVolume: 0n, totalBidVolume: 0n }
+      ]);
     });
   });
 });
