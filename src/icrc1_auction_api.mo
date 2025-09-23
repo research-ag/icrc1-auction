@@ -724,13 +724,18 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
       };
     };
 
-    let sessionNumbers = Array.map<Auction.AssetId, (Auction.AssetId, Nat)>(assetIds, func(aid) = (aid, auction.getAssetSessionNumber(aid)));
-    let credits = if (allAssetsMode) {
-      auction.getCredits(p);
-    } else {
-      Array.map<Auction.AssetId, (Auction.AssetId, Auction.CreditInfo)>(assetIds, func(aid) = (aid, auction.getCredit(p, aid)));
+    let sessionNumbers = switch (selection.session_numbers) {
+      case (?true) Array.map<Auction.AssetId, (Auction.AssetId, Nat)>(assetIds, func(aid) = (aid, auction.getAssetSessionNumber(aid)));
+      case (_) [];
     };
-
+    let credits = switch (selection.credits) {
+      case (?true) if (allAssetsMode) {
+        auction.getCredits(p);
+      } else {
+        Array.map<Auction.AssetId, (Auction.AssetId, Auction.CreditInfo)>(assetIds, func(aid) = (aid, auction.getCredit(p, aid)));
+      };
+      case (_) [];
+    };
     let asks = retrieveElements<(Auction.OrderId, Auction.Order)>(selection.asks, func(assetId) = auction.getOrders(p, #ask, assetId));
     let bids = retrieveElements<(Auction.OrderId, Auction.Order)>(selection.bids, func(assetId) = auction.getOrders(p, #bid, assetId));
     let darkOrderBooks = retrieveElements<(Auction.AssetId, Auction.EncryptedOrderBook)>(
