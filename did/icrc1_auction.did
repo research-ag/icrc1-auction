@@ -477,7 +477,7 @@ service : (opt principal, opt principal) -> {
         record { total : nat; available : nat; locked : nat }
       };
       dark_order_books : vec record {
-        principal;
+        Token;
         EncryptedOrderBook
       };
       // history of deposit events.
@@ -509,9 +509,9 @@ service : (opt principal, opt principal) -> {
       // last non-zero clearing price per token. Returns items, same as in `immediate_price_history`
       last_immediate_prices : vec record { nat64; nat; Token; nat; float64 };
       // info about auction order book. Excludes info from encrypted orders
-      order_book_info : vec OrderBookInfo;
+      order_book_info : vec record { Token; OrderBookInfo };
       // info about immediate order book
-      immediate_order_book_info : vec ImmediateOrderBookInfo;
+      immediate_order_book_info : vec record { Token; ImmediateOrderBookInfo };
       // amount of caller's loyalty points
       points : nat;
       // current caller's account revision

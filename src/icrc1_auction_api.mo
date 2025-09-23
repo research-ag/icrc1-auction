@@ -165,8 +165,8 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     immediate_price_history : [PriceHistoryItem];
     last_prices : [PriceHistoryItem];
     last_immediate_prices : [PriceHistoryItem];
-    order_book_info : [Auction.OrderBookInfo];
-    immediate_order_book_info : [Auction.ImmediateOrderBookInfo];
+    order_book_info : [(Principal, Auction.OrderBookInfo)];
+    immediate_order_book_info : [(Principal, Auction.ImmediateOrderBookInfo)];
     points : Nat;
     account_revision : Nat;
   };
@@ -835,11 +835,17 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
       last_prices = lastPrices |> Array.map<Auction.PriceHistoryItem, PriceHistoryItem>(_, mapHistoryItem);
       last_immediate_prices = lastImmediatePrices |> Array.map<Auction.PriceHistoryItem, PriceHistoryItem>(_, mapHistoryItem);
       order_book_info = switch (selection.order_book_info) {
-        case (?true) assetIds |> Array.map<Auction.AssetId, Auction.OrderBookInfo>(_, auction.orderBookInfo);
+        case (?true) assetIds |> Array.map<Auction.AssetId, (Principal, Auction.OrderBookInfo)>(
+          _,
+          func(aid) = (Vec.get(assets, aid).ledgerPrincipal, auction.orderBookInfo(aid)),
+        );
         case (_) [];
       };
       immediate_order_book_info = switch (selection.immediate_order_book_info) {
-        case (?true) assetIds |> Array.map<Auction.AssetId, Auction.ImmediateOrderBookInfo>(_, auction.immediateOrderBookInfo);
+        case (?true) assetIds |> Array.map<Auction.AssetId, (Principal, Auction.ImmediateOrderBookInfo)>(
+          _,
+          func(aid) = (Vec.get(assets, aid).ledgerPrincipal, auction.immediateOrderBookInfo(aid)),
+        );
         case (_) [];
       };
       points = auction.getLoyaltyPoints(p);

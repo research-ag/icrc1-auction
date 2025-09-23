@@ -862,14 +862,14 @@ Consider gracefully handling failures from this canister or altering the caniste
       expect(res.deposit_history[1][3]).toEqual(500000000n);
 
       expect(res.order_book_info).toEqual([
-        {
+        [quoteLedgerPrincipal, {
           clearing: {
             noMatch: { maxBidPrice: [], minAskPrice: [] }
           },
           totalAskVolume: 0n,
           totalBidVolume: 0n
-        },
-        {
+        }],
+        [ledger1Principal, {
           clearing:
             {
               noMatch:
@@ -878,15 +878,17 @@ Consider gracefully handling failures from this canister or altering the caniste
                   minAskPrice: [102000]
                 }
             }, totalAskVolume: 1500n, totalBidVolume: 1500n
-        }, {
+        }],
+        [ledger2Principal, {
           clearing: { noMatch: { maxBidPrice: [], minAskPrice: [] } },
           totalAskVolume: 0n,
           totalBidVolume: 0n
-        }]);
+        }]
+      ]);
       expect(res.immediate_order_book_info).toEqual([
-        { maxBidPrice: [], minAskPrice: [], totalAskVolume: 0n, totalBidVolume: 0n },
-        { maxBidPrice: [], minAskPrice: [], totalAskVolume: 0n, totalBidVolume: 0n },
-        { maxBidPrice: [], minAskPrice: [], totalAskVolume: 0n, totalBidVolume: 0n }
+        [quoteLedgerPrincipal, { maxBidPrice: [], minAskPrice: [], totalAskVolume: 0n, totalBidVolume: 0n }],
+        [ledger1Principal, { maxBidPrice: [], minAskPrice: [], totalAskVolume: 0n, totalBidVolume: 0n }],
+        [ledger2Principal, { maxBidPrice: [], minAskPrice: [], totalAskVolume: 0n, totalBidVolume: 0n }]
       ]);
     });
     test('should public info to not registered user', async () => {
@@ -920,18 +922,26 @@ Consider gracefully handling failures from this canister or altering the caniste
       expect(res.transaction_history).toHaveLength(0);
       expect(res.deposit_history).toHaveLength(0);
       expect(res.order_book_info).toEqual([
-        { clearing: { noMatch: { maxBidPrice: [], minAskPrice: [] } }, totalAskVolume: 0n, totalBidVolume: 0n },
-        {
+        [quoteLedgerPrincipal, {
+          clearing: { noMatch: { maxBidPrice: [], minAskPrice: [] } },
+          totalAskVolume: 0n,
+          totalBidVolume: 0n
+        }],
+        [ledger1Principal, {
           clearing: { noMatch: { maxBidPrice: [100000], minAskPrice: [] } },
           totalAskVolume: 0n,
           totalBidVolume: 1500n
-        },
-        { clearing: { noMatch: { maxBidPrice: [], minAskPrice: [] } }, totalAskVolume: 0n, totalBidVolume: 0n }
+        }],
+        [ledger2Principal, {
+          clearing: { noMatch: { maxBidPrice: [], minAskPrice: [] } },
+          totalAskVolume: 0n,
+          totalBidVolume: 0n
+        }]
       ]);
       expect(res.immediate_order_book_info).toEqual([
-        { maxBidPrice: [], minAskPrice: [], totalAskVolume: 0n, totalBidVolume: 0n },
-        { maxBidPrice: [100000], minAskPrice: [], totalAskVolume: 0n, totalBidVolume: 1500n },
-        { maxBidPrice: [], minAskPrice: [], totalAskVolume: 0n, totalBidVolume: 0n }
+        [quoteLedgerPrincipal, { maxBidPrice: [], minAskPrice: [], totalAskVolume: 0n, totalBidVolume: 0n }],
+        [ledger1Principal, { maxBidPrice: [100000], minAskPrice: [], totalAskVolume: 0n, totalBidVolume: 1500n }],
+        [ledger2Principal, { maxBidPrice: [], minAskPrice: [], totalAskVolume: 0n, totalBidVolume: 0n }]
       ]);
     });
   });
