@@ -862,13 +862,6 @@ Consider gracefully handling failures from this canister or altering the caniste
       expect(res.deposit_history[1][3]).toEqual(500000000n);
 
       expect(res.order_book_info).toEqual([
-        [quoteLedgerPrincipal, {
-          clearing: {
-            noMatch: { maxBidPrice: [], minAskPrice: [] }
-          },
-          totalAskVolume: 0n,
-          totalBidVolume: 0n
-        }],
         [ledger1Principal, {
           clearing:
             {
@@ -886,7 +879,6 @@ Consider gracefully handling failures from this canister or altering the caniste
         }]
       ]);
       expect(res.immediate_order_book_info).toEqual([
-        [quoteLedgerPrincipal, { maxBidPrice: [], minAskPrice: [], totalAskVolume: 0n, totalBidVolume: 0n }],
         [ledger1Principal, { maxBidPrice: [], minAskPrice: [], totalAskVolume: 0n, totalBidVolume: 0n }],
         [ledger2Principal, { maxBidPrice: [], minAskPrice: [], totalAskVolume: 0n, totalBidVolume: 0n }]
       ]);
@@ -922,11 +914,6 @@ Consider gracefully handling failures from this canister or altering the caniste
       expect(res.transaction_history).toHaveLength(0);
       expect(res.deposit_history).toHaveLength(0);
       expect(res.order_book_info).toEqual([
-        [quoteLedgerPrincipal, {
-          clearing: { noMatch: { maxBidPrice: [], minAskPrice: [] } },
-          totalAskVolume: 0n,
-          totalBidVolume: 0n
-        }],
         [ledger1Principal, {
           clearing: { noMatch: { maxBidPrice: [100000], minAskPrice: [] } },
           totalAskVolume: 0n,
@@ -939,7 +926,6 @@ Consider gracefully handling failures from this canister or altering the caniste
         }]
       ]);
       expect(res.immediate_order_book_info).toEqual([
-        [quoteLedgerPrincipal, { maxBidPrice: [], minAskPrice: [], totalAskVolume: 0n, totalBidVolume: 0n }],
         [ledger1Principal, { maxBidPrice: [100000], minAskPrice: [], totalAskVolume: 0n, totalBidVolume: 1500n }],
         [ledger2Principal, { maxBidPrice: [], minAskPrice: [], totalAskVolume: 0n, totalBidVolume: 0n }]
       ]);

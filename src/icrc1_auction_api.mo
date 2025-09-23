@@ -682,15 +682,23 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
 
   private func _auction_query(p : Principal, tokens : [Principal], selection : AuctionQuerySelection) : R.Result<AuctionQueryResponse, Principal> {
     let allAssetsMode = tokens.size() == 0;
-    let assetIds : [Auction.AssetId] = if (allAssetsMode) {
-      Iter.toArray(Vec.keys(auction.assets.assets));
+    let (assetIds, baseAssetIds) : ([Auction.AssetId], [Auction.AssetId]) = if (allAssetsMode) {
+      assert quoteAssetId == 0;
+      (
+        Array.tabulate<Auction.AssetId>(auction.assets.nAssets(), func(i) = i),
+        Array.tabulate<Auction.AssetId>(auction.assets.nAssets() - 1, func(i) = i + 1),
+      );
     } else {
       var v : Vec.Vector<Auction.AssetId> = Vec.new();
+      var vBase : Vec.Vector<Auction.AssetId> = Vec.new();
       for (p in tokens.vals()) {
         let ?aid = getAssetId(p) else return #err(p);
         Vec.add(v, aid);
+        if (aid != quoteAssetId) {
+          Vec.add(vBase, aid);
+        };
       };
-      Vec.toArray(v);
+      (Vec.toArray(v), Vec.toArray(vBase));
     };
 
     let userInfo = auction.users.get(p);
@@ -699,6 +707,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
       case (_) #asc;
     };
 
+    // works with base assets only
     func retrieveElements<T>(select : ?Bool, getFunc : (?Auction.AssetId) -> [T]) : [T] {
       switch (select) {
         case (?true) {};
@@ -708,29 +717,22 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
         return getFunc(null);
       } else {
         let v : Vec.Vector<T> = Vec.new();
-        for (aid in assetIds.values()) {
+        for (aid in baseAssetIds.values()) {
           Vec.addFromIter(v, getFunc(?aid).vals());
         };
         Vec.toArray(v);
       };
     };
 
-    let sessionNumbers = retrieveElements<(Auction.AssetId, Nat)>(
-      selection.session_numbers,
-      func(assetId) = switch (assetId) {
-        case (null) Array.tabulate<(Auction.AssetId, Nat)>(auction.assets.nAssets(), func(i) = (i, auction.getAssetSessionNumber(i)));
-        case (?aid) [(aid, auction.getAssetSessionNumber(aid))];
-      },
-    );
+    let sessionNumbers = Array.map<Auction.AssetId, (Auction.AssetId, Nat)>(assetIds, func(aid) = (aid, auction.getAssetSessionNumber(aid)));
+    let credits = if (allAssetsMode) {
+      auction.getCredits(p);
+    } else {
+      Array.map<Auction.AssetId, (Auction.AssetId, Auction.CreditInfo)>(assetIds, func(aid) = (aid, auction.getCredit(p, aid)));
+    };
+
     let asks = retrieveElements<(Auction.OrderId, Auction.Order)>(selection.asks, func(assetId) = auction.getOrders(p, #ask, assetId));
     let bids = retrieveElements<(Auction.OrderId, Auction.Order)>(selection.bids, func(assetId) = auction.getOrders(p, #bid, assetId));
-    let credits = retrieveElements<(Auction.AssetId, Auction.CreditInfo)>(
-      selection.credits,
-      func(assetId) = switch (assetId) {
-        case (null) auction.getCredits(p);
-        case (?aid) [(aid, auction.getCredit(p, aid))];
-      },
-    );
     let darkOrderBooks = retrieveElements<(Auction.AssetId, Auction.EncryptedOrderBook)>(
       selection.dark_order_books,
       func(assetId) = switch (assetId, userInfo) {
@@ -744,6 +746,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
         case (_) [];
       },
     );
+
     let depositHistory = switch (selection.deposit_history) {
       case (?(limit, skip)) {
         assetIds
@@ -760,9 +763,10 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
       };
       case (null) [];
     };
+
     let priceHistory = switch (selection.price_history) {
       case (?(limit, skip, skipEmpty)) {
-        assetIds
+        baseAssetIds
         |> auction.getPriceHistory(_, historyListOrder, skipEmpty)
         |> U.sliceIter(_, limit, skip);
       };
@@ -770,15 +774,16 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     };
     let immediatePriceHistory = switch (selection.immediate_price_history) {
       case (?(limit, skip)) {
-        assetIds
+        baseAssetIds
         |> auction.getImmediatePriceHistory(_, historyListOrder)
         |> U.sliceIter(_, limit, skip);
       };
       case (null) [];
     };
+
     let lastPrices = switch (selection.last_prices) {
       case (?true) {
-        var pendingAssetIds = List.fromArray(assetIds);
+        var pendingAssetIds = List.fromArray(baseAssetIds);
         auction.getPriceHistory([], #desc, true)
         |> Iter.filter<Auction.PriceHistoryItem>(
           _,
@@ -793,13 +798,13 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
             };
           },
         )
-        |> U.sliceIter(_, assetIds.size(), 0);
+        |> U.sliceIter(_, baseAssetIds.size(), 0);
       };
       case (_) [];
     };
     let lastImmediatePrices = switch (selection.last_immediate_prices) {
       case (?true) {
-        var pendingAssetIds = List.fromArray(assetIds);
+        var pendingAssetIds = List.fromArray(baseAssetIds);
         auction.getImmediatePriceHistory([], #desc)
         |> Iter.filter<Auction.PriceHistoryItem>(
           _,
@@ -814,7 +819,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
             };
           },
         )
-        |> U.sliceIter(_, assetIds.size(), 0);
+        |> U.sliceIter(_, baseAssetIds.size(), 0);
       };
       case (_) [];
     };
@@ -835,14 +840,14 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
       last_prices = lastPrices |> Array.map<Auction.PriceHistoryItem, PriceHistoryItem>(_, mapHistoryItem);
       last_immediate_prices = lastImmediatePrices |> Array.map<Auction.PriceHistoryItem, PriceHistoryItem>(_, mapHistoryItem);
       order_book_info = switch (selection.order_book_info) {
-        case (?true) assetIds |> Array.map<Auction.AssetId, (Principal, Auction.OrderBookInfo)>(
+        case (?true) baseAssetIds |> Array.map<Auction.AssetId, (Principal, Auction.OrderBookInfo)>(
           _,
           func(aid) = (Vec.get(assets, aid).ledgerPrincipal, auction.orderBookInfo(aid)),
         );
         case (_) [];
       };
       immediate_order_book_info = switch (selection.immediate_order_book_info) {
-        case (?true) assetIds |> Array.map<Auction.AssetId, (Principal, Auction.ImmediateOrderBookInfo)>(
+        case (?true) baseAssetIds |> Array.map<Auction.AssetId, (Principal, Auction.ImmediateOrderBookInfo)>(
           _,
           func(aid) = (Vec.get(assets, aid).ledgerPrincipal, auction.immediateOrderBookInfo(aid)),
         );
