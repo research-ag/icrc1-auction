@@ -863,19 +863,14 @@ Consider gracefully handling failures from this canister or altering the caniste
 
       expect(res.order_book_info).toEqual([
         [ledger1Principal, {
-          clearing:
-            {
-              noMatch:
-                {
-                  maxBidPrice: [100000],
-                  minAskPrice: [102000]
-                }
-            }, totalAskVolume: 1500n, totalBidVolume: 1500n
+          clearing: { noMatch: null },
+          maxBidPrice: [100000], minAskPrice: [102000],
+          totalAskVolume: 1500n, totalBidVolume: 1500n
         }],
         [ledger2Principal, {
-          clearing: { noMatch: { maxBidPrice: [], minAskPrice: [] } },
-          totalAskVolume: 0n,
-          totalBidVolume: 0n
+          clearing: { noMatch: null },
+          maxBidPrice: [], minAskPrice: [],
+          totalAskVolume: 0n, totalBidVolume: 0n
         }]
       ]);
       expect(res.immediate_order_book_info).toEqual([
@@ -915,14 +910,14 @@ Consider gracefully handling failures from this canister or altering the caniste
       expect(res.deposit_history).toHaveLength(0);
       expect(res.order_book_info).toEqual([
         [ledger1Principal, {
-          clearing: { noMatch: { maxBidPrice: [100000], minAskPrice: [] } },
-          totalAskVolume: 0n,
-          totalBidVolume: 1500n
+          clearing: { noMatch: null },
+          maxBidPrice: [100000], minAskPrice: [],
+          totalAskVolume: 0n, totalBidVolume: 1500n
         }],
         [ledger2Principal, {
-          clearing: { noMatch: { maxBidPrice: [], minAskPrice: [] } },
-          totalAskVolume: 0n,
-          totalBidVolume: 0n
+          clearing: { noMatch: null },
+          maxBidPrice: [], minAskPrice: [],
+          totalAskVolume: 0n, totalBidVolume: 0n
         }]
       ]);
       expect(res.immediate_order_book_info).toEqual([

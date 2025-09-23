@@ -194,11 +194,10 @@ type OrderBookInfo = record {
       price : float64;
       volume : nat
     };
-    noMatch : record {
-      minAskPrice : opt float64;
-      maxBidPrice : opt float64
-    }
+    noMatch
   };
+  minAskPrice : opt float64;
+  maxBidPrice : opt float64;
   totalAskVolume : nat;
   totalBidVolume : nat
 };

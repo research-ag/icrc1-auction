@@ -212,11 +212,10 @@ module {
         price : Float;
         volume : Nat;
       };
-      #noMatch : {
-        minAskPrice : ?Float;
-        maxBidPrice : ?Float;
-      };
+      #noMatch;
     };
+    minAskPrice : ?Float;
+    maxBidPrice : ?Float;
     totalBidVolume : Nat;
     totalAskVolume : Nat;
   };
@@ -358,21 +357,16 @@ module {
       let asksOrderBook = orders.asks.createOrderBookExecutionService(assetInfo, #combined({ encryptedOrdersQueue = null }));
       let bidsOrderBook = orders.bids.createOrderBookExecutionService(assetInfo, #combined({ encryptedOrdersQueue = null }));
       let (price, volume) = clearAuction(asksOrderBook, bidsOrderBook);
-      if (volume > 0) {
-        {
-          clearing = #match({ price; volume });
-          totalBidVolume = bidsOrderBook.totalVolume();
-          totalAskVolume = asksOrderBook.totalVolume();
+      {
+        clearing = if (volume > 0) {
+          #match({ price; volume });
+        } else {
+          #noMatch;
         };
-      } else {
-        {
-          clearing = #noMatch({
-            maxBidPrice = bidsOrderBook.nextOrder() |> Option.map<(?T.OrderId, T.Order), Float>(_, func(b) = b.1.price);
-            minAskPrice = asksOrderBook.nextOrder() |> Option.map<(?T.OrderId, T.Order), Float>(_, func(b) = b.1.price);
-          });
-          totalBidVolume = bidsOrderBook.totalVolume();
-          totalAskVolume = asksOrderBook.totalVolume();
-        };
+        maxBidPrice = bidsOrderBook.nextOrder() |> Option.map<(?T.OrderId, T.Order), Float>(_, func(b) = b.1.price);
+        minAskPrice = asksOrderBook.nextOrder() |> Option.map<(?T.OrderId, T.Order), Float>(_, func(b) = b.1.price);
+        totalBidVolume = bidsOrderBook.totalVolume();
+        totalAskVolume = asksOrderBook.totalVolume();
       };
     };
 
