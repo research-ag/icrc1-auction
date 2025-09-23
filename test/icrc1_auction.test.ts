@@ -90,9 +90,11 @@ describe('ICRC1 Auction', () => {
     immediate_price_history: [],
     transaction_history: [],
     session_numbers: [],
-    reversed_history: [],
     last_prices: [],
     last_immediate_prices: [],
+    order_book_info: [],
+    immediate_order_book_info: [],
+    reversed_history: [],
   };
 
   const encryptOrders = async (
@@ -810,9 +812,11 @@ Consider gracefully handling failures from this canister or altering the caniste
         price_history: [[1000n, 0n, true]],
         immediate_price_history: [],
         deposit_history: [[1000n, 0n]],
-        reversed_history: [true],
         last_prices: [true],
         last_immediate_prices: [true],
+        order_book_info: [true],
+        immediate_order_book_info: [true],
+        reversed_history: [true],
       });
 
       expect(res.credits).toEqual([
@@ -856,6 +860,29 @@ Consider gracefully handling failures from this canister or altering the caniste
       expect(res.deposit_history[1][1]).toEqual({ deposit: null });
       expect(res.deposit_history[1][2]).toEqual(quoteLedgerPrincipal);
       expect(res.deposit_history[1][3]).toEqual(500000000n);
+
+      expect(res.order_book_info).toEqual([
+        {
+          clearing: {
+            noMatch: { maxBidPrice: [], minAskPrice: [] }
+          },
+          totalAskVolume: 0n,
+          totalBidVolume: 0n
+        },
+        {
+          clearing:
+            {
+              noMatch:
+                {
+                  maxBidPrice: [100000],
+                  minAskPrice: [102000]
+                }
+            }, totalAskVolume: 1500n, totalBidVolume: 1500n
+        }, {
+          clearing: { noMatch: { maxBidPrice: [], minAskPrice: [] } },
+          totalAskVolume: 0n,
+          totalBidVolume: 0n
+        }]);
     });
   });
 });

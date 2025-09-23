@@ -231,9 +231,11 @@ export const useAuctionQuery = () => {
           transaction_history: [[BigInt(10000), BigInt(0)]],
           price_history: [],
           immediate_price_history: [],
-          reversed_history: [true],
           last_prices: [],
           last_immediate_prices: [],
+          order_book_info: [],
+          immediate_order_book_info: [],
+          reversed_history: [true],
         }),
       );
     },
@@ -445,9 +447,11 @@ export const usePriceHistory = (limit: number, offset: number) => {
         transaction_history: [],
         price_history: [[BigInt(limit), BigInt(offset), false]],
         immediate_price_history: [],
-        reversed_history: [true],
         last_prices: [],
         last_immediate_prices: [],
+        order_book_info: [],
+        immediate_order_book_info: [],
+        reversed_history: [true],
       });
       return res.price_history;
     },

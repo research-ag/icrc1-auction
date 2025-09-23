@@ -188,7 +188,7 @@ type CancelOrderResponse = variant {
   }
 };
 
-type IndicativeStats = record {
+type OrderBookInfo = record {
   clearing : variant {
     match : record {
       price : float64;
@@ -199,6 +199,13 @@ type IndicativeStats = record {
       maxBidPrice : opt float64
     }
   };
+  totalAskVolume : nat;
+  totalBidVolume : nat
+};
+
+type ImmediateOrderBookInfo = record {
+  minAskPrice : opt float64;
+  maxBidPrice : opt float64;
   totalAskVolume : nat;
   totalBidVolume : nat
 };
@@ -419,7 +426,7 @@ service : (opt principal, opt principal) -> {
   settings : () -> (record { orderQuoteVolumeMinimum : nat; orderQuoteVolumeStep : nat; orderPriceDigitsLimit : nat }) query;
 
   // returns information about auction results if acution session happened now
-  indicativeStats : (principal) -> (IndicativeStats) query;
+  indicativeStats : (principal) -> (OrderBookInfo) query;
 
   // ========================================================= USER API ==========================================================
 
@@ -443,10 +450,12 @@ service : (opt principal, opt principal) -> {
       price_history : opt record { nat; nat; bool };
       // aruments are (limit; skip), implements pagination
       immediate_price_history : opt record { nat; nat };
-      // reverses price, transaction and deposit history lists. ?true returns histories in descending chronological order
-      reversed_history : opt bool;
       last_prices : opt bool;
-      last_immediate_prices : opt bool
+      last_immediate_prices : opt bool;
+      order_book_info : opt bool;
+      immediate_order_book_info : opt bool;
+      // reverses price, transaction and deposit history lists. ?true returns histories in descending chronological order
+      reversed_history : opt bool
     }
   ) -> (
     record {
@@ -499,6 +508,10 @@ service : (opt principal, opt principal) -> {
       last_prices : vec record { nat64; nat; Token; nat; float64 };
       // last non-zero clearing price per token. Returns items, same as in `immediate_price_history`
       last_immediate_prices : vec record { nat64; nat; Token; nat; float64 };
+      // info about auction order book. Excludes info from encrypted orders
+      order_book_info : vec OrderBookInfo;
+      // info about immediate order book
+      immediate_order_book_info : vec ImmediateOrderBookInfo;
       // amount of caller's loyalty points
       points : nat;
       // current caller's account revision

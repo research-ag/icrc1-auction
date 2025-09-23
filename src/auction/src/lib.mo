@@ -206,7 +206,7 @@ module {
   public type CancellationResult = Orders.CancellationResult;
   public type PlaceOrderResult = Orders.PlaceOrderResult;
 
-  public type IndicativeStats = {
+  public type OrderBookInfo = {
     clearing : {
       #match : {
         price : Float;
@@ -217,6 +217,13 @@ module {
         maxBidPrice : ?Float;
       };
     };
+    totalBidVolume : Nat;
+    totalAskVolume : Nat;
+  };
+
+  public type ImmediateOrderBookInfo = {
+    minAskPrice : ?Float;
+    maxBidPrice : ?Float;
     totalBidVolume : Nat;
     totalAskVolume : Nat;
   };
@@ -346,7 +353,7 @@ module {
       assetInfo.sessionsCounter := sessionsCounter + 1;
     };
 
-    public func indicativeAssetStats(assetId : AssetId) : IndicativeStats {
+    public func orderBookInfo(assetId : AssetId) : OrderBookInfo {
       let assetInfo = assets.getAsset(assetId);
       let asksOrderBook = orders.asks.createOrderBookExecutionService(assetInfo, #combined({ encryptedOrdersQueue = null }));
       let bidsOrderBook = orders.bids.createOrderBookExecutionService(assetInfo, #combined({ encryptedOrdersQueue = null }));
@@ -366,6 +373,18 @@ module {
           totalBidVolume = bidsOrderBook.totalVolume();
           totalAskVolume = asksOrderBook.totalVolume();
         };
+      };
+    };
+
+    public func immediateOrderBookInfo(assetId : AssetId) : ImmediateOrderBookInfo {
+      let assetInfo = assets.getAsset(assetId);
+      let asksOrderBook = orders.asks.createOrderBookExecutionService(assetInfo, #immediate);
+      let bidsOrderBook = orders.bids.createOrderBookExecutionService(assetInfo, #immediate);
+      {
+        maxBidPrice = bidsOrderBook.nextOrder() |> Option.map<(?T.OrderId, T.Order), Float>(_, func(b) = b.1.price);
+        minAskPrice = asksOrderBook.nextOrder() |> Option.map<(?T.OrderId, T.Order), Float>(_, func(b) = b.1.price);
+        totalBidVolume = bidsOrderBook.totalVolume();
+        totalAskVolume = asksOrderBook.totalVolume();
       };
     };
     // ============= assets interface =============
