@@ -1,0 +1,17 @@
+[package]
+name = "crypto"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+path = "lib.rs"
+
+[dependencies]
+candid = "0.10.10"
+getrandom = { version = "0.2", features = ["custom"]}
+ic-cdk = "0.18.3"
+ic-cdk-macros = "0.18.3"
+ic-stable-structures = "0.6.8"
+ic-vetkeys = { git = "https://github.com/dfinity/vetkeys", rev = "e3021f1d1b7298f35d8201e237c454187c884e7c" }
+serde_bytes = "0.11.15"

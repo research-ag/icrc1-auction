@@ -5,7 +5,7 @@ import Nat8 "mo:base/Nat8";
 import Option "mo:base/Option";
 import Principal "mo:base/Principal";
 
-actor class ICRC1Ledger(symbol_ : ?Text, decimals_ : ?Nat8) = self {
+persistent actor class ICRC1Ledger(symbol_ : ?Text, decimals_ : ?Nat8) = self {
   type Account = {
     var balance : Nat;
   };
@@ -32,10 +32,10 @@ actor class ICRC1Ledger(symbol_ : ?Text, decimals_ : ?Nat8) = self {
     #GenericError : { error_code : Nat; message : Text };
   };
 
-  let TOKEN_SYMBOL = Option.get<Text>(symbol_, "MOCK");
-  let TOKEN_DECIMALS = Option.get<Nat8>(decimals_, 2);
+  transient let TOKEN_SYMBOL = Option.get<Text>(symbol_, "MOCK");
+  transient let TOKEN_DECIMALS = Option.get<Nat8>(decimals_, 2);
 
-  let zeroSubaccount = Blob.fromArray(Array.tabulate<Nat8>(32, func(n) = 0));
+  transient let zeroSubaccount = Blob.fromArray(Array.tabulate<Nat8>(32, func(n) = 0));
   func deoptRef(r : AccountRefOpt) : AccountRef = ({
     owner = r.owner;
     subaccount = Option.get(r.subaccount, zeroSubaccount);
@@ -43,9 +43,9 @@ actor class ICRC1Ledger(symbol_ : ?Text, decimals_ : ?Nat8) = self {
 
   func accRefEqual(a : AccountRef, b : AccountRef) : Bool = Principal.equal(a.owner, b.owner) and Blob.equal(a.subaccount, b.subaccount);
   // Define a map to store accounts
-  var accounts : AssocList.AssocList<AccountRef, Account> = null;
-  var fee : Nat = 0;
-  var txIndex : Nat = 29138;
+  transient var accounts : AssocList.AssocList<AccountRef, Account> = null;
+  transient var fee : Nat = 0;
+  transient var txIndex : Nat = 29138;
 
   private func getBalance(account : AccountRefOpt) : Nat = switch (AssocList.find<AccountRef, Account>(accounts, deoptRef(account), accRefEqual)) {
     case (null) 0;

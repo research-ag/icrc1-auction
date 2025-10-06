@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Crypto Canister Decrypt Load Test</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; padding: 20px; }
+      .row { margin: 8px 0; }
+      input[type=text] { width: 480px; }
+      #log { white-space: pre-wrap; background: #111; color: #0f0; padding: 10px; border-radius: 6px; height: 300px; overflow: auto; }
+      button { padding: 8px 14px; }
+      .muted { color: #666; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <h1>Crypto.decrypt Batch Tester</h1>
+
+    <div class="row">
+      <span class="muted">Using IC network with crypto canister: 6jrls-gqaaa-aaaao-a4pgq-cai</span>
+    </div>
+
+    <div class="row">
+      <button id="run">Send 100 batches × 10 items to crypto.decrypt</button>
+    </div>
+
+    <div class="row">
+      <div id="log" aria-live="polite"></div>
+    </div>
+
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

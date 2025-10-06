@@ -91,6 +91,8 @@ type Order = record {
   volume : nat
 };
 
+type EncryptedOrderBook = record { blob; blob };
+
 type CancellationArg = variant {
   all : opt vec Token;
   orders : vec variant { ask : OrderId; bid : OrderId }
@@ -186,17 +188,23 @@ type CancelOrderResponse = variant {
   }
 };
 
-type IndicativeStats = record {
+type OrderBookInfo = record {
   clearing : variant {
     match : record {
       price : float64;
       volume : nat
     };
-    noMatch : record {
-      minAskPrice : opt float64;
-      maxBidPrice : opt float64
-    }
+    noMatch
   };
+  minAskPrice : opt float64;
+  maxBidPrice : opt float64;
+  totalAskVolume : nat;
+  totalBidVolume : nat
+};
+
+type ImmediateOrderBookInfo = record {
+  minAskPrice : opt float64;
+  maxBidPrice : opt float64;
   totalAskVolume : nat;
   totalBidVolume : nat
 };
@@ -417,7 +425,7 @@ service : (opt principal, opt principal) -> {
   settings : () -> (record { orderQuoteVolumeMinimum : nat; orderQuoteVolumeStep : nat; orderPriceDigitsLimit : nat }) query;
 
   // returns information about auction results if acution session happened now
-  indicativeStats : (principal) -> (IndicativeStats) query;
+  indicativeStats : (principal) -> (OrderBookInfo) query;
 
   // ========================================================= USER API ==========================================================
 
@@ -432,6 +440,7 @@ service : (opt principal, opt principal) -> {
       asks : opt bool;
       bids : opt bool;
       credits : opt bool;
+      dark_order_books : opt bool;
       // aruments are (limit; skip), implements pagination
       deposit_history : opt record { nat; nat };
       // aruments are (limit; skip), implements pagination
@@ -440,9 +449,12 @@ service : (opt principal, opt principal) -> {
       price_history : opt record { nat; nat; bool };
       // aruments are (limit; skip), implements pagination
       immediate_price_history : opt record { nat; nat };
+      last_prices : opt bool;
+      last_immediate_prices : opt bool;
+      order_book_info : opt bool;
+      immediate_order_book_info : opt bool;
       // reverses price, transaction and deposit history lists. ?true returns histories in descending chronological order
-      reversed_history : opt bool;
-      last_prices : opt bool
+      reversed_history : opt bool
     }
   ) -> (
     record {
@@ -462,6 +474,10 @@ service : (opt principal, opt principal) -> {
       credits : vec record {
         Token;
         record { total : nat; available : nat; locked : nat }
+      };
+      dark_order_books : vec record {
+        Token;
+        EncryptedOrderBook
       };
       // history of deposit events.
       // return values are: timestamp in nanoseconds; type; ICRC1 ledger principal; operation volume;
@@ -485,10 +501,16 @@ service : (opt principal, opt principal) -> {
       // return values are: timestamp in nanoseconds; number of auction session; ICRC1 ledger principal; volume sold; price
       price_history : vec record { nat64; nat; Token; nat; float64 };
       // history of clearing price when immediate order book has been executed
-      // return values are: timestamp in nanoseconds; 0; ICRC1 ledger principal; volume sold; price
+      // return values are: timestamp in nanoseconds; serial number of immediate execution (per trading pair); ICRC1 ledger principal; volume sold; price
       immediate_price_history : vec record { nat64; nat; Token; nat; float64 };
-      // last non-zero clearing price per token
+      // last non-zero clearing price per token. Returns items, same as in `price_history`
       last_prices : vec record { nat64; nat; Token; nat; float64 };
+      // last non-zero clearing price per token. Returns items, same as in `immediate_price_history`
+      last_immediate_prices : vec record { nat64; nat; Token; nat; float64 };
+      // info about auction order book. Excludes info from encrypted orders
+      order_book_info : vec record { Token; OrderBookInfo };
+      // info about immediate order book
+      immediate_order_book_info : vec record { Token; ImmediateOrderBookInfo };
       // amount of caller's loyalty points
       points : nat;
       // current caller's account revision
@@ -503,6 +525,29 @@ service : (opt principal, opt principal) -> {
   // - account revision: optionally set expected current caller's account revision. If set and it does not match the actual account revision, the function will return an error
   // returns array of placed order id-s in case of success
   manageOrders : (opt CancellationArg, PlaceArg, opt AccountRevision) -> (ManageOrdersResponse);
+
+  // An atomic function to manage caller's dark order books. In case of failure no changes will be applied
+  // arguments are:
+  // - dark order books: encrypted order books to set (per trading pair).
+  // - account revision: optionally set expected current caller's account revision. If set and it does not match the actual account revision, the function will return an error
+  // returns old states of dark order books that were set before the call
+  manageDarkOrderBooks : (
+    vec record {
+      principal;
+      opt EncryptedOrderBook
+    },
+    opt nat
+  ) -> (
+    variant {
+      Err : variant {
+        AccountRevisionMismatch;
+        NoCredit;
+        UnknownAsset : principal;
+        UnknownPrincipal
+      };
+      Ok : vec opt EncryptedOrderBook
+    }
+  );
 
   // A shortcut for `manageOrders` which only places asks
   // arguments are: array of orders and account revision (optional).

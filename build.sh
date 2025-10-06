@@ -1,6 +1,6 @@
 #!/bin/bash
 
-MOC_GC_FLAGS="" ## place any additional flags like compacting-gc, incremental-gc here
+MOC_GC_FLAGS="--legacy-persistence" ## place any additional flags like compacting-gc, incremental-gc here
 MOC_FLAGS="$MOC_GC_FLAGS -no-check-ir --release --public-metadata candid:service --public-metadata candid:args"
 OUT=out/out_$(uname -s)_$(uname -m).wasm
 mops-cli build --lock --name out src/icrc1_auction_api.mo -- $MOC_FLAGS

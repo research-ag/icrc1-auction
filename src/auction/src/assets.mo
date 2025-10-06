@@ -1,7 +1,9 @@
 import Int "mo:base/Int";
 import Iter "mo:base/Iter";
 import Nat "mo:base/Nat";
+import AssocList "mo:base/AssocList";
 import Prim "mo:prim";
+import Principal "mo:base/Principal";
 
 import CircularBuffer "mo:mrr/CircularBuffer";
 import Vec "mo:vector";
@@ -79,8 +81,13 @@ module {
               immediate = AssetOrderBook.nil(#ask);
               delayed = AssetOrderBook.nil(#ask);
             };
+            darkOrderBooks = {
+              var encrypted = null;
+              var decrypted = null;
+            };
             var lastRate = 0;
             var lastImmediateRate = 0;
+            var immediateExecutionsCounter = 0;
             var lastProcessingInstructions = 0;
             var totalExecutedVolumeBase = 0;
             var totalExecutedVolumeQuote = 0;
@@ -115,6 +122,12 @@ module {
 
     public func deleteOrder(asset : T.AssetInfo, kind : { #ask; #bid }, orderBookType : T.OrderBookType, orderId : T.OrderId) {
       let ?_ = AssetOrderBook.delete(getOrderBook(asset, kind, orderBookType), orderId) else Prim.trap("Cannot delete order from asset order book");
+    };
+
+    public func putDarkOrderBook(asset : T.AssetInfo, user : Principal, data : ?T.EncryptedOrderBook) : ?T.EncryptedOrderBook {
+      let (upd, oldValue) = AssocList.replace(asset.darkOrderBooks.encrypted, user, Principal.equal, data);
+      asset.darkOrderBooks.encrypted := upd;
+      oldValue;
     };
 
     public func pushToHistory(orderBookType : T.OrderBookType, item : T.PriceHistoryItem) {

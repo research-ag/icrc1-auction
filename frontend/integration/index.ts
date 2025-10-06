@@ -7,7 +7,10 @@ import { useMemo } from 'react';
 import { createActor } from '@declarations/icrc1_auction';
 import { AuctionQueryResponse } from '@declarations/icrc1_auction/icrc1_auction_development.did';
 import { createActor as createLedgerActor } from '@declarations/icrc1_ledger_mock';
+import { createActor as createCryptoActor, canisterId as CRYPTO_CANISTER_ID } from '@declarations/crypto';
 import { CKBTC_MINTER_MAINNET_XPUBKEY, Minter } from '@research-ag/ckbtc-address-js';
+import { DerivedPublicKey, IbeCiphertext, IbeIdentity, IbeSeed } from '@dfinity/vetkeys';
+import { encryptWithVetKD } from '@fe/crypto/vetkd';
 
 // Custom replacer function for JSON.stringify
 const bigIntReplacer = (key: string, value: any): any => {
@@ -222,13 +225,17 @@ export const useAuctionQuery = () => {
           asks: [true],
           bids: [true],
           credits: [true],
+          dark_order_books: [true],
           session_numbers: [],
           deposit_history: [[BigInt(10000), BigInt(0)]],
           transaction_history: [[BigInt(10000), BigInt(0)]],
           price_history: [],
           immediate_price_history: [],
-          reversed_history: [true],
           last_prices: [],
+          last_immediate_prices: [],
+          order_book_info: [],
+          immediate_order_book_info: [],
+          reversed_history: [true],
         }),
       );
     },
@@ -434,13 +441,17 @@ export const usePriceHistory = (limit: number, offset: number) => {
         asks: [],
         bids: [],
         credits: [],
+        dark_order_books: [],
         session_numbers: [],
         deposit_history: [],
         transaction_history: [],
         price_history: [[BigInt(limit), BigInt(offset), false]],
         immediate_price_history: [],
-        reversed_history: [true],
         last_prices: [],
+        last_immediate_prices: [],
+        order_book_info: [],
+        immediate_order_book_info: [],
+        reversed_history: [true],
       });
       return res.price_history;
     },
@@ -603,4 +614,79 @@ export const useIsAdmin = () => {
     () => (data ?? []).some(principal => principal.toText() === identity.getPrincipal().toText()),
     [data, identity],
   );
+};
+
+
+export const useListDarkOrderBooks = (auctionQueryData: AuctionQueryResponse | undefined) => {
+  return useQuery(['dark-order-books', auctionQueryData], async () => auctionQueryData?.dark_order_books || [], {
+    enabled: !!auctionQueryData,
+  });
+};
+
+export const useManageDarkOrderBook = () => {
+  const { auction } = useAuction();
+  const queryClient = useQueryClient();
+  const { enqueueSnackbar } = useSnackbar();
+  const { identity } = useIdentity();
+
+  const encryptIbe = async (data: Uint8Array, nextSessionTimestamp: number) => {
+    const canister = CRYPTO_CANISTER_ID ?? '6jrls-gqaaa-aaaao-a4pgq-cai';
+    const cryptoActor = createCryptoActor(canister);
+    const publicKey = DerivedPublicKey.deserialize(new Uint8Array(await cryptoActor.get_ibe_public_key()));
+    const ciphertext = IbeCiphertext.encrypt(
+      publicKey,
+      IbeIdentity.fromBytes(new TextEncoder().encode(nextSessionTimestamp.toString())),
+      data,
+      IbeSeed.random(),
+    );
+    return ciphertext.serialize();
+  };
+
+  return useMutation(
+    async (arg: { ledger: Principal; orders: { kind: 'ask' | 'bid'; volume: number; price: number }[] }) => {
+      const text = arg.orders.map(v => `${v.kind}:${v.volume}:${v.price}`).join(';');
+      const raw = new TextEncoder().encode(text);
+
+      const nextSessionTimestamp = Number((await auction.nextSession()).timestamp);
+      const data = await Promise.all([encryptWithVetKD(identity, raw), encryptIbe(raw, nextSessionTimestamp)]);
+      return auction.manageDarkOrderBooks([[arg.ledger, [data]]], []);
+    },
+    {
+      onSuccess: res => {
+        if ('Err' in res) {
+          enqueueSnackbar(`Failed to set dark order book: ${JSON.stringify(res.Err, bigIntReplacer)}` as any, {
+            variant: 'error',
+          });
+        } else {
+          queryClient.invalidateQueries('auctionQuery');
+          enqueueSnackbar(`Dark order book set successfully`, { variant: 'success' });
+        }
+      },
+      onError: err => {
+        enqueueSnackbar(`Failed to set dark order book: ${err}`, { variant: 'error' });
+      },
+    },
+  );
+};
+
+export const useDeleteDarkOrderBook = () => {
+  const { auction } = useAuction();
+  const queryClient = useQueryClient();
+  const { enqueueSnackbar } = useSnackbar();
+
+  return useMutation((ledger: Principal) => auction.manageDarkOrderBooks([[ledger, []]], []), {
+    onSuccess: res => {
+      if ('Err' in res) {
+        enqueueSnackbar(`Failed to remove dark order book: ${JSON.stringify(res.Err, bigIntReplacer)}` as any, {
+          variant: 'error',
+        });
+      } else {
+        queryClient.invalidateQueries('auctionQuery');
+        enqueueSnackbar(`Dark order book removed`, { variant: 'success' });
+      }
+    },
+    onError: err => {
+      enqueueSnackbar(`Failed to remove dark order book: ${err}`, { variant: 'error' });
+    },
+  });
 };

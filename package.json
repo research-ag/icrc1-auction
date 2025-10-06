@@ -8,9 +8,10 @@
   "type": "module",
   "scripts": {
     "create": "dfx canister create --all",
-    "setup": "dfx generate icrc1_ledger_mock && dfx generate icrc1_auction_development && dfx deploy",
+    "setup": "dfx generate icrc1_ledger_mock && dfx generate crypto && dfx generate icrc1_auction_development && dfx deploy",
     "dev:frontend": "vite --port 3993 --host",
     "build:frontend": "rm -rf ./dist/ && tsc && vite build",
+    "dev:crypto-test": "vite --config vite.crypto-test.config.ts --port 4001 --host",
     "prettier-format": "prettier --config frontend/.prettierrc 'frontend/**/*.ts' --write",
     "test": "jest -c ./test/jest.config.ts"
   },
@@ -41,6 +42,7 @@
   "dependencies": {
     "@dfinity/auth-client": "^2.3.0",
     "@dfinity/ledger-icrc": "^2.3.3",
+    "@dfinity/vetkeys": "^0.4.0",
     "@emotion/react": "^11.11.3",
     "@emotion/styled": "^11.11.0",
     "@fontsource/inter": "^5.0.16",
