@@ -15,6 +15,7 @@ module {
 
     public var usersAmount : Nat = 0;
     public let users : RBTree.RBTree<Principal, T.UserInfo> = RBTree.RBTree<Principal, T.UserInfo>(Principal.compare);
+    public let secondaryPrincipalsInvMap : RBTree.RBTree<Principal, Principal> = RBTree.RBTree<Principal, Principal>(Principal.compare);
 
     public func nUsers() : Nat = usersAmount;
     public func nUsersWithCredits() : Nat {
@@ -45,12 +46,13 @@ module {
       case (?info) info;
       case (null) {
         let data : T.UserInfo = {
-          asks = { var map = null };
-          bids = { var map = null };
-          var darkOrderBooks = null;
+          var secondaryPrincipals = [];
           var credits = null;
           var accountRevision = 0;
           var loyaltyPoints = 0;
+          asks = { var map = null };
+          bids = { var map = null };
+          var darkOrderBooks = null;
           var depositHistory = Vec.new<T.DepositHistoryItem>();
           var transactionHistory = Vec.new<T.TransactionHistoryItem>();
         };

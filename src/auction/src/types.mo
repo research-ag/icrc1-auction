@@ -73,12 +73,13 @@ module {
   };
 
   public type UserInfo = {
-    asks : UserOrderBook;
-    bids : UserOrderBook;
-    var darkOrderBooks : AssocList.AssocList<AssetId, EncryptedOrderBook>;
+    var secondaryPrincipals : [Principal];
     var credits : AssocList.AssocList<AssetId, Account>;
     var accountRevision : Nat;
     var loyaltyPoints : Nat;
+    asks : UserOrderBook;
+    bids : UserOrderBook;
+    var darkOrderBooks : AssocList.AssocList<AssetId, EncryptedOrderBook>;
     var depositHistory : Vec.Vector<DepositHistoryItem>;
     var transactionHistory : Vec.Vector<TransactionHistoryItem>;
   };
@@ -88,6 +89,63 @@ module {
   public type TransactionHistoryItem = (timestamp : Nat64, sessionNumber : Nat, kind : { #ask; #bid }, assetId : AssetId, volume : Nat, price : Float);
 
   // stable data types
+  public type StableDataV5 = {
+    assets : Vec.Vector<StableAssetInfoV3>;
+    orders : { globalCounter : Nat };
+    quoteToken : { surplus : Nat };
+    sessions : {
+      counter : Nat;
+      history : {
+        immediate : ([var ?PriceHistoryItem], Nat, Nat);
+        delayed : Vec.Vector<PriceHistoryItem>;
+      };
+    };
+    users : {
+      registry : {
+        tree : RBTree.Tree<Principal, StableUserInfoV4>;
+        size : Nat;
+      };
+      participantsArchive : {
+        tree : RBTree.Tree<Principal, { lastOrderPlacement : Nat64 }>;
+        size : Nat;
+      };
+      accountsAmount : Nat;
+    };
+  };
+
+  public type StableAssetInfoV3 = {
+    lastRate : Float;
+    lastImmediateRate : Float;
+    immediateExecutionsCounter : Nat;
+    lastProcessingInstructions : Nat;
+    totalExecutedVolumeBase : Nat;
+    totalExecutedVolumeQuote : Nat;
+    totalExecutedOrders : Nat;
+  };
+  public type StableUserInfoV4 = {
+    secondaryPrincipals: [Principal];
+    credits : AssocList.AssocList<AssetId, Account>;
+    accountRevision : Nat;
+    loyaltyPoints : Nat;
+    asks : {
+      var map : AssocList.AssocList<OrderId, StableOrderDataV2>;
+    };
+    bids : {
+      var map : AssocList.AssocList<OrderId, StableOrderDataV2>;
+    };
+    darkOrderBooks : AssocList.AssocList<AssetId, EncryptedOrderBook>;
+    depositHistory : Vec.Vector<DepositHistoryItem>;
+    transactionHistory : Vec.Vector<TransactionHistoryItem>;
+  };
+  public type StableOrderDataV2 = {
+    user : Principal;
+    assetId : AssetId;
+    orderBookType : OrderBookType;
+    price : Float;
+    volume : Nat;
+  };
+
+  // old stable data types
   public type StableDataV4 = {
     assets : Vec.Vector<StableAssetInfoV3>;
     orders : { globalCounter : Nat };
@@ -111,16 +169,6 @@ module {
       accountsAmount : Nat;
     };
   };
-
-  public type StableAssetInfoV3 = {
-    lastRate : Float;
-    lastImmediateRate : Float;
-    immediateExecutionsCounter : Nat;
-    lastProcessingInstructions : Nat;
-    totalExecutedVolumeBase : Nat;
-    totalExecutedVolumeQuote : Nat;
-    totalExecutedOrders : Nat;
-  };
   public type StableUserInfoV3 = {
     asks : {
       var map : AssocList.AssocList<OrderId, StableOrderDataV2>;
@@ -135,15 +183,6 @@ module {
     depositHistory : Vec.Vector<DepositHistoryItem>;
     transactionHistory : Vec.Vector<TransactionHistoryItem>;
   };
-  public type StableOrderDataV2 = {
-    user : Principal;
-    assetId : AssetId;
-    orderBookType : OrderBookType;
-    price : Float;
-    volume : Nat;
-  };
-
-  // old stable data types
   public type StableDataV3 = {
     assets : Vec.Vector<StableAssetInfoV2>;
     orders : { globalCounter : Nat };
