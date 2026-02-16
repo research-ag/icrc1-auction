@@ -31,6 +31,51 @@ import T "./types";
 
 module {
 
+  public func defaultStableDataV5() : T.StableDataV5 = {
+    assets = Vec.new();
+    orders = { globalCounter = 0 };
+    quoteToken = { surplus = 0 };
+    sessions = {
+      counter = 0;
+      history = {
+        immediate = ([var], 0, 0);
+        delayed = Vec.new<T.PriceHistoryItem>();
+      };
+    };
+    users = {
+      registry = {
+        tree = #leaf;
+        size = 0;
+      };
+      participantsArchive = {
+        tree = #leaf;
+        size = 0;
+      };
+      accountsAmount = 0;
+    };
+  };
+  public type StableDataV5 = T.StableDataV5;
+  public func migrateStableDataV5(data : StableDataV4) : StableDataV5 {
+    let usersTree : RBTree.RBTree<Principal, T.StableUserInfoV4> = RBTree.RBTree(Principal.compare);
+    for ((p, x) in RBTree.iter(data.users.registry.tree, #bwd)) {
+      usersTree.put(
+        p,
+        {
+          x with
+          userSettings = { pushNotificationsEnabled = false }
+        },
+      );
+    };
+    {
+      data with
+      users = {
+        data.users with registry = {
+          data.users.registry with tree = usersTree.share()
+        }
+      };
+    };
+  };
+
   public func defaultStableDataV4() : T.StableDataV4 = {
     assets = Vec.new();
     orders = { globalCounter = 0 };
@@ -196,6 +241,7 @@ module {
   public type EncryptedOrderBook = T.EncryptedOrderBook;
   public type CreditInfo = Credits.CreditInfo;
   public type UserInfo = T.UserInfo;
+  public type UserSettings = T.UserSettings;
   public type DepositHistoryItem = T.DepositHistoryItem;
   public type TransactionHistoryItem = T.TransactionHistoryItem;
   public type PriceHistoryItem = T.PriceHistoryItem;
@@ -598,7 +644,7 @@ module {
     // ============ history interface =============
 
     // ============= system interface =============
-    public func share() : T.StableDataV4 = {
+    public func share() : T.StableDataV5 = {
       assets = Vec.map<T.AssetInfo, T.StableAssetInfoV3>(
         assets.assets,
         func(x) = {
@@ -627,8 +673,8 @@ module {
       users = {
         registry = {
           tree = (
-            func() : RBTree.Tree<Principal, T.StableUserInfoV3> {
-              let stableUsers = RBTree.RBTree<Principal, T.StableUserInfoV3>(Principal.compare);
+            func() : RBTree.Tree<Principal, T.StableUserInfoV4> {
+              let stableUsers = RBTree.RBTree<Principal, T.StableUserInfoV4>(Principal.compare);
               for ((p, u) in users.users.entries()) {
                 stableUsers.put(
                   p,
@@ -645,6 +691,9 @@ module {
                     loyaltyPoints = u.loyaltyPoints;
                     depositHistory = u.depositHistory;
                     transactionHistory = u.transactionHistory;
+                    userSettings = {
+                      pushNotificationsEnabled = u.userSettings.pushNotificationsEnabled;
+                    };
                   },
                 );
               };
@@ -661,7 +710,7 @@ module {
       };
     };
 
-    public func unshare(data : T.StableDataV4) {
+    public func unshare(data : T.StableDataV5) {
       assets.assets := Vec.map<T.StableAssetInfoV3, T.AssetInfo>(
         data.assets,
         func(x) = {
@@ -700,7 +749,7 @@ module {
       assets.history.delayed := data.sessions.history.delayed;
 
       users.usersAmount := data.users.registry.size;
-      let ud = RBTree.RBTree<Principal, T.StableUserInfoV3>(Principal.compare);
+      let ud = RBTree.RBTree<Principal, T.StableUserInfoV4>(Principal.compare);
       ud.unshare(data.users.registry.tree);
       for ((p, u) in ud.entries()) {
         let userData : UserInfo = {
@@ -716,6 +765,9 @@ module {
           var loyaltyPoints = u.loyaltyPoints;
           var depositHistory = u.depositHistory;
           var transactionHistory = u.transactionHistory;
+          userSettings = {
+            var pushNotificationsEnabled = u.userSettings.pushNotificationsEnabled;
+          };
         };
         for ((oid, orderData) in List.toIter(u.asks.map)) {
           let order : T.Order = {

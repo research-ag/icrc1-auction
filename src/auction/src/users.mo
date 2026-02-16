@@ -53,6 +53,9 @@ module {
           var loyaltyPoints = 0;
           var depositHistory = Vec.new<T.DepositHistoryItem>();
           var transactionHistory = Vec.new<T.TransactionHistoryItem>();
+          userSettings = {
+            var pushNotificationsEnabled = false;
+          };
         };
         let oldValue = users.replace(p, data);
         switch (oldValue) {

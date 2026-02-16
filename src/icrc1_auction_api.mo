@@ -51,6 +51,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   var auctionDataV2 : Auction.StableDataV2 = Auction.migrateStableDataV2(auctionDataV1);
   var auctionDataV3 : Auction.StableDataV3 = Auction.migrateStableDataV3(auctionDataV2);
   var auctionDataV4 : Auction.StableDataV4 = Auction.migrateStableDataV4(auctionDataV3);
+  var auctionDataV5 : Auction.StableDataV5 = Auction.migrateStableDataV5(auctionDataV4);
 
   var ptData : PT.StableData = null;
 
@@ -267,7 +268,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
       performanceCounter = Prim.performanceCounter;
     },
   );
-  auction.unshare(auctionDataV4);
+  auction.unshare(auctionDataV5);
 
   // will be set in startAuctionTimer_
   // this timestamp is set right before starting auction execution
@@ -975,6 +976,31 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     );
   };
 
+  type SharedUserSettings = {
+    pushNotificationsEnabled : Bool;
+  };
+  private func shareUserSettings(s : Auction.UserSettings) : SharedUserSettings = {
+    pushNotificationsEnabled = s.pushNotificationsEnabled;
+  };
+
+  public query ({ caller }) func getUserSettings() : async SharedUserSettings {
+    let ?user = auction.users.get(caller) else throw Error.reject("Unknown principal");
+    shareUserSettings(user.userSettings);
+  };
+
+  public shared ({ caller }) func updateUserSettings(
+    settings : {
+      pushNotificationsEnabled : ?Bool;
+    }
+  ) : async SharedUserSettings {
+    let ?user = auction.users.get(caller) else throw Error.reject("Unknown principal");
+    switch (settings.pushNotificationsEnabled) {
+      case (null) {};
+      case (?v) user.userSettings.pushNotificationsEnabled := v;
+    };
+    shareUserSettings(user.userSettings);
+  };
+
   public func updateTokenHandlerFee(ledger : Principal) : async ?Nat {
     let ?assetId = getAssetId(ledger) else throw Error.reject("Unknown asset");
     await* Vec.get(assets, assetId) |> _.handler.fetchFee();
@@ -1242,7 +1268,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
         symbol = x.symbol;
       },
     );
-    auctionDataV4 := auction.share();
+    auctionDataV5 := auction.share();
     ptData := metrics.share();
     stableAdminsMap := permissions.share();
   };
