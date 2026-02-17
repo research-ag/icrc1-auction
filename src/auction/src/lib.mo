@@ -26,7 +26,7 @@ import Credits "./credits";
 import E "./encryption";
 import Orders "./orders";
 import Users "./users";
-import { processAuction; clearAuction } "./auction_processor";
+import Processor "./auction_processor";
 import T "./types";
 
 module {
@@ -252,6 +252,8 @@ module {
   public type CancellationResult = Orders.CancellationResult;
   public type PlaceOrderResult = Orders.PlaceOrderResult;
 
+  public type PushNotification = Users.PushNotification;
+
   public type OrderBookInfo = {
     clearing : {
       #match : {
@@ -311,14 +313,14 @@ module {
       settings,
     );
     orders.executeImmediateOrderBooks := ?(
-      func(assetId : T.AssetId, advantageFor : { #ask; #bid }) : [(price : Float, volume : Nat)] {
+      func(assetId : T.AssetId, advantageFor : { #ask; #bid }) : [(price : Float, volume : Nat, fulfilledOrders : List.List<Processor.FulfilledOrder>)] {
         if (assetId == quoteAssetId) return [];
         let assetInfo = assets.getAsset(assetId);
-        let ret = Vec.new<(Float, Nat)>();
+        let ret = Vec.new<(Float, Nat, List.List<Processor.FulfilledOrder>)>();
         let asks = orders.asks.createOrderBookExecutionService(assetInfo, #immediate);
         let bids = orders.bids.createOrderBookExecutionService(assetInfo, #immediate);
         label l while true {
-          let (_, volume) = clearAuction(asks, bids);
+          let (_, volume) = Processor.clearAuction(asks, bids);
           if (volume == 0) {
             break l;
           };
@@ -326,11 +328,11 @@ module {
             case (#ask) bids.nextOrder();
             case (#bid) asks.nextOrder();
           } else Prim.trap("Can never happen");
-          let surplus = processAuction(0, asks, bids, price, volume);
-          if (surplus > 0) {
-            credits.quoteSurplus += surplus;
+          let { quoteSurplus; fulfilledOrders } = Processor.processAuction(0, asks, bids, price, volume);
+          if (quoteSurplus > 0) {
+            credits.quoteSurplus += quoteSurplus;
           };
-          Vec.add(ret, (price, volume));
+          Vec.add(ret, (price, volume, fulfilledOrders));
           let executionsCounter = assetInfo.immediateExecutionsCounter;
           assetInfo.immediateExecutionsCounter += 1;
           assets.pushToHistory(#immediate, (Prim.time(), executionsCounter, assetId, volume, price));
@@ -385,11 +387,11 @@ module {
       let (encAsks, encBids) = orders.processDarkOrderBooks(assetId, assetInfo);
       let asks = orders.asks.createOrderBookExecutionService(assetInfo, #combined({ encryptedOrdersQueue = encAsks }));
       let bids = orders.bids.createOrderBookExecutionService(assetInfo, #combined({ encryptedOrdersQueue = encBids }));
-      let (price, volume) = clearAuction(asks, bids);
+      let (price, volume) = Processor.clearAuction(asks, bids);
       if (volume > 0) {
-        let surplus = processAuction(sessionsCounter, asks, bids, price, volume);
-        if (surplus > 0) {
-          credits.quoteSurplus += surplus;
+        let { quoteSurplus } = Processor.processAuction(sessionsCounter, asks, bids, price, volume);
+        if (quoteSurplus > 0) {
+          credits.quoteSurplus += quoteSurplus;
         };
         assetInfo.lastRate := price;
       };
@@ -402,7 +404,7 @@ module {
       let assetInfo = assets.getAsset(assetId);
       let asksOrderBook = orders.asks.createOrderBookExecutionService(assetInfo, #combined({ encryptedOrdersQueue = null }));
       let bidsOrderBook = orders.bids.createOrderBookExecutionService(assetInfo, #combined({ encryptedOrdersQueue = null }));
-      let (price, volume) = clearAuction(asksOrderBook, bidsOrderBook);
+      let (price, volume) = Processor.clearAuction(asksOrderBook, bidsOrderBook);
       {
         clearing = if (volume > 0) {
           #match({ price; volume });

@@ -6,10 +6,22 @@ import Principal "mo:base/Principal";
 import RBTree "mo:base/RBTree";
 
 import Vec "mo:vector";
+import Queue "mo:core/Queue";
 
 import T "./types";
 
 module {
+
+  public type PushNotification = {
+    #orderFulfilled : {
+      assetId : T.AssetId;
+      kind : { #ask; #bid };
+      price : Float;
+      baseVolume : Nat;
+      quoteVolume : Nat;
+      isPartial : Bool;
+    };
+  };
 
   public class Users() {
 
@@ -38,6 +50,9 @@ module {
 
     public var participantsArchiveSize : Nat = 0;
     public let participantsArchive : RBTree.RBTree<Principal, { lastOrderPlacement : Nat64 }> = RBTree.RBTree<Principal, { lastOrderPlacement : Nat64 }>(Principal.compare);
+
+    // This field does not survive upgrades, since we (currently) send them straight away
+    public var stagedPushNotifications : Queue.Queue<(user : Principal, notification : PushNotification)> = Queue.empty();
 
     public func get(p : Principal) : ?T.UserInfo = users.get(p);
 

@@ -7,6 +7,7 @@ import List "mo:base/List";
 import Nat "mo:base/Nat";
 import Option "mo:base/Option";
 import Prim "mo:prim";
+import Queue "mo:core/Queue";
 import R "mo:base/Result";
 import RBTree "mo:base/RBTree";
 
@@ -130,7 +131,7 @@ module {
 
     public func nextOrder() : ?(?T.OrderId, T.Order) = toIter().next();
 
-    public func fulfilOrder(sessionNumber : Nat, orderId : ?T.OrderId, order : T.Order, maxVolume : Nat, price : Float) : (volume : Nat, quoteVol : Nat) {
+    public func fulfilOrder(sessionNumber : Nat, orderId : ?T.OrderId, order : T.Order, maxVolume : Nat, price : Float) : (volume : Nat, quoteVol : Nat, isPartial : Bool) {
       service.fulfil(assetInfo, sessionNumber, orderId, order, maxVolume, price);
     };
 
@@ -227,7 +228,7 @@ module {
 
     // bid: source = quote, dest = base
     // ask: source = base, dest = quote
-    public func fulfil(assetInfo : T.AssetInfo, sessionNumber : Nat, orderId : ?T.OrderId, order : T.Order, maxVolume : Nat, price : Float) : (volume : Nat, quoteVol : Nat) {
+    public func fulfil(assetInfo : T.AssetInfo, sessionNumber : Nat, orderId : ?T.OrderId, order : T.Order, maxVolume : Nat, price : Float) : (volume : Nat, quoteVol : Nat, isPartial : Bool) {
       let ?sourceAcc = credits.getAccount(order.userInfoRef, srcAssetId(order.assetId)) else Prim.trap("Can never happen");
 
       switch (orderId) {
@@ -285,7 +286,7 @@ module {
         case (#bid) assetInfo.totalExecutedVolumeBase += baseVolume;
       };
 
-      (baseVolume, quoteVolume);
+      (baseVolume, quoteVolume, isPartial);
     };
   };
 
@@ -306,7 +307,7 @@ module {
     public let minQuoteVolume : Nat = settings.minVolumeSteps * quoteVolumeStep;
     public let priceMaxDigits : Nat = settings.priceMaxDigits;
 
-    public var executeImmediateOrderBooks : ?((assetId : T.AssetId, advantageFor : { #ask; #bid }) -> [(price : Float, volume : Nat)]) = null;
+    public var executeImmediateOrderBooks : ?((assetId : T.AssetId, advantageFor : { #ask; #bid }) -> [(price : Float, volume : Nat, fulfilledOrders : List.List<{ order : T.Order; baseVolume : Nat; quoteVolume : Nat; isPartial : Bool; kind : { #ask; #bid } }>)]) = null;
 
     public func getBaseVolumeStep(price : Float) : Nat {
       let p = price / Float.fromInt(10 ** settings.volumeStepLog10);
@@ -399,6 +400,8 @@ module {
       // array of functions which will write all changes to the state
       var cancellationCommitActions : List.List<() -> [CancellationResult]> = null;
       let placementCommitActions = Array.init<() -> PlaceOrderResult>(placements.size(), func() = (0, #placed));
+
+      let newPushNotifications : Vec.Vector<(Principal, Users.PushNotification)> = Vec.new();
 
       // update temporary balances: add unlocked credits for each cancelled order
       func affectNewBalancesWithCancellation(ordersService : OrdersService, order : T.Order) {
@@ -592,7 +595,27 @@ module {
               let ?executeFunc = executeImmediateOrderBooks else Prim.trap("execute function was not set");
               let executionResults = executeFunc(order.assetId, ordersService.kind);
               if (executionResults.size() > 0) {
-                (orderId, #executed(executionResults));
+                for ((price, volume, fulfilledOrders) in Array.vals(executionResults)) {
+                  for ({ order; baseVolume; quoteVolume; isPartial; kind } in List.toIter(fulfilledOrders)) {
+                    if (order.user != p and order.userInfoRef.userSettings.pushNotificationsEnabled) {
+                      Vec.add(
+                        newPushNotifications,
+                        (
+                          order.user,
+                          #orderFulfilled({
+                            assetId;
+                            kind;
+                            price;
+                            baseVolume;
+                            quoteVolume;
+                            isPartial;
+                          }),
+                        ),
+                      );
+                    };
+                  };
+                };
+                (orderId, #executed(Array.map(executionResults, func(price, volume, _) = (price, volume))));
               } else {
                 (orderId, #placed);
               };
@@ -623,6 +646,10 @@ module {
           case (null) users.participantsArchiveSize += 1;
           case (_) {};
         };
+      };
+
+      for (n in Vec.vals(newPushNotifications)) {
+        Queue.pushBack(users.stagedPushNotifications, n);
       };
 
       #ok(Vec.toArray(retCancellations), retPlacements);

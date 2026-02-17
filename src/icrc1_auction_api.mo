@@ -15,6 +15,8 @@ import Text "mo:base/Text";
 import Timer "mo:base/Timer";
 import AssocList "mo:base/AssocList";
 
+import Queue "mo:core/Queue";
+
 import ICRC84 "mo:icrc-84";
 import PT "mo:promtracker";
 import TokenHandler "mo:token-handler";
@@ -27,6 +29,7 @@ import ICRC84Auction "./icrc84_auction";
 
 import BtcHandler "./btc_handler";
 import HTTP "./utils/http";
+import NotificationDelegate "./notification_delegate";
 import Permissions "./utils/permissions";
 import Scheduler "./utils/scheduler";
 import U "./utils";
@@ -871,6 +874,32 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     };
   };
 
+  private func drainPushNotifications(): async* () {
+    let items = Queue.values(auction.users.stagedPushNotifications)
+    |> Iter.map<(Principal, Auction.PushNotification), (Principal, NotificationDelegate.NotificationBody)>(_, func (p, n) = (p, switch (n) {
+      case (#orderFulfilled { assetId; kind; price; baseVolume; quoteVolume; isPartial } ) { {
+                            title = "Order fulfillment";
+                            content = "Your "
+                            # (switch (kind) { case (#ask) "ask "; case (#bid) "bid " })
+                            # "on " # Vec.get(assets, assetId).symbol
+                            # " was "
+                            # (if (isPartial) { "partially " } else { "" })
+                            # "fulfilled. Price: "
+                            # Float.toText(price)
+                            # "; Base volume: "
+                            # Nat.toText(baseVolume)
+                            # "; Quote volume: "
+                            # Nat.toText(quoteVolume);
+                            url = null;
+                            tag = null;
+                          } }
+    }))
+    |> Iter.toArray(_);
+    if (items.size() > 0) {
+      ignore await NotificationDelegate.getActor().sendNotifications(items);
+    };
+  };
+
   public shared ({ caller }) func manageOrders(
     cancellations : ?{
       #all : ?[Principal];
@@ -906,8 +935,10 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
         case (#bid(_, orderBookType, volume, price)) #bid(aid, orderBookType, volume, price);
       };
     };
-    auction.manageOrders(caller, cancellationArg, Array.freeze(placementArg), expectedAccountRevision)
+    let ret = auction.manageOrders(caller, cancellationArg, Array.freeze(placementArg), expectedAccountRevision)
     |> ICRC84Auction.mapManageOrdersResult(_, getIcrc1Ledger);
+    await* drainPushNotifications();
+    ret;
   };
 
   public shared ({ caller }) func manageDarkOrderBooks(args : [(Principal, ?Auction.EncryptedOrderBook)], expectedAccountRevision : ?Nat) : async UpperResult<[?Auction.EncryptedOrderBook], { #AccountRevisionMismatch; #UnknownAsset : Principal; #UnknownPrincipal; #NoCredit }> {
@@ -917,16 +948,12 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
       let ?assetId = getAssetId(args[i].0) else return #Err(#UnknownAsset(args[i].0));
       pureArgs[i] := (assetId, args[i].1);
     };
-    let res = auction.manageDarkOrderBooks(caller, Array.freeze(pureArgs), expectedAccountRevision);
-    switch (res) {
-      case (#ok x) #Ok(x);
-      case (#err err) #Err(err);
-    };
+    auction.manageDarkOrderBooks(caller, Array.freeze(pureArgs), expectedAccountRevision) |> R.toUpper(_);
   };
 
   public shared ({ caller }) func placeBids(arg : [(ledger : Principal, orderBookType : Auction.OrderBookType, volume : Nat, price : Float)], expectedAccountRevision : ?Nat) : async [UpperResult<Auction.PlaceOrderResult, ICRC84Auction.PlaceOrderError>] {
     orderPlacementCounter.add(1);
-    Array.tabulate<UpperResult<Auction.PlaceOrderResult, ICRC84Auction.PlaceOrderError>>(
+    let ret = Array.tabulate<UpperResult<Auction.PlaceOrderResult, ICRC84Auction.PlaceOrderError>>(
       arg.size(),
       func(i) {
         let ?assetId = getAssetId(arg[i].0) else return #Err(#UnknownAsset);
@@ -934,12 +961,16 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
         |> R.toUpper(_);
       },
     );
+    await* drainPushNotifications();
+    ret;
   };
 
   public shared ({ caller }) func replaceBid(orderId : Auction.OrderId, volume : Nat, price : Float, expectedAccountRevision : ?Nat) : async UpperResult<Auction.PlaceOrderResult, ICRC84Auction.ReplaceOrderError> {
     orderReplacementCounter.add(1);
-    auction.replaceOrder(caller, #bid, orderId, volume : Nat, price : Float, expectedAccountRevision)
+    let ret = auction.replaceOrder(caller, #bid, orderId, volume : Nat, price : Float, expectedAccountRevision)
     |> R.toUpper(_);
+    await* drainPushNotifications();
+    ret;
   };
 
   public shared ({ caller }) func cancelBids(orderIds : [Auction.OrderId], expectedAccountRevision : ?Nat) : async [UpperResult<ICRC84Auction.CancellationResult, ICRC84Auction.CancelOrderError>] {
@@ -952,7 +983,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
 
   public shared ({ caller }) func placeAsks(arg : [(ledger : Principal, orderBookType : Auction.OrderBookType, volume : Nat, price : Float)], expectedAccountRevision : ?Nat) : async [UpperResult<Auction.PlaceOrderResult, ICRC84Auction.PlaceOrderError>] {
     orderPlacementCounter.add(1);
-    Array.tabulate<UpperResult<Auction.PlaceOrderResult, ICRC84Auction.PlaceOrderError>>(
+    let ret = Array.tabulate<UpperResult<Auction.PlaceOrderResult, ICRC84Auction.PlaceOrderError>>(
       arg.size(),
       func(i) {
         let ?assetId = getAssetId(arg[i].0) else return #Err(#UnknownAsset);
@@ -960,12 +991,16 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
         |> R.toUpper(_);
       },
     );
+    await* drainPushNotifications();
+    ret;
   };
 
   public shared ({ caller }) func replaceAsk(orderId : Auction.OrderId, volume : Nat, price : Float, expectedAccountRevision : ?Nat) : async UpperResult<Auction.PlaceOrderResult, ICRC84Auction.ReplaceOrderError> {
     orderReplacementCounter.add(1);
-    auction.replaceOrder(caller, #ask, orderId, volume : Nat, price : Float, expectedAccountRevision)
+    let ret = auction.replaceOrder(caller, #ask, orderId, volume : Nat, price : Float, expectedAccountRevision)
     |> R.toUpper(_);
+    await* drainPushNotifications();
+    ret;
   };
 
   public shared ({ caller }) func cancelAsks(orderIds : [Auction.OrderId], expectedAccountRevision : ?Nat) : async [UpperResult<ICRC84Auction.CancellationResult, ICRC84Auction.CancelOrderError>] {
