@@ -68,6 +68,7 @@ export const useAuction = () => {
       agentOptions: {
         identity,
         verifyQuerySignatures: false,
+        host: 'https://icp-api.io',
       },
     });
     return { auction };
@@ -177,7 +178,7 @@ export const useTokenInfoMap = () => {
     'assetInfos',
     async () => {
       const assets = queryClient.getQueryData('assets') as Principal[] | undefined;
-      const info = await Promise.all((assets || []).map(async p => createLedgerActor(p).icrc1_metadata()));
+      const info = await Promise.all((assets || []).map(async p => createLedgerActor(p, { agentOptions: { host: 'https://icp-api.io' } }).icrc1_metadata()));
       const mapInfo = (
         info: ['icrc1:decimals' | 'icrc1:symbol', { Nat: bigint } | { Text: string }][],
       ): {
@@ -631,7 +632,7 @@ export const useManageDarkOrderBook = () => {
 
   const encryptIbe = async (data: Uint8Array, nextSessionTimestamp: number) => {
     const canister = CRYPTO_CANISTER_ID ?? '6jrls-gqaaa-aaaao-a4pgq-cai';
-    const cryptoActor = createCryptoActor(canister);
+    const cryptoActor = createCryptoActor(canister, { agentOptions: { host: 'https://icp-api.io' } });
     const publicKey = DerivedPublicKey.deserialize(new Uint8Array(await cryptoActor.get_ibe_public_key()));
     const ciphertext = IbeCiphertext.encrypt(
       publicKey,
