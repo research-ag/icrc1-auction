@@ -18,7 +18,7 @@ import {
 
 import { usePlaceOrder, useQuoteLedger, useTokenInfoMap } from '@fe/integration';
 import ErrorAlert from '../../../components/error-alert';
-import { Principal } from '@dfinity/principal';
+import { Principal } from '@icp-sdk/core/principal';
 import { useSnackbar } from 'notistack';
 
 interface PlaceOrderFormValues {

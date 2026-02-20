@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from 'react-query';
 import { useSnackbar } from 'notistack';
 
 import { useIdentity } from './identity';
-import { Principal } from '@dfinity/principal';
+import { Principal } from '@icp-sdk/core/principal';
 import { useMemo } from 'react';
 import { createActor } from '@declarations/icrc1_auction';
 import { AuctionQueryResponse } from '@declarations/icrc1_auction/icrc1_auction_development.did';

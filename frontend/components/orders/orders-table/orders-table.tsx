@@ -2,7 +2,7 @@ import { Box, Button, Table } from '@mui/joy';
 
 import { useAuctionQuery, useCancelOrder, useListOrders, useQuoteLedger, useTokenInfoMap } from '@fe/integration';
 import InfoItem from '../../root/info-item';
-import { Principal } from '@dfinity/principal';
+import { Principal } from '@icp-sdk/core/principal';
 import { displayWithDecimals } from '@fe/utils';
 
 export type OrdersTableProps = { kind: 'ask' | 'bid' };

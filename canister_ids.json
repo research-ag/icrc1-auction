@@ -2,6 +2,9 @@
   "crypto": {
     "ic": "6jrls-gqaaa-aaaao-a4pgq-cai"
   },
+  "crypto_mock": {
+    "ic": "u6m6i-pqaaa-aaaao-a64mq-cai"
+  },
   "frontend": {
     "ic": "scenk-2qaaa-aaaao-a3o7q-cai"
   },

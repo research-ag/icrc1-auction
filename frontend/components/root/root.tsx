@@ -3,6 +3,7 @@ import { Box, Tab, TabList, Tabs, Typography } from '@mui/joy';
 import Orders from '../orders';
 import ConnectButton from '../../components/connect-button';
 import ThemeButton from '../../components/theme-button';
+import PushBell from '@fe/components/push-bell/push-bell';
 import { useIdentity } from '@fe/integration/identity';
 
 import InfoItem from './info-item';
@@ -24,10 +25,10 @@ import TransactionsHistory from '@fe/components/transactions-history';
 import Assets from '../assets';
 import Owners from '../owners';
 import PriceHistory from '@fe/components/price-history';
-import { Ed25519KeyIdentity } from '@dfinity/identity';
-import { AnonymousIdentity, Identity } from '@dfinity/agent';
+import { Ed25519KeyIdentity } from '@icp-sdk/core/identity';
+import { AnonymousIdentity, Identity } from '@icp-sdk/core/agent';
 import { useQueryClient } from 'react-query';
-import { Principal } from '@dfinity/principal';
+import { Principal } from '@icp-sdk/core/principal';
 import { displayWithDecimals } from '@fe/utils';
 import DepositHistory from '@fe/components/deposit-history';
 import DarkOrders from '@fe/components/dark-orders';
@@ -154,6 +155,7 @@ const Root = () => {
           </TabList>
           <ConnectButton />
           <ThemeButton sx={{ marginLeft: 1 }} />
+          <PushBell sx={{ marginLeft: 1 }} />
         </Box>
         {tabValue === 0 && <Assets />}
         {tabValue === 1 && <Credits />}

@@ -17,7 +17,7 @@ import {
   Select,
   Option,
 } from '@mui/joy';
-import { Principal } from '@dfinity/principal';
+import { Principal } from '@icp-sdk/core/principal';
 import { useManageDarkOrderBook, useQuoteLedger, useTokenInfoMap } from '@fe/integration';
 import ErrorAlert from '@fe/components/error-alert';
 

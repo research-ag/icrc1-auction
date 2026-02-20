@@ -14,8 +14,8 @@ import {
 import { _SERVICE as CService, idlFactory as C_IDL, init as cInit } from '../declarations/crypto/crypto.did';
 import { IDL } from '@dfinity/candid';
 import { resolve } from 'node:path';
-import { Principal } from '@dfinity/principal';
-import { Identity } from '@dfinity/agent';
+import { Principal } from '@icp-sdk/core/principal';
+import { Identity } from '@icp-sdk/core/agent';
 import { readFileSync } from "fs";
 import { tmpdir } from "os";
 

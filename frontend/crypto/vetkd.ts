@@ -1,4 +1,4 @@
-import { HttpAgent, Identity } from '@dfinity/agent';
+import { HttpAgent, Identity } from '@icp-sdk/core/agent';
 import { canisterId as CRYPTO_CANISTER_ID, createActor as createCryptoActor } from '../../declarations/crypto';
 import { DerivedKeyMaterial, DerivedPublicKey, EncryptedVetKey, TransportSecretKey } from '@dfinity/vetkeys';
 
