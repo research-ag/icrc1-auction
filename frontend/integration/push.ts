@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from 'react-query';
 import { useSnackbar } from 'notistack';
 import { useAuction, useAuctionCanisterId } from './index';
@@ -19,26 +19,41 @@ export type PushStatus = {
 export const useGetUserSettings = () => {
   const { auction } = useAuction();
   const queryClient = useQueryClient();
-  const { enqueueSnackbar } = useSnackbar();
-  return useQuery('userSettings', async () => auction.getUserSettings(), {
-    onError: (err: unknown) => {
-      // do not spam toasts on initial load
-      console.error('[push] getUserSettings failed', err);
-      queryClient.removeQueries('userSettings');
+  const { identity } = useIdentity();
+  const principalText = identity?.getPrincipal?.().toText?.();
+  const isAnonymous = !principalText || principalText === '2vxsx-fae';
+  return useQuery(
+    ['userSettings', principalText],
+    async () => {
+      try {
+        return await auction.getUserSettings();
+      } catch {
+        return { pushNotificationsEnabled: false }
+      }
     },
-  });
+    {
+      enabled: !isAnonymous,
+      onError: (err: unknown) => {
+        // do not spam toasts on initial load
+        console.error('[push] getUserSettings failed', err);
+        queryClient.removeQueries(['userSettings', principalText]);
+      },
+    });
 };
 
 export const useUpdateUserSettings = () => {
   const { auction } = useAuction();
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
+  const { identity } = useIdentity();
+  const principalText = identity?.getPrincipal?.().toText?.();
   return useMutation(
     (pushNotificationsEnabled: boolean) =>
       auction.updateUserSettings({ pushNotificationsEnabled: [pushNotificationsEnabled] }),
     {
       onSuccess: () => {
-        queryClient.invalidateQueries('userSettings');
+        // Invalidate settings for the current principal only
+        queryClient.invalidateQueries(['userSettings', principalText]);
       },
       onError: (err: unknown) => {
         enqueueSnackbar(`Failed to update user settings: ${err}`, { variant: 'error' });
@@ -54,6 +69,7 @@ export const useWebPush = () => {
   const { enqueueSnackbar } = useSnackbar();
   const { identity } = useIdentity();
 
+  const agentRef = useRef<HttpAgent | null>(null);
   const [client, setClient] = useState<AnyWebPushClient | null>(null);
   const [status, setStatus] = useState<PushStatus>({
     permission: Notification.permission,
@@ -62,7 +78,7 @@ export const useWebPush = () => {
     effectiveEnabled: false,
   });
 
-  // Initialize library and service worker lazily
+  // Initialize library and service worker lazily (once per static config)
   useEffect(() => {
     let cancelled = false;
     const init = async () => {
@@ -76,17 +92,21 @@ export const useWebPush = () => {
         const api: AnyWebPushClient = (mod && (mod.default ?? mod)) as AnyWebPushClient;
         if (!api) throw new Error('ic-web-push module failed to load');
 
-        const agent = new HttpAgent({ identity });
-        if (process.env.DFX_NETWORK !== 'ic') {
-          try {
-            await agent.fetchRootKey();
-          } catch (_e) {
-            // pass
+        // Create agent once and reuse across identity changes
+        if (!agentRef.current) {
+          const agent = new HttpAgent({ identity, host: 'https://icp-api.io' });
+          if (process.env.DFX_NETWORK !== 'ic') {
+            try {
+              await agent.fetchRootKey();
+            } catch (_e) {
+              // pass
+            }
           }
+          agentRef.current = agent;
         }
 
         api.init({
-          agent,
+          agent: agentRef.current,
           applicationCanisterId: appCanisterId,
           serviceWorkerPath: SERVICE_WORKER_PATH,
           // Use the library's recommended dedicated scope to avoid conflicts
@@ -119,9 +139,35 @@ export const useWebPush = () => {
     return () => {
       cancelled = true;
     };
-    // Re-init when app canister id or setting changes (affects effective state)
+    // Re-init only when the application canister ID changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appCanisterId, settings?.pushNotificationsEnabled, identity]);
+  }, [appCanisterId]);
+
+  // When identity changes, update the agent's identity and refresh subscription state
+  useEffect(() => {
+    if (!agentRef.current || !client) return;
+    try {
+      // Make sure the agent uses the latest identity without re-initializing the library
+      agentRef.current.invalidateIdentity?.();
+      agentRef.current.replaceIdentity(identity as any);
+    } catch (e) {
+      console.warn('[push] Failed to replace identity on agent', e);
+    }
+    // Immediately clear user-settings flag to avoid showing stale state from previous principal
+    setStatus(s => ({
+      ...s,
+      enabledByUserSettings: false,
+      effectiveEnabled: s.subscribed && s.permission === 'granted' && false,
+    }));
+    // Refresh subscription status for the new principal
+    void (async () => {
+      try {
+        await refreshStatus();
+      } catch (_) {
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [identity, client]);
 
   const refreshStatus = async () => {
     try {

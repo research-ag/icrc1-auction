@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from 'react-query';
+import queryClientSingleton from '../queryClient';
 import { useSnackbar } from 'notistack';
 
 import { useIdentity } from './identity';
@@ -50,13 +51,21 @@ export const useAuctionCanisterId = () => {
 
 export const updateAuctionCanisterId = (ps: string) => {
   localStorage.setItem('auctionCanisterId', ps);
-  const queryClient = useQueryClient();
+  const queryClient = queryClientSingleton;
   Promise.all([
+    // Global/canister-scoped
     queryClient.invalidateQueries('admins'),
     queryClient.invalidateQueries('assets'),
     queryClient.invalidateQueries('assetInfos'),
-    queryClient.invalidateQueries('deposit-history'),
     queryClient.invalidateQueries('auctionQuery'),
+    // Identity-scoped views (refresh when backend changes)
+    queryClient.invalidateQueries('myCredits'),
+    queryClient.invalidateQueries('myBids'),
+    queryClient.invalidateQueries('myAsks'),
+    queryClient.invalidateQueries('dark-order-books'),
+    queryClient.invalidateQueries('deposit-history'),
+    queryClient.invalidateQueries('transaction-history'),
+    queryClient.invalidateQueries('myPoints'),
   ]).then();
 };
 
@@ -218,8 +227,12 @@ export const useTokenInfoMap = () => {
 export const useAuctionQuery = () => {
   const { auction } = useAuction();
   const { enqueueSnackbar } = useSnackbar();
+  const { identity } = useIdentity();
+  const canisterId = useAuctionCanisterId();
+  const principalText = identity?.getPrincipal?.().toText?.();
+  const queryClient = useQueryClient();
   return useQuery(
-    'auctionQuery',
+    ['auctionQuery', canisterId, principalText],
     async () => {
       return replaceBigInts(
         await auction.auction_query([], {
@@ -243,7 +256,7 @@ export const useAuctionQuery = () => {
     {
       onError: err => {
         enqueueSnackbar(`Failed to query auction: ${err}`, { variant: 'error' });
-        useQueryClient().removeQueries('auctionQuery');
+        queryClient.removeQueries(['auctionQuery']);
       },
     },
   );

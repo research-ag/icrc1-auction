@@ -35,6 +35,7 @@ import DarkOrders from '@fe/components/dark-orders';
 
 const Root = () => {
   const { identity, setIdentity } = useIdentity();
+  const queryClient = useQueryClient();
 
   const [tabValue, setTabValue] = useState(0);
 
@@ -47,6 +48,7 @@ const Root = () => {
   const { data: minimumOrder } = useMinimumOrder();
   const { data: auctionQuery } = useAuctionQuery();
   const { data: points } = usePoints(auctionQuery);
+  const { data: sessionsCounter } = useSessionsCounter();
   const getInfo = (ledger: Principal): { symbol: string, decimals: number } => {
     try {
       const mapItem = (symbols || []).find(([p, s]) => p.toText() == ledger.toText());
@@ -86,7 +88,6 @@ const Root = () => {
     let newIdentity = seedToIdentity(seed) || new AnonymousIdentity();
     if (identity.getPrincipal().toText() !== newIdentity.getPrincipal().toText()) {
       setIdentity(newIdentity);
-      const queryClient = useQueryClient();
       await Promise.all([
         queryClient.invalidateQueries('auctionQuery'),
         queryClient.invalidateQueries('transaction-history'),
@@ -122,7 +123,7 @@ const Root = () => {
                      onChange={e => setAuctionIdInput(e.target.value)}></input>
               <button onClick={e => setAuctionIdInput(defaultAuctionCanisterId)}>Reset</button>
             </Box>
-            <InfoItem label="Sessions counter" content={String(useSessionsCounter().data)} />
+            <InfoItem label="Sessions counter" content={String(sessionsCounter)} />
             <InfoItem label="Your principal" content={userPrincipal} withCopy />
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
               <Typography sx={{ fontWeight: 700 }} level="body-xs">Principal seed:</Typography>
