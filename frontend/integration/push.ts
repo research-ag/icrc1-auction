@@ -64,7 +64,7 @@ export const useUpdateUserSettings = () => {
 
 export const useWebPush = () => {
   const appCanisterId = useAuctionCanisterId();
-  const { data: settings } = useGetUserSettings();
+  const { data: settings, isLoading: settingsLoading } = useGetUserSettings();
   const updateSettings = useUpdateUserSettings();
   const { enqueueSnackbar } = useSnackbar();
   const { identity } = useIdentity();
@@ -77,12 +77,15 @@ export const useWebPush = () => {
     enabledByUserSettings: false,
     effectiveEnabled: false,
   });
+  const [initializing, setInitializing] = useState<boolean>(true);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
 
   // Initialize library and service worker lazily (once per static config)
   useEffect(() => {
     let cancelled = false;
     const init = async () => {
       try {
+        setInitializing(true);
         if (!('serviceWorker' in navigator)) {
           setStatus(s => ({ ...s, lastError: 'Service workers are not supported in this browser.' }));
           return;
@@ -133,6 +136,8 @@ export const useWebPush = () => {
       } catch (e: any) {
         console.error('[push] init error', e);
         if (!cancelled) setStatus(s => ({ ...s, lastError: String(e?.message || e) }));
+      } finally {
+        if (!cancelled) setInitializing(false);
       }
     };
     init();
@@ -171,6 +176,7 @@ export const useWebPush = () => {
 
   const refreshStatus = async () => {
     try {
+      setRefreshing(true);
       const subscribed = (await client?.isSubscribed?.()) ?? false;
       const permission: NotificationPermission = Notification.permission;
       const enabledByUserSettings = !!settings?.pushNotificationsEnabled;
@@ -182,6 +188,8 @@ export const useWebPush = () => {
       });
     } catch (e: any) {
       setStatus(s => ({ ...s, lastError: String(e?.message || e) }));
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -228,5 +236,6 @@ export const useWebPush = () => {
     }));
   }, [settings?.pushNotificationsEnabled]);
 
-  return { status, enable, disable, loading: updateSettings.isLoading };
+  const uiLoading = initializing || refreshing || settingsLoading || updateSettings.isLoading;
+  return { status, enable, disable, loading: updateSettings.isLoading, uiLoading };
 };

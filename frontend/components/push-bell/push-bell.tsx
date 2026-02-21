@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Box, Button, Chip, Modal, ModalClose, ModalDialog, Typography, IconButton } from '@mui/joy';
+import { Box, Button, Chip, CircularProgress, IconButton, Modal, ModalClose, ModalDialog, Typography } from '@mui/joy';
 import { Notifications } from '@mui/icons-material';
 import { SxProps } from '@mui/joy/styles/types';
 import { useWebPush } from '@fe/integration/push';
@@ -12,7 +12,7 @@ interface PushBellProps {
 const colorByState = (enabled: boolean): 'success' | 'danger' => (enabled ? 'success' : 'danger');
 
 const PushBell = ({ sx }: PushBellProps) => {
-  const { status, enable, disable, loading } = useWebPush();
+  const { status, enable, disable, loading, uiLoading } = useWebPush();
   const [open, setOpen] = useState(false);
 
   const effectiveEnabled = !!status.effectiveEnabled;
@@ -24,21 +24,26 @@ const PushBell = ({ sx }: PushBellProps) => {
       <IconButton
         size="sm"
         variant="soft"
-        color={colorByState(effectiveEnabled)}
-        disabled={identity.getPrincipal().isAnonymous() || !('Notification' in window)}
+        color={uiLoading ? 'neutral' : colorByState(effectiveEnabled)}
+        disabled={uiLoading || identity.getPrincipal().isAnonymous() || !('Notification' in window)}
         onClick={() => setOpen(true)}
-        sx={sx}
+        sx={{ position: 'relative', ...sx }}
       >
-        <Notifications />
+        {uiLoading ? (
+          <CircularProgress size="sm" thickness={3}/>
+        ) : (
+          <Notifications/>
+        )}
       </IconButton>
       <Modal open={open} onClose={() => setOpen(false)}>
         <ModalDialog sx={{ width: 'calc(100% - 50px)', maxWidth: '520px' }}>
-          <ModalClose />
+          <ModalClose/>
           <Typography level="h4" sx={{ mb: 1 }}>Push notifications</Typography>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Typography level="body-sm">Permission:</Typography>
-              <Chip size="sm" color={status.permission === 'granted' ? 'success' : status.permission === 'denied' ? 'danger' : 'neutral'}>
+              <Chip size="sm"
+                    color={status.permission === 'granted' ? 'success' : status.permission === 'denied' ? 'danger' : 'neutral'}>
                 {status.permission}
               </Chip>
             </Box>

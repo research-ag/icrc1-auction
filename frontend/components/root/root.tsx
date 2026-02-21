@@ -11,13 +11,12 @@ import {
   defaultAuctionCanisterId,
   updateAuctionCanisterId,
   useAuctionCanisterId,
-  useIsAdmin,
-  usePoints,
+  useAuctionQuery,
   useMinimumOrder,
+  usePoints,
   useQuoteLedger,
   useSessionsCounter,
   useTokenInfoMap,
-  useAuctionQuery,
 } from '@fe/integration';
 import { useEffect, useState } from 'react';
 import Credits from '../credits';
