@@ -41,8 +41,6 @@ const Root = () => {
 
   const userPrincipal = identity.getPrincipal().toText();
 
-  const isAdmin = useIsAdmin();
-
   const { data: quoteLedger } = useQuoteLedger();
   const { data: symbols } = useTokenInfoMap();
   const { data: minimumOrder } = useMinimumOrder();
@@ -123,18 +121,18 @@ const Root = () => {
                      onChange={e => setAuctionIdInput(e.target.value)}></input>
               <button onClick={e => setAuctionIdInput(defaultAuctionCanisterId)}>Reset</button>
             </Box>
-            <InfoItem label="Sessions counter" content={String(sessionsCounter)} />
-            <InfoItem label="Your principal" content={userPrincipal} withCopy />
+            <InfoItem label="Sessions counter" content={String(sessionsCounter)}/>
+            <InfoItem label="Your principal" content={userPrincipal} withCopy/>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
               <Typography sx={{ fontWeight: 700 }} level="body-xs">Principal seed:</Typography>
               <input type="text" onChange={e => onSeedInput(e.target.value)}></input>
             </Box>
-            <InfoItem label="Quote currency ledger" content={quoteLedger?.toText() || ''} withCopy />
-            <InfoItem label="Auction principal" content={auctionId} withCopy />
+            <InfoItem label="Quote currency ledger" content={quoteLedger?.toText() || ''} withCopy/>
+            <InfoItem label="Auction principal" content={auctionId} withCopy/>
             <InfoItem label="Minimum order size"
-                      content={displayWithDecimals(minimumOrder || 0, getInfo(quoteLedger!).decimals, 6)} />
+                      content={displayWithDecimals(minimumOrder || 0, getInfo(quoteLedger!).decimals, 6)}/>
             <InfoItem label="Points"
-                      content={'' + Number(points)} />
+                      content={isNaN(Number(points)) ? '-' : String(points)}/>
           </Box>
         </Box>
         <Box
@@ -154,19 +152,19 @@ const Root = () => {
             <Tab color="neutral">Price history</Tab>
             <Tab color="neutral">Admins</Tab>
           </TabList>
-          <ConnectButton />
-          <ThemeButton sx={{ marginLeft: 1 }} />
-          <PushBell sx={{ marginLeft: 1 }} />
+          <ConnectButton/>
+          <ThemeButton sx={{ marginLeft: 1 }}/>
+          <PushBell sx={{ marginLeft: 1 }}/>
         </Box>
-        {tabValue === 0 && <Assets />}
-        {tabValue === 1 && <Credits />}
-        {tabValue === 2 && <Orders kind="bid" />}
-        {tabValue === 3 && <Orders kind="ask" />}
-        {tabValue === 4 && <DarkOrders />}
-        {tabValue === 5 && <DepositHistory />}
-        {tabValue === 6 && <TransactionsHistory />}
-        {tabValue === 7 && <PriceHistory />}
-        {tabValue === 8 && <Owners />}
+        {tabValue === 0 && <Assets/>}
+        {tabValue === 1 && <Credits/>}
+        {tabValue === 2 && <Orders kind="bid"/>}
+        {tabValue === 3 && <Orders kind="ask"/>}
+        {tabValue === 4 && <DarkOrders/>}
+        {tabValue === 5 && <DepositHistory/>}
+        {tabValue === 6 && <TransactionsHistory/>}
+        {tabValue === 7 && <PriceHistory/>}
+        {tabValue === 8 && <Owners/>}
       </Tabs>
     </Box>
   );
