@@ -1,5 +1,5 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/usr/bin/env sh
+set -eu
 
 # this script is for quick re-generation of declarations. Replaces @dfinity imports with @icp-sdk
 
