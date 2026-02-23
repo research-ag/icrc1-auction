@@ -889,6 +889,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
             case (#orderFulfilled { assetId; kind; price; baseVolume; quoteVolume; isPartial }) {
               let baseDecimals = Vec.get(assets, assetId).decimals;
               let quoteDecimals = Vec.get(assets, quoteAssetId).decimals;
+              let priceLog10Multiplier : Int = baseDecimals - quoteDecimals;
               {
                 title = "Order fulfillment";
                 content = "Your "
@@ -896,7 +897,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
                 # "on " # Vec.get(assets, assetId).symbol
                 # " was "
                 # (if (isPartial) { "partially " } else { "" })
-                # "fulfilled. Price: " # TextUtils.floatToSig6(FloatUtils.scaleFloat(price, baseDecimals - quoteDecimals))
+                # "fulfilled. Price: " # TextUtils.floatToSig6(FloatUtils.scaleFloat(price, priceLog10Multiplier))
                 # "; Base volume: " # TextUtils.natWithDecimalsToText(baseVolume, baseDecimals)
                 # "; Quote volume: " # TextUtils.natWithDecimalsToText(quoteVolume, quoteDecimals);
                 url = null;
