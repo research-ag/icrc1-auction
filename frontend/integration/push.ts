@@ -24,17 +24,11 @@ export const useGetUserSettings = () => {
   const isAnonymous = !principalText || principalText === '2vxsx-fae';
   return useQuery(
     ['userSettings', principalText],
-    async () => {
-      try {
-        return await auction.getUserSettings();
-      } catch {
-        return { pushNotificationsEnabled: false }
-      }
-    },
+    async () => auction.getUserSettings(),
     {
       enabled: !isAnonymous,
+      placeholderData: { pushNotificationsEnabled: false },
       onError: (err: unknown) => {
-        // do not spam toasts on initial load
         console.error('[push] getUserSettings failed', err);
         queryClient.removeQueries(['userSettings', principalText]);
       },
@@ -97,7 +91,7 @@ export const useWebPush = () => {
 
         // Create agent once and reuse across identity changes
         if (!agentRef.current) {
-          const agent = new HttpAgent({ identity, host: 'https://icp-api.io' });
+          const agent = HttpAgent.createSync({ identity });
           if (process.env.DFX_NETWORK !== 'ic') {
             try {
               await agent.fetchRootKey();

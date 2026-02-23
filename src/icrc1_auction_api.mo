@@ -874,29 +874,45 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     };
   };
 
-  private func drainPushNotifications(): async* () {
-    let items = Queue.values(auction.users.stagedPushNotifications)
-    |> Iter.map<(Principal, Auction.PushNotification), (Principal, NotificationDelegate.NotificationBody)>(_, func (p, n) = (p, switch (n) {
-      case (#orderFulfilled { assetId; kind; price; baseVolume; quoteVolume; isPartial } ) { {
-                            title = "Order fulfillment";
-                            content = "Your "
-                            # (switch (kind) { case (#ask) "ask "; case (#bid) "bid " })
-                            # "on " # Vec.get(assets, assetId).symbol
-                            # " was "
-                            # (if (isPartial) { "partially " } else { "" })
-                            # "fulfilled. Price: "
-                            # Float.toText(price)
-                            # "; Base volume: "
-                            # Nat.toText(baseVolume)
-                            # "; Quote volume: "
-                            # Nat.toText(quoteVolume);
-                            url = null;
-                            tag = null;
-                          } }
-    }))
-    |> Iter.toArray(_);
+  private func drainPushNotifications() : async* () {
+    let q = auction.users.stagedPushNotifications;
+    let buf = Vec.new<(Principal, NotificationDelegate.NotificationBody)>();
+    label l while (not Queue.isEmpty(q)) {
+      let ?(p, n) = Queue.popFront(q) else break l;
+      Vec.add(
+        buf,
+        (
+          p,
+          switch (n) {
+            case (#orderFulfilled { assetId; kind; price; baseVolume; quoteVolume; isPartial }) {
+              {
+                title = "Order fulfillment";
+                content = "Your "
+                # (switch (kind) { case (#ask) "ask "; case (#bid) "bid " })
+                # "on " # Vec.get(assets, assetId).symbol
+                # " was "
+                # (if (isPartial) { "partially " } else { "" })
+                # "fulfilled. Price: "
+                # Float.toText(price)
+                # "; Base volume: "
+                # Nat.toText(baseVolume)
+                # "; Quote volume: "
+                # Nat.toText(quoteVolume);
+                url = null;
+                tag = null;
+              };
+            };
+          },
+        ),
+      );
+    };
+    let items = Vec.toArray(buf);
     if (items.size() > 0) {
-      ignore await NotificationDelegate.getActor().sendNotifications(items);
+      try {
+        ignore await NotificationDelegate.getActor().sendNotifications(items);
+      } catch (err) {
+        Prim.debugPrint("[push] sendNotifications failed: " # Error.message(err));
+      };
     };
   };
 

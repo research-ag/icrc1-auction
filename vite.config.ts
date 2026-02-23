@@ -7,9 +7,6 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-// Default to IC mainnet when running the frontend in development unless explicitly overridden
-process.env.DFX_NETWORK = process.env.DFX_NETWORK || 'ic';
-
 export default defineConfig({
   root: "frontend",
   build: {

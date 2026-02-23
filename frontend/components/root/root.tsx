@@ -120,7 +120,8 @@ const Root = () => {
                      onChange={e => setAuctionIdInput(e.target.value)}></input>
               <button onClick={e => setAuctionIdInput(defaultAuctionCanisterId)}>Reset</button>
             </Box>
-            <InfoItem label="Sessions counter" content={String(sessionsCounter)}/>
+            <InfoItem label="Sessions counter"
+                      content={isNaN(Number(sessionsCounter)) ? '-' : String(sessionsCounter)}/>
             <InfoItem label="Your principal" content={userPrincipal} withCopy/>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
               <Typography sx={{ fontWeight: 700 }} level="body-xs">Principal seed:</Typography>
@@ -129,7 +130,7 @@ const Root = () => {
             <InfoItem label="Quote currency ledger" content={quoteLedger?.toText() || ''} withCopy/>
             <InfoItem label="Auction principal" content={auctionId} withCopy/>
             <InfoItem label="Minimum order size"
-                      content={displayWithDecimals(minimumOrder || 0, getInfo(quoteLedger!).decimals, 6)}/>
+                      content={quoteLedger ? displayWithDecimals(minimumOrder || 0, getInfo(quoteLedger).decimals, 6) : '-'}/>
             <InfoItem label="Points"
                       content={isNaN(Number(points)) ? '-' : String(points)}/>
           </Box>

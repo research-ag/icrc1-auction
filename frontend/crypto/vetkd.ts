@@ -7,7 +7,7 @@ const AES_GCM_DOMAIN = 'icrc1-auction-aes-gcm';
 const kmCache = new Map<string, Promise<DerivedKeyMaterial>>();
 
 async function getAgent(identity: Identity): Promise<HttpAgent> {
-  const agent = new HttpAgent({ identity, host: 'https://icp-api.io' });
+  const agent = HttpAgent.createSync({ identity });
   if (process.env.DFX_NETWORK !== 'ic') {
     try {
       await agent.fetchRootKey();

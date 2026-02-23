@@ -581,7 +581,7 @@ service : (opt principal, opt principal) -> {
   // If account revision set and it does not match the actual account revision, the function will return an error
   cancelBids : (vec OrderId, opt AccountRevision) -> (vec CancelOrderResponse);
 
-  /// Own user own settings interface
+  /// Own user settings interface
   getUserSettings: () -> (SharedUserSettings) query;
   updateUserSettings: (settings: record {pushNotificationsEnabled: opt bool;}) -> (SharedUserSettings);
 

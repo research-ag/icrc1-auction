@@ -15,7 +15,7 @@ import { _SERVICE as CService, idlFactory as C_IDL, init as cInit } from '../dec
 import { IDL } from '@dfinity/candid';
 import { resolve } from 'node:path';
 import { Principal } from '@icp-sdk/core/principal';
-import { Identity } from '@icp-sdk/core/agent';
+import { Identity } from '@icp-sdk/core/identity';
 import { readFileSync } from "fs";
 import { tmpdir } from "os";
 
