@@ -897,7 +897,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
                 # "on " # Vec.get(assets, assetId).symbol
                 # " was "
                 # (if (isPartial) { "partially " } else { "" })
-                # "fulfilled. Price: " # TextUtils.floatToSig6(FloatUtils.scaleFloat(price, priceLog10Multiplier))
+                # "fulfilled. Price: " # TextUtils.floatToSig5(FloatUtils.scaleFloat(price, priceLog10Multiplier))
                 # "; Base volume: " # TextUtils.natWithDecimalsToText(baseVolume, baseDecimals)
                 # "; Quote volume: " # TextUtils.natWithDecimalsToText(quoteVolume, quoteDecimals);
                 url = null;

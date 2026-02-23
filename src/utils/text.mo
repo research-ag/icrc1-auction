@@ -5,8 +5,6 @@ import Int "mo:core/Int";
 import Float "mo:core/Float";
 import Text "mo:core/Text";
 
-import FloatUtils "./float";
-
 module TextUtils {
 
   func stripLeadingZeros(x : Text) : Text {
@@ -55,16 +53,16 @@ module TextUtils {
     };
   };
 
-  // renders float with rule "show 6 most significant digits"
-  public func floatToSig6(f : Float) : Text {
+  // renders float with rule "show 5 most significant digits"
+  public func floatToSig5(f : Float) : Text {
     if (f == 0.0) return "0";
     let absF = Float.abs(f);
-    let rounded = if (absF >= 100000.0) {
-      FloatUtils.round(f);
+    let rounded = if (absF >= 10000.0) {
+      Float.nearest(f);
     } else {
       let exp = Float.floor(Float.log(absF) / Float.log(10));
-      let scale = Float.pow(10, 5.0 - exp);
-      FloatUtils.round(f * scale) / scale;
+      let scale = Float.pow(10, 4.0 - exp);
+      Float.nearest(f * scale) / scale;
     };
     let txt = Float.format(rounded, #fix(10));
     trimTrailingZeros(txt);
