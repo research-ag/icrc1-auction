@@ -27,11 +27,11 @@ import AssetOrderBook "./auction/src/asset_order_book";
 import E "./auction/src/encryption";
 import ICRC84Auction "./icrc84_auction";
 
+import AdminsMixin "./mixins/admins_mixin";
 import BtcHandler "./btc_handler";
 import FloatUtils "./utils/float";
 import HTTP "./utils/http";
 import NotificationDelegate "./notification_delegate";
-import Permissions "./utils/permissions";
 import Scheduler "./utils/scheduler";
 import TextUtils "./utils/text";
 import U "./utils";
@@ -40,16 +40,14 @@ import U "./utils";
 // on upgrade quote ledger will be ignored
 persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Principal, cryptoCanisterId : ?Principal) = self {
 
+  include AdminsMixin(adminPrincipal_);
+
   // ensure compliance to ICRC84 standart.
   // actor won't compile in case of type mismatch here
   transient let _ : ICRC84.ICRC84 = self;
 
   let trustedLedgerPrincipal : Principal = U.requireMsg(quoteLedger_, "Quote ledger principal not provided");
   let quoteLedgerPrincipal : Principal = trustedLedgerPrincipal;
-
-  var stableAdminsMap : Permissions.StableDataV1 = Permissions.defaultStableDataV1();
-  transient let permissions : Permissions.Permissions = Permissions.Permissions(stableAdminsMap, adminPrincipal_);
-
   var assetsData : Vec.Vector<StableAssetInfoV1> = Vec.new();
   var auctionData : Auction.StableDataV5 = Auction.defaultStableData();
   var ptData : PT.StableData = null;
@@ -1119,29 +1117,14 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     |> U.sliceIter(_, limit, skip);
   };
 
-  public query func listAdmins() : async [Principal] = async permissions.listAdmins();
-
-  public shared ({ caller }) func addAdmin(principal : Principal) : async () {
-    await* permissions.assertAdminAccess(caller);
-    permissions.addAdmin(principal);
-  };
-
-  public shared ({ caller }) func removeAdmin(principal : Principal) : async () {
-    if (Principal.equal(principal, caller)) {
-      throw Error.reject("Cannot remove yourself from admins");
-    };
-    await* permissions.assertAdminAccess(caller);
-    permissions.removeAdmin(principal);
-  };
-
   public shared ({ caller }) func registerAsset(ledger : Principal, minAskVolume : Nat) : async UpperResult<Nat, RegisterAssetError> {
-    await* permissions.assertAdminAccess(caller);
+    await* assertAdminAccess(caller);
     let res = await* registerAsset_(ledger, minAskVolume);
     R.toUpper(res);
   };
 
   public shared ({ caller }) func wipePriceHistory(icrc1Ledger : Principal) : async () {
-    await* permissions.assertAdminAccess(caller);
+    await* assertAdminAccess(caller);
     let ?assetId = getAssetId(icrc1Ledger) else throw Error.reject("Unknown asset");
     let newHistory : Vec.Vector<Auction.PriceHistoryItem> = Vec.new();
     for (x in Vec.vals(auction.assets.history.delayed)) {
@@ -1153,14 +1136,14 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   };
 
   public shared ({ caller }) func wipeOrders() : async () {
-    await* permissions.assertAdminAccess(caller);
+    await* assertAdminAccess(caller);
     for ((p, _) in auction.users.users.entries()) {
       ignore auction.manageOrders(p, ?#all(null), [], null);
     };
   };
 
   public shared ({ caller }) func wipeUsers() : async () {
-    await* permissions.assertAdminAccess(caller);
+    await* assertAdminAccess(caller);
     for ((p, _) in auction.users.users.entries()) {
       auction.users.users.delete(p);
     };
@@ -1173,7 +1156,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   };
 
   public shared query ({ caller }) func user_auction_query(user : Principal, tokens : [Principal], selection : AuctionQuerySelection) : async AuctionQueryResponse {
-    permissions.assertAdminAccessSync(caller);
+    assertAdminAccessSync(caller);
     switch (_auction_query(user, tokens, selection)) {
       case (#ok ret) ret;
       case (#err p) throw Error.reject("Unknown token " # Principal.toText(p));
@@ -1190,7 +1173,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
       delayed : [(Auction.OrderId, UserOrder)];
     };
   } {
-    permissions.assertAdminAccessSync(caller);
+    assertAdminAccessSync(caller);
     let ?assetId = getAssetId(icrc1Ledger) else throw Error.reject("Unknown asset");
     func mapOrdersList(orderBook : [(Auction.OrderId, Auction.Order)]) : [(Auction.OrderId, UserOrder)] = Array.tabulate<(Auction.OrderId, UserOrder)>(orderBook.size(), func(i) = (orderBook[i].0, mapUserOrder(orderBook[i].1)));
     {
@@ -1315,7 +1298,6 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     );
     auctionData := auction.share();
     ptData := metrics.share();
-    stableAdminsMap := permissions.share();
   };
 
   // A timer for consolidating backlog subaccounts, runs each minute at 30th second
@@ -1333,7 +1315,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   };
 
   public shared ({ caller }) func setConsolidationTimerEnabled(enabled : Bool) : async () {
-    await* permissions.assertAdminAccess(caller);
+    await* assertAdminAccess(caller);
     consolidationTimerEnabled := enabled;
     if (enabled) {
       consolidationSchedule.start<system>();
@@ -1358,7 +1340,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   auctionSchedule.start<system>();
 
   public shared ({ caller }) func restartAuctionTimer() : async () {
-    await* permissions.assertAdminAccess(caller);
+    await* assertAdminAccess(caller);
     auctionSchedule.stop();
     auctionSchedule.start<system>();
   };
