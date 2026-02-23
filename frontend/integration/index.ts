@@ -396,8 +396,8 @@ export const usePlaceOrder = (kind: 'ask' | 'bid') => {
           if ('placed' in res['Ok'][1]) {
             enqueueSnackbar(`${kind} placed, order ID: ${orderId}`, { variant: 'success' });
           } else if ('executed' in res['Ok'][1]) {
-            let [price, volumeExecuted] = res['Ok'][1]['executed'];
-            enqueueSnackbar(`${kind} executed with price ${price}, volume executed: ${volumeExecuted}`, { variant: 'success' });
+            let [price, volumeExecuted] = res['Ok'][1]['executed'][0];
+            enqueueSnackbar(`${kind} executed with price ${price}, volume executed: ${Number(volumeExecuted)}`, { variant: 'success' });
           }
         }
       },

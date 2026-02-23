@@ -28,10 +28,12 @@ import E "./auction/src/encryption";
 import ICRC84Auction "./icrc84_auction";
 
 import BtcHandler "./btc_handler";
+import FloatUtils "./utils/float";
 import HTTP "./utils/http";
 import NotificationDelegate "./notification_delegate";
 import Permissions "./utils/permissions";
 import Scheduler "./utils/scheduler";
+import TextUtils "./utils/text";
 import U "./utils";
 
 // arguments have to be provided on first canister install,
@@ -885,6 +887,8 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
           p,
           switch (n) {
             case (#orderFulfilled { assetId; kind; price; baseVolume; quoteVolume; isPartial }) {
+              let baseDecimals = Vec.get(assets, assetId).decimals;
+              let quoteDecimals = Vec.get(assets, quoteAssetId).decimals;
               {
                 title = "Order fulfillment";
                 content = "Your "
@@ -892,12 +896,9 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
                 # "on " # Vec.get(assets, assetId).symbol
                 # " was "
                 # (if (isPartial) { "partially " } else { "" })
-                # "fulfilled. Price: "
-                # Float.toText(price)
-                # "; Base volume: "
-                # Nat.toText(baseVolume)
-                # "; Quote volume: "
-                # Nat.toText(quoteVolume);
+                # "fulfilled. Price: " # TextUtils.floatToSig6(FloatUtils.scaleFloat(price, baseDecimals - quoteDecimals))
+                # "; Base volume: " # TextUtils.natWithDecimalsToText(baseVolume, baseDecimals)
+                # "; Quote volume: " # TextUtils.natWithDecimalsToText(quoteVolume, quoteDecimals);
                 url = null;
                 tag = null;
               };
