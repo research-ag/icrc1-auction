@@ -50,18 +50,10 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   var stableAdminsMap : Permissions.StableDataV1 = Permissions.defaultStableDataV1();
   transient let permissions : Permissions.Permissions = Permissions.Permissions(stableAdminsMap, adminPrincipal_);
 
-  var assetsDataV1 : Vec.Vector<StableAssetInfoV1> = Vec.new();
-
-  var auctionDataV1 : Auction.StableDataV1 = Auction.defaultStableDataV1();
-  var auctionDataV2 : Auction.StableDataV2 = Auction.migrateStableDataV2(auctionDataV1);
-  var auctionDataV3 : Auction.StableDataV3 = Auction.migrateStableDataV3(auctionDataV2);
-  var auctionDataV4 : Auction.StableDataV4 = Auction.migrateStableDataV4(auctionDataV3);
-  var auctionDataV5 : Auction.StableDataV5 = Auction.migrateStableDataV5(auctionDataV4);
-
+  var assetsData : Vec.Vector<StableAssetInfoV1> = Vec.new();
+  var auctionData : Auction.StableDataV5 = Auction.defaultStableData();
   var ptData : PT.StableData = null;
-
   var tokenHandlersJournal : Vec.Vector<(ledger : Principal, p : Principal, logEvent : TokenHandler.LogEvent)> = Vec.new();
-
   var consolidationTimerEnabled : Bool = true;
 
   // constants
@@ -260,7 +252,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   };
 
   transient let assets : Vec.Vector<AssetInfo> = Vec.map<StableAssetInfoV1, AssetInfo>(
-    assetsDataV1,
+    assetsData,
     func(x) = createAssetInfo_(x.ledgerPrincipal, x.minAskVolume, x.decimals, x.symbol, ?x.handler),
   );
   transient let auction : Auction.Auction = Auction.Auction(
@@ -273,7 +265,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
       performanceCounter = Prim.performanceCounter;
     },
   );
-  auction.unshare(auctionDataV5);
+  auction.unshare(auctionData);
 
   // will be set in startAuctionTimer_
   // this timestamp is set right before starting auction execution
@@ -1311,7 +1303,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   };
 
   system func preupgrade() {
-    assetsDataV1 := Vec.map<AssetInfo, StableAssetInfoV1>(
+    assetsData := Vec.map<AssetInfo, StableAssetInfoV1>(
       assets,
       func(x) = {
         ledgerPrincipal = x.ledgerPrincipal;
@@ -1321,7 +1313,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
         symbol = x.symbol;
       },
     );
-    auctionDataV5 := auction.share();
+    auctionData := auction.share();
     ptData := metrics.share();
     stableAdminsMap := permissions.share();
   };
