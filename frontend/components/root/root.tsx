@@ -3,6 +3,7 @@ import { Box, Tab, TabList, Tabs, Typography } from '@mui/joy';
 import Orders from '../orders';
 import ConnectButton from '../../components/connect-button';
 import ThemeButton from '../../components/theme-button';
+import PushBell from '@fe/components/push-bell/push-bell';
 import { useIdentity } from '@fe/integration/identity';
 
 import InfoItem from './info-item';
@@ -10,13 +11,12 @@ import {
   defaultAuctionCanisterId,
   updateAuctionCanisterId,
   useAuctionCanisterId,
-  useIsAdmin,
-  usePoints,
+  useAuctionQuery,
   useMinimumOrder,
+  usePoints,
   useQuoteLedger,
   useSessionsCounter,
   useTokenInfoMap,
-  useAuctionQuery,
 } from '@fe/integration';
 import { useEffect, useState } from 'react';
 import Credits from '../credits';
@@ -24,28 +24,28 @@ import TransactionsHistory from '@fe/components/transactions-history';
 import Assets from '../assets';
 import Owners from '../owners';
 import PriceHistory from '@fe/components/price-history';
-import { Ed25519KeyIdentity } from '@dfinity/identity';
-import { AnonymousIdentity, Identity } from '@dfinity/agent';
+import { Ed25519KeyIdentity } from '@icp-sdk/core/identity';
+import { AnonymousIdentity, Identity } from '@icp-sdk/core/agent';
 import { useQueryClient } from 'react-query';
-import { Principal } from '@dfinity/principal';
+import { Principal } from '@icp-sdk/core/principal';
 import { displayWithDecimals } from '@fe/utils';
 import DepositHistory from '@fe/components/deposit-history';
 import DarkOrders from '@fe/components/dark-orders';
 
 const Root = () => {
   const { identity, setIdentity } = useIdentity();
+  const queryClient = useQueryClient();
 
   const [tabValue, setTabValue] = useState(0);
 
   const userPrincipal = identity.getPrincipal().toText();
-
-  const isAdmin = useIsAdmin();
 
   const { data: quoteLedger } = useQuoteLedger();
   const { data: symbols } = useTokenInfoMap();
   const { data: minimumOrder } = useMinimumOrder();
   const { data: auctionQuery } = useAuctionQuery();
   const { data: points } = usePoints(auctionQuery);
+  const { data: sessionsCounter } = useSessionsCounter();
   const getInfo = (ledger: Principal): { symbol: string, decimals: number } => {
     try {
       const mapItem = (symbols || []).find(([p, s]) => p.toText() == ledger.toText());
@@ -85,7 +85,6 @@ const Root = () => {
     let newIdentity = seedToIdentity(seed) || new AnonymousIdentity();
     if (identity.getPrincipal().toText() !== newIdentity.getPrincipal().toText()) {
       setIdentity(newIdentity);
-      const queryClient = useQueryClient();
       await Promise.all([
         queryClient.invalidateQueries('auctionQuery'),
         queryClient.invalidateQueries('transaction-history'),
@@ -121,18 +120,19 @@ const Root = () => {
                      onChange={e => setAuctionIdInput(e.target.value)}></input>
               <button onClick={e => setAuctionIdInput(defaultAuctionCanisterId)}>Reset</button>
             </Box>
-            <InfoItem label="Sessions counter" content={String(useSessionsCounter().data)} />
-            <InfoItem label="Your principal" content={userPrincipal} withCopy />
+            <InfoItem label="Sessions counter"
+                      content={isNaN(Number(sessionsCounter)) ? '-' : String(sessionsCounter)}/>
+            <InfoItem label="Your principal" content={userPrincipal} withCopy/>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
               <Typography sx={{ fontWeight: 700 }} level="body-xs">Principal seed:</Typography>
               <input type="text" onChange={e => onSeedInput(e.target.value)}></input>
             </Box>
-            <InfoItem label="Quote currency ledger" content={quoteLedger?.toText() || ''} withCopy />
-            <InfoItem label="Auction principal" content={auctionId} withCopy />
+            <InfoItem label="Quote currency ledger" content={quoteLedger?.toText() || ''} withCopy/>
+            <InfoItem label="Auction principal" content={auctionId} withCopy/>
             <InfoItem label="Minimum order size"
-                      content={displayWithDecimals(minimumOrder || 0, getInfo(quoteLedger!).decimals, 6)} />
+                      content={quoteLedger ? displayWithDecimals(minimumOrder || 0, getInfo(quoteLedger).decimals, 6) : '-'}/>
             <InfoItem label="Points"
-                      content={'' + Number(points)} />
+                      content={isNaN(Number(points)) ? '-' : String(points)}/>
           </Box>
         </Box>
         <Box
@@ -152,18 +152,19 @@ const Root = () => {
             <Tab color="neutral">Price history</Tab>
             <Tab color="neutral">Admins</Tab>
           </TabList>
-          <ConnectButton />
-          <ThemeButton sx={{ marginLeft: 1 }} />
+          <ConnectButton/>
+          <ThemeButton sx={{ marginLeft: 1 }}/>
+          <PushBell sx={{ marginLeft: 1 }}/>
         </Box>
-        {tabValue === 0 && <Assets />}
-        {tabValue === 1 && <Credits />}
-        {tabValue === 2 && <Orders kind="bid" />}
-        {tabValue === 3 && <Orders kind="ask" />}
-        {tabValue === 4 && <DarkOrders />}
-        {tabValue === 5 && <DepositHistory />}
-        {tabValue === 6 && <TransactionsHistory />}
-        {tabValue === 7 && <PriceHistory />}
-        {tabValue === 8 && <Owners />}
+        {tabValue === 0 && <Assets/>}
+        {tabValue === 1 && <Credits/>}
+        {tabValue === 2 && <Orders kind="bid"/>}
+        {tabValue === 3 && <Orders kind="ask"/>}
+        {tabValue === 4 && <DarkOrders/>}
+        {tabValue === 5 && <DepositHistory/>}
+        {tabValue === 6 && <TransactionsHistory/>}
+        {tabValue === 7 && <PriceHistory/>}
+        {tabValue === 8 && <Owners/>}
       </Tabs>
     </Box>
   );

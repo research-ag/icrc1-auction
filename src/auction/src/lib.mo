@@ -26,10 +26,55 @@ import Credits "./credits";
 import E "./encryption";
 import Orders "./orders";
 import Users "./users";
-import { processAuction; clearAuction } "./auction_processor";
+import Processor "./auction_processor";
 import T "./types";
 
 module {
+
+  public func defaultStableDataV5() : T.StableDataV5 = {
+    assets = Vec.new();
+    orders = { globalCounter = 0 };
+    quoteToken = { surplus = 0 };
+    sessions = {
+      counter = 0;
+      history = {
+        immediate = ([var], 0, 0);
+        delayed = Vec.new<T.PriceHistoryItem>();
+      };
+    };
+    users = {
+      registry = {
+        tree = #leaf;
+        size = 0;
+      };
+      participantsArchive = {
+        tree = #leaf;
+        size = 0;
+      };
+      accountsAmount = 0;
+    };
+  };
+  public type StableDataV5 = T.StableDataV5;
+  public func migrateStableDataV5(data : StableDataV4) : StableDataV5 {
+    let usersTree : RBTree.RBTree<Principal, T.StableUserInfoV4> = RBTree.RBTree(Principal.compare);
+    for ((p, x) in RBTree.iter(data.users.registry.tree, #bwd)) {
+      usersTree.put(
+        p,
+        {
+          x with
+          userSettings = { pushNotificationsEnabled = false }
+        },
+      );
+    };
+    {
+      data with
+      users = {
+        data.users with registry = {
+          data.users.registry with tree = usersTree.share()
+        }
+      };
+    };
+  };
 
   public func defaultStableDataV4() : T.StableDataV4 = {
     assets = Vec.new();
@@ -196,6 +241,7 @@ module {
   public type EncryptedOrderBook = T.EncryptedOrderBook;
   public type CreditInfo = Credits.CreditInfo;
   public type UserInfo = T.UserInfo;
+  public type UserSettings = T.UserSettings;
   public type DepositHistoryItem = T.DepositHistoryItem;
   public type TransactionHistoryItem = T.TransactionHistoryItem;
   public type PriceHistoryItem = T.PriceHistoryItem;
@@ -205,6 +251,8 @@ module {
 
   public type CancellationResult = Orders.CancellationResult;
   public type PlaceOrderResult = Orders.PlaceOrderResult;
+
+  public type PushNotification = Users.PushNotification;
 
   public type OrderBookInfo = {
     clearing : {
@@ -265,14 +313,14 @@ module {
       settings,
     );
     orders.executeImmediateOrderBooks := ?(
-      func(assetId : T.AssetId, advantageFor : { #ask; #bid }) : [(price : Float, volume : Nat)] {
+      func(assetId : T.AssetId, advantageFor : { #ask; #bid }) : [(price : Float, volume : Nat, fulfilledOrders : List.List<Processor.FulfilledOrder>)] {
         if (assetId == quoteAssetId) return [];
         let assetInfo = assets.getAsset(assetId);
-        let ret = Vec.new<(Float, Nat)>();
+        let ret = Vec.new<(Float, Nat, List.List<Processor.FulfilledOrder>)>();
         let asks = orders.asks.createOrderBookExecutionService(assetInfo, #immediate);
         let bids = orders.bids.createOrderBookExecutionService(assetInfo, #immediate);
         label l while true {
-          let (_, volume) = clearAuction(asks, bids);
+          let (_, volume) = Processor.clearAuction(asks, bids);
           if (volume == 0) {
             break l;
           };
@@ -280,11 +328,11 @@ module {
             case (#ask) bids.nextOrder();
             case (#bid) asks.nextOrder();
           } else Prim.trap("Can never happen");
-          let surplus = processAuction(0, asks, bids, price, volume);
-          if (surplus > 0) {
-            credits.quoteSurplus += surplus;
+          let { quoteSurplus; fulfilledOrders } = Processor.processAuction(0, asks, bids, price, volume);
+          if (quoteSurplus > 0) {
+            credits.quoteSurplus += quoteSurplus;
           };
-          Vec.add(ret, (price, volume));
+          Vec.add(ret, (price, volume, fulfilledOrders));
           let executionsCounter = assetInfo.immediateExecutionsCounter;
           assetInfo.immediateExecutionsCounter += 1;
           assets.pushToHistory(#immediate, (Prim.time(), executionsCounter, assetId, volume, price));
@@ -339,11 +387,11 @@ module {
       let (encAsks, encBids) = orders.processDarkOrderBooks(assetId, assetInfo);
       let asks = orders.asks.createOrderBookExecutionService(assetInfo, #combined({ encryptedOrdersQueue = encAsks }));
       let bids = orders.bids.createOrderBookExecutionService(assetInfo, #combined({ encryptedOrdersQueue = encBids }));
-      let (price, volume) = clearAuction(asks, bids);
+      let (price, volume) = Processor.clearAuction(asks, bids);
       if (volume > 0) {
-        let surplus = processAuction(sessionsCounter, asks, bids, price, volume);
-        if (surplus > 0) {
-          credits.quoteSurplus += surplus;
+        let { quoteSurplus } = Processor.processAuction(sessionsCounter, asks, bids, price, volume);
+        if (quoteSurplus > 0) {
+          credits.quoteSurplus += quoteSurplus;
         };
         assetInfo.lastRate := price;
       };
@@ -356,7 +404,7 @@ module {
       let assetInfo = assets.getAsset(assetId);
       let asksOrderBook = orders.asks.createOrderBookExecutionService(assetInfo, #combined({ encryptedOrdersQueue = null }));
       let bidsOrderBook = orders.bids.createOrderBookExecutionService(assetInfo, #combined({ encryptedOrdersQueue = null }));
-      let (price, volume) = clearAuction(asksOrderBook, bidsOrderBook);
+      let (price, volume) = Processor.clearAuction(asksOrderBook, bidsOrderBook);
       {
         clearing = if (volume > 0) {
           #match({ price; volume });
@@ -598,7 +646,7 @@ module {
     // ============ history interface =============
 
     // ============= system interface =============
-    public func share() : T.StableDataV4 = {
+    public func share() : T.StableDataV5 = {
       assets = Vec.map<T.AssetInfo, T.StableAssetInfoV3>(
         assets.assets,
         func(x) = {
@@ -627,8 +675,8 @@ module {
       users = {
         registry = {
           tree = (
-            func() : RBTree.Tree<Principal, T.StableUserInfoV3> {
-              let stableUsers = RBTree.RBTree<Principal, T.StableUserInfoV3>(Principal.compare);
+            func() : RBTree.Tree<Principal, T.StableUserInfoV4> {
+              let stableUsers = RBTree.RBTree<Principal, T.StableUserInfoV4>(Principal.compare);
               for ((p, u) in users.users.entries()) {
                 stableUsers.put(
                   p,
@@ -645,6 +693,9 @@ module {
                     loyaltyPoints = u.loyaltyPoints;
                     depositHistory = u.depositHistory;
                     transactionHistory = u.transactionHistory;
+                    userSettings = {
+                      pushNotificationsEnabled = u.userSettings.pushNotificationsEnabled;
+                    };
                   },
                 );
               };
@@ -661,7 +712,7 @@ module {
       };
     };
 
-    public func unshare(data : T.StableDataV4) {
+    public func unshare(data : T.StableDataV5) {
       assets.assets := Vec.map<T.StableAssetInfoV3, T.AssetInfo>(
         data.assets,
         func(x) = {
@@ -700,7 +751,7 @@ module {
       assets.history.delayed := data.sessions.history.delayed;
 
       users.usersAmount := data.users.registry.size;
-      let ud = RBTree.RBTree<Principal, T.StableUserInfoV3>(Principal.compare);
+      let ud = RBTree.RBTree<Principal, T.StableUserInfoV4>(Principal.compare);
       ud.unshare(data.users.registry.tree);
       for ((p, u) in ud.entries()) {
         let userData : UserInfo = {
@@ -716,6 +767,9 @@ module {
           var loyaltyPoints = u.loyaltyPoints;
           var depositHistory = u.depositHistory;
           var transactionHistory = u.transactionHistory;
+          userSettings = {
+            var pushNotificationsEnabled = u.userSettings.pushNotificationsEnabled;
+          };
         };
         for ((oid, orderData) in List.toIter(u.asks.map)) {
           let order : T.Order = {

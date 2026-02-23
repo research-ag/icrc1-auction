@@ -15,6 +15,8 @@ import Text "mo:base/Text";
 import Timer "mo:base/Timer";
 import AssocList "mo:base/AssocList";
 
+import Queue "mo:core/Queue";
+
 import ICRC84 "mo:icrc-84";
 import PT "mo:promtracker";
 import TokenHandler "mo:token-handler";
@@ -26,9 +28,12 @@ import E "./auction/src/encryption";
 import ICRC84Auction "./icrc84_auction";
 
 import BtcHandler "./btc_handler";
+import FloatUtils "./utils/float";
 import HTTP "./utils/http";
+import NotificationDelegate "./notification_delegate";
 import Permissions "./utils/permissions";
 import Scheduler "./utils/scheduler";
+import TextUtils "./utils/text";
 import U "./utils";
 
 // arguments have to be provided on first canister install,
@@ -51,6 +56,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   var auctionDataV2 : Auction.StableDataV2 = Auction.migrateStableDataV2(auctionDataV1);
   var auctionDataV3 : Auction.StableDataV3 = Auction.migrateStableDataV3(auctionDataV2);
   var auctionDataV4 : Auction.StableDataV4 = Auction.migrateStableDataV4(auctionDataV3);
+  var auctionDataV5 : Auction.StableDataV5 = Auction.migrateStableDataV5(auctionDataV4);
 
   var ptData : PT.StableData = null;
 
@@ -267,7 +273,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
       performanceCounter = Prim.performanceCounter;
     },
   );
-  auction.unshare(auctionDataV4);
+  auction.unshare(auctionDataV5);
 
   // will be set in startAuctionTimer_
   // this timestamp is set right before starting auction execution
@@ -870,6 +876,48 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     };
   };
 
+  private func drainPushNotifications() : async* () {
+    let q = auction.users.stagedPushNotifications;
+    let buf = Vec.new<(Principal, NotificationDelegate.NotificationBody)>();
+    label l while (not Queue.isEmpty(q)) {
+      let ?(p, n) = Queue.popFront(q) else break l;
+      Vec.add(
+        buf,
+        (
+          p,
+          switch (n) {
+            case (#orderFulfilled { assetId; kind; price; baseVolume; quoteVolume; isPartial }) {
+              let baseDecimals = Vec.get(assets, assetId).decimals;
+              let quoteDecimals = Vec.get(assets, quoteAssetId).decimals;
+              let priceLog10Multiplier : Int = baseDecimals - quoteDecimals;
+              {
+                title = "Order fulfillment";
+                content = "Your "
+                # (switch (kind) { case (#ask) "ask "; case (#bid) "bid " })
+                # "on " # Vec.get(assets, assetId).symbol
+                # " was "
+                # (if (isPartial) { "partially " } else { "" })
+                # "fulfilled. Price: " # TextUtils.floatToSig5(FloatUtils.scaleFloat(price, priceLog10Multiplier))
+                # "; Base volume: " # TextUtils.natWithDecimalsToText(baseVolume, baseDecimals)
+                # "; Quote volume: " # TextUtils.natWithDecimalsToText(quoteVolume, quoteDecimals);
+                url = null;
+                tag = null;
+              };
+            };
+          },
+        ),
+      );
+    };
+    let items = Vec.toArray(buf);
+    if (items.size() > 0) {
+      try {
+        ignore await NotificationDelegate.getActor().sendNotifications(items);
+      } catch (err) {
+        Prim.debugPrint("[push] sendNotifications failed: " # Error.message(err));
+      };
+    };
+  };
+
   public shared ({ caller }) func manageOrders(
     cancellations : ?{
       #all : ?[Principal];
@@ -905,8 +953,10 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
         case (#bid(_, orderBookType, volume, price)) #bid(aid, orderBookType, volume, price);
       };
     };
-    auction.manageOrders(caller, cancellationArg, Array.freeze(placementArg), expectedAccountRevision)
+    let ret = auction.manageOrders(caller, cancellationArg, Array.freeze(placementArg), expectedAccountRevision)
     |> ICRC84Auction.mapManageOrdersResult(_, getIcrc1Ledger);
+    await* drainPushNotifications();
+    ret;
   };
 
   public shared ({ caller }) func manageDarkOrderBooks(args : [(Principal, ?Auction.EncryptedOrderBook)], expectedAccountRevision : ?Nat) : async UpperResult<[?Auction.EncryptedOrderBook], { #AccountRevisionMismatch; #UnknownAsset : Principal; #UnknownPrincipal; #NoCredit }> {
@@ -916,16 +966,12 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
       let ?assetId = getAssetId(args[i].0) else return #Err(#UnknownAsset(args[i].0));
       pureArgs[i] := (assetId, args[i].1);
     };
-    let res = auction.manageDarkOrderBooks(caller, Array.freeze(pureArgs), expectedAccountRevision);
-    switch (res) {
-      case (#ok x) #Ok(x);
-      case (#err err) #Err(err);
-    };
+    auction.manageDarkOrderBooks(caller, Array.freeze(pureArgs), expectedAccountRevision) |> R.toUpper(_);
   };
 
   public shared ({ caller }) func placeBids(arg : [(ledger : Principal, orderBookType : Auction.OrderBookType, volume : Nat, price : Float)], expectedAccountRevision : ?Nat) : async [UpperResult<Auction.PlaceOrderResult, ICRC84Auction.PlaceOrderError>] {
     orderPlacementCounter.add(1);
-    Array.tabulate<UpperResult<Auction.PlaceOrderResult, ICRC84Auction.PlaceOrderError>>(
+    let ret = Array.tabulate<UpperResult<Auction.PlaceOrderResult, ICRC84Auction.PlaceOrderError>>(
       arg.size(),
       func(i) {
         let ?assetId = getAssetId(arg[i].0) else return #Err(#UnknownAsset);
@@ -933,12 +979,16 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
         |> R.toUpper(_);
       },
     );
+    await* drainPushNotifications();
+    ret;
   };
 
   public shared ({ caller }) func replaceBid(orderId : Auction.OrderId, volume : Nat, price : Float, expectedAccountRevision : ?Nat) : async UpperResult<Auction.PlaceOrderResult, ICRC84Auction.ReplaceOrderError> {
     orderReplacementCounter.add(1);
-    auction.replaceOrder(caller, #bid, orderId, volume : Nat, price : Float, expectedAccountRevision)
+    let ret = auction.replaceOrder(caller, #bid, orderId, volume : Nat, price : Float, expectedAccountRevision)
     |> R.toUpper(_);
+    await* drainPushNotifications();
+    ret;
   };
 
   public shared ({ caller }) func cancelBids(orderIds : [Auction.OrderId], expectedAccountRevision : ?Nat) : async [UpperResult<ICRC84Auction.CancellationResult, ICRC84Auction.CancelOrderError>] {
@@ -951,7 +1001,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
 
   public shared ({ caller }) func placeAsks(arg : [(ledger : Principal, orderBookType : Auction.OrderBookType, volume : Nat, price : Float)], expectedAccountRevision : ?Nat) : async [UpperResult<Auction.PlaceOrderResult, ICRC84Auction.PlaceOrderError>] {
     orderPlacementCounter.add(1);
-    Array.tabulate<UpperResult<Auction.PlaceOrderResult, ICRC84Auction.PlaceOrderError>>(
+    let ret = Array.tabulate<UpperResult<Auction.PlaceOrderResult, ICRC84Auction.PlaceOrderError>>(
       arg.size(),
       func(i) {
         let ?assetId = getAssetId(arg[i].0) else return #Err(#UnknownAsset);
@@ -959,12 +1009,16 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
         |> R.toUpper(_);
       },
     );
+    await* drainPushNotifications();
+    ret;
   };
 
   public shared ({ caller }) func replaceAsk(orderId : Auction.OrderId, volume : Nat, price : Float, expectedAccountRevision : ?Nat) : async UpperResult<Auction.PlaceOrderResult, ICRC84Auction.ReplaceOrderError> {
     orderReplacementCounter.add(1);
-    auction.replaceOrder(caller, #ask, orderId, volume : Nat, price : Float, expectedAccountRevision)
+    let ret = auction.replaceOrder(caller, #ask, orderId, volume : Nat, price : Float, expectedAccountRevision)
     |> R.toUpper(_);
+    await* drainPushNotifications();
+    ret;
   };
 
   public shared ({ caller }) func cancelAsks(orderIds : [Auction.OrderId], expectedAccountRevision : ?Nat) : async [UpperResult<ICRC84Auction.CancellationResult, ICRC84Auction.CancelOrderError>] {
@@ -973,6 +1027,31 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
       orderIds.size(),
       func(i) = auction.cancelOrder(caller, #ask, orderIds[i], expectedAccountRevision) |> ICRC84Auction.mapCancelOrderResult(_, getIcrc1Ledger),
     );
+  };
+
+  type SharedUserSettings = {
+    pushNotificationsEnabled : Bool;
+  };
+  private func shareUserSettings(s : Auction.UserSettings) : SharedUserSettings = {
+    pushNotificationsEnabled = s.pushNotificationsEnabled;
+  };
+
+  public query ({ caller }) func getUserSettings() : async SharedUserSettings {
+    let ?user = auction.users.get(caller) else throw Error.reject("Unknown principal");
+    shareUserSettings(user.userSettings);
+  };
+
+  public shared ({ caller }) func updateUserSettings(
+    settings : {
+      pushNotificationsEnabled : ?Bool;
+    }
+  ) : async SharedUserSettings {
+    let ?user = auction.users.get(caller) else throw Error.reject("Unknown principal");
+    switch (settings.pushNotificationsEnabled) {
+      case (null) {};
+      case (?v) user.userSettings.pushNotificationsEnabled := v;
+    };
+    shareUserSettings(user.userSettings);
   };
 
   public func updateTokenHandlerFee(ledger : Principal) : async ?Nat {
@@ -1242,7 +1321,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
         symbol = x.symbol;
       },
     );
-    auctionDataV4 := auction.share();
+    auctionDataV5 := auction.share();
     ptData := metrics.share();
     stableAdminsMap := permissions.share();
   };

@@ -1,6 +1,6 @@
 import { existsSync, unlinkSync, writeFileSync } from 'fs';
 import path from 'path';
-import { PocketIc, PocketIcServer } from '@hadronous/pic';
+import { PocketIcServer } from '@dfinity/pic';
 import { tmpdir } from 'os';
 
 module.exports = async () => {
@@ -13,32 +13,21 @@ module.exports = async () => {
     unlinkSync(serverUrlFile);
   }
   if (existsSync(picServerPidFile)) {
-    unlinkSync(picServerPidFile);
+    try {
+      unlinkSync(picServerPidFile);
+    } catch {
+    }
   }
   if (existsSync(portFilePath)) {
-    unlinkSync(portFilePath);
+    try {
+      unlinkSync(portFilePath);
+    } catch {
+    }
   }
 
-  console.log('Starting PIC server...');
-  let picServer = await PocketIcServer.start({ showCanisterLogs: false, showRuntimeLogs: false });
-  console.log('Started PIC server. Waiting for state availability with certification...');
-  let pic: PocketIc | null = null;
-  let timeout = 300;
-  try {
-    let failTimeout;
-    pic = await Promise.race([
-      PocketIc.create(picServer.getUrl()),
-      new Promise((_, rej) => failTimeout = setTimeout(rej, timeout*1000)) as Promise<PocketIc>
-    ]);
-    clearTimeout(failTimeout);
-  } catch (e) {
-    throw new Error('Pocket IC instance was unable to start in ' + timeout + ' seconds. Aborting....');
-  }
-  if (pic) {
-    console.log('PocketIc created. Killing it now');
-    await pic.tearDown();
-    writeFileSync(serverUrlFile, picServer.getUrl(), 'utf-8');
-    writeFileSync(picServerPidFile, (picServer as any).serverProcess.pid.toString(), 'utf-8');
-    console.log(`Pic server runs at url ${picServer.getUrl()}. File saved at path ${serverUrlFile}`);
-  }
+  console.log('[jest.setup] Starting PocketIC server...');
+  const picServer = await PocketIcServer.start({ showCanisterLogs: false, showRuntimeLogs: false });
+  writeFileSync(serverUrlFile, picServer.getUrl(), 'utf-8');
+  writeFileSync(picServerPidFile, (picServer as any).serverProcess.pid.toString(), 'utf-8');
+  console.log(`[jest.setup] PocketIC server is running at ${picServer.getUrl()} (pid saved to ${picServerPidFile})`);
 };

@@ -47,7 +47,7 @@ module {
         case (?w) w.size();
         case (null) 0;
       };
-      let ?priceNat = Text.split(priceText, #char '.') |> Text.join("", _) |> Nat.fromText(_) else return null;
+      let ?priceNat = Text.split(priceText, #char '.') |> Text.join(_, "") |> Nat.fromText(_) else return null;
       let price = Float.fromInt(priceNat) * (10 ** Float.fromInt(-priceFractionPartLength));
 
       ?{

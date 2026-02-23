@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from 'react-query';
+import queryClientSingleton from '../queryClient';
 import { useSnackbar } from 'notistack';
 
 import { useIdentity } from './identity';
-import { Principal } from '@dfinity/principal';
+import { Principal } from '@icp-sdk/core/principal';
 import { useMemo } from 'react';
 import { createActor } from '@declarations/icrc1_auction';
 import { AuctionQueryResponse } from '@declarations/icrc1_auction/icrc1_auction_development.did';
@@ -50,13 +51,21 @@ export const useAuctionCanisterId = () => {
 
 export const updateAuctionCanisterId = (ps: string) => {
   localStorage.setItem('auctionCanisterId', ps);
-  const queryClient = useQueryClient();
+  const queryClient = queryClientSingleton;
   Promise.all([
+    // Global/canister-scoped
     queryClient.invalidateQueries('admins'),
     queryClient.invalidateQueries('assets'),
     queryClient.invalidateQueries('assetInfos'),
-    queryClient.invalidateQueries('deposit-history'),
     queryClient.invalidateQueries('auctionQuery'),
+    // Identity-scoped views (refresh when backend changes)
+    queryClient.invalidateQueries('myCredits'),
+    queryClient.invalidateQueries('myBids'),
+    queryClient.invalidateQueries('myAsks'),
+    queryClient.invalidateQueries('dark-order-books'),
+    queryClient.invalidateQueries('deposit-history'),
+    queryClient.invalidateQueries('transaction-history'),
+    queryClient.invalidateQueries('myPoints'),
   ]).then();
 };
 
@@ -68,6 +77,7 @@ export const useAuction = () => {
       agentOptions: {
         identity,
         verifyQuerySignatures: false,
+        host: 'https://icp-api.io',
       },
     });
     return { auction };
@@ -177,7 +187,7 @@ export const useTokenInfoMap = () => {
     'assetInfos',
     async () => {
       const assets = queryClient.getQueryData('assets') as Principal[] | undefined;
-      const info = await Promise.all((assets || []).map(async p => createLedgerActor(p).icrc1_metadata()));
+      const info = await Promise.all((assets || []).map(async p => createLedgerActor(p, { agentOptions: { host: 'https://icp-api.io' } }).icrc1_metadata()));
       const mapInfo = (
         info: ['icrc1:decimals' | 'icrc1:symbol', { Nat: bigint } | { Text: string }][],
       ): {
@@ -217,8 +227,12 @@ export const useTokenInfoMap = () => {
 export const useAuctionQuery = () => {
   const { auction } = useAuction();
   const { enqueueSnackbar } = useSnackbar();
+  const { identity } = useIdentity();
+  const canisterId = useAuctionCanisterId();
+  const principalText = identity?.getPrincipal?.().toText?.();
+  const queryClient = useQueryClient();
   return useQuery(
-    'auctionQuery',
+    ['auctionQuery', canisterId, principalText],
     async () => {
       return replaceBigInts(
         await auction.auction_query([], {
@@ -242,7 +256,7 @@ export const useAuctionQuery = () => {
     {
       onError: err => {
         enqueueSnackbar(`Failed to query auction: ${err}`, { variant: 'error' });
-        useQueryClient().removeQueries('auctionQuery');
+        queryClient.removeQueries(['auctionQuery']);
       },
     },
   );
@@ -382,8 +396,8 @@ export const usePlaceOrder = (kind: 'ask' | 'bid') => {
           if ('placed' in res['Ok'][1]) {
             enqueueSnackbar(`${kind} placed, order ID: ${orderId}`, { variant: 'success' });
           } else if ('executed' in res['Ok'][1]) {
-            let [price, volumeExecuted] = res['Ok'][1]['executed'];
-            enqueueSnackbar(`${kind} executed with price ${price}, volume executed: ${volumeExecuted}`, { variant: 'success' });
+            let [price, volumeExecuted] = res['Ok'][1]['executed'][0];
+            enqueueSnackbar(`${kind} executed with price ${price}, volume executed: ${Number(volumeExecuted)}`, { variant: 'success' });
           }
         }
       },
@@ -631,7 +645,7 @@ export const useManageDarkOrderBook = () => {
 
   const encryptIbe = async (data: Uint8Array, nextSessionTimestamp: number) => {
     const canister = CRYPTO_CANISTER_ID ?? '6jrls-gqaaa-aaaao-a4pgq-cai';
-    const cryptoActor = createCryptoActor(canister);
+    const cryptoActor = createCryptoActor(canister, { agentOptions: { host: 'https://icp-api.io' } });
     const publicKey = DerivedPublicKey.deserialize(new Uint8Array(await cryptoActor.get_ibe_public_key()));
     const ciphertext = IbeCiphertext.encrypt(
       publicKey,

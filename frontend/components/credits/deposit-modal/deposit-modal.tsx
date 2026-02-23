@@ -26,9 +26,9 @@ import {
   usePrincipalToSubaccount,
   useTokenInfoMap,
 } from '@fe/integration';
-import { Principal } from '@dfinity/principal';
+import { Principal } from '@icp-sdk/core/principal';
 import { useIdentity } from '@fe/integration/identity';
-import { decodeIcrcAccount } from '@dfinity/ledger-icrc';
+import { decodeIcrcAccount } from '@icp-sdk/canisters/ledger/icrc';
 import { useSnackbar } from 'notistack';
 
 interface DepositFormValues {

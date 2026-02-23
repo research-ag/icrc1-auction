@@ -77,6 +77,8 @@ type DepositResponse = variant {
   }
 };
 
+type SharedUserSettings = record {pushNotificationsEnabled: bool;};
+
 type OrderId = nat;
 
 type OrderBookType = variant {
@@ -578,6 +580,10 @@ service : (opt principal, opt principal) -> {
   // arguments are: order ids and account revision (optional).
   // If account revision set and it does not match the actual account revision, the function will return an error
   cancelBids : (vec OrderId, opt AccountRevision) -> (vec CancelOrderResponse);
+
+  /// Own user settings interface
+  getUserSettings: () -> (SharedUserSettings) query;
+  updateUserSettings: (settings: record {pushNotificationsEnabled: opt bool;}) -> (SharedUserSettings);
 
   // =========================================================== ADMIN API ===========================================================
   // returns list of auction admins

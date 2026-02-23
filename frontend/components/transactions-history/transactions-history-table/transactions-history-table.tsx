@@ -2,7 +2,7 @@ import { Box, Table } from '@mui/joy';
 
 import { useAuctionQuery, useQuoteLedger, useTokenInfoMap, useTransactionHistory } from '@fe/integration';
 import InfoItem from '../../root/info-item';
-import { Principal } from '@dfinity/principal';
+import { Principal } from '@icp-sdk/core/principal';
 import { displayWithDecimals } from '@fe/utils';
 
 const TransactionsHistoryTable = () => {

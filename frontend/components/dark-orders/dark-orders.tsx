@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Box, Button, Table, Typography } from '@mui/joy';
 import PageTemplate from '@fe/components/page-template';
 import InfoItem from '@fe/components/root/info-item';
-import { Principal } from '@dfinity/principal';
+import { Principal } from '@icp-sdk/core/principal';
 import {
   useAuctionQuery,
   useDeleteDarkOrderBook,

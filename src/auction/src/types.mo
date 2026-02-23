@@ -72,6 +72,10 @@ module {
     var sessionsCounter : Nat;
   };
 
+  public type UserSettings = {
+    var pushNotificationsEnabled : Bool;
+  };
+
   public type UserInfo = {
     asks : UserOrderBook;
     bids : UserOrderBook;
@@ -81,6 +85,7 @@ module {
     var loyaltyPoints : Nat;
     var depositHistory : Vec.Vector<DepositHistoryItem>;
     var transactionHistory : Vec.Vector<TransactionHistoryItem>;
+    userSettings : UserSettings;
   };
 
   public type PriceHistoryItem = (timestamp : Nat64, sessionNumber : Nat, assetId : AssetId, volume : Nat, price : Float);
@@ -88,6 +93,48 @@ module {
   public type TransactionHistoryItem = (timestamp : Nat64, sessionNumber : Nat, kind : { #ask; #bid }, assetId : AssetId, volume : Nat, price : Float);
 
   // stable data types
+
+  public type StableDataV5 = {
+    assets : Vec.Vector<StableAssetInfoV3>;
+    orders : { globalCounter : Nat };
+    quoteToken : { surplus : Nat };
+    sessions : {
+      counter : Nat;
+      history : {
+        immediate : ([var ?PriceHistoryItem], Nat, Nat);
+        delayed : Vec.Vector<PriceHistoryItem>;
+      };
+    };
+    users : {
+      registry : {
+        tree : RBTree.Tree<Principal, StableUserInfoV4>;
+        size : Nat;
+      };
+      participantsArchive : {
+        tree : RBTree.Tree<Principal, { lastOrderPlacement : Nat64 }>;
+        size : Nat;
+      };
+      accountsAmount : Nat;
+    };
+  };
+
+  public type StableUserInfoV4 = {
+    asks : {
+      var map : AssocList.AssocList<OrderId, StableOrderDataV2>;
+    };
+    bids : {
+      var map : AssocList.AssocList<OrderId, StableOrderDataV2>;
+    };
+    darkOrderBooks : AssocList.AssocList<AssetId, EncryptedOrderBook>;
+    credits : AssocList.AssocList<AssetId, Account>;
+    accountRevision : Nat;
+    loyaltyPoints : Nat;
+    depositHistory : Vec.Vector<DepositHistoryItem>;
+    transactionHistory : Vec.Vector<TransactionHistoryItem>;
+    userSettings : { pushNotificationsEnabled : Bool };
+  };
+
+  // old stable data types
   public type StableDataV4 = {
     assets : Vec.Vector<StableAssetInfoV3>;
     orders : { globalCounter : Nat };
@@ -143,7 +190,6 @@ module {
     volume : Nat;
   };
 
-  // old stable data types
   public type StableDataV3 = {
     assets : Vec.Vector<StableAssetInfoV2>;
     orders : { globalCounter : Nat };

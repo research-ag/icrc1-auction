@@ -1,4 +1,4 @@
-import { HttpAgent, Identity } from '@dfinity/agent';
+import { HttpAgent, Identity } from '@icp-sdk/core/agent';
 import { canisterId as CRYPTO_CANISTER_ID, createActor as createCryptoActor } from '../../declarations/crypto';
 import { DerivedKeyMaterial, DerivedPublicKey, EncryptedVetKey, TransportSecretKey } from '@dfinity/vetkeys';
 
@@ -7,7 +7,7 @@ const AES_GCM_DOMAIN = 'icrc1-auction-aes-gcm';
 const kmCache = new Map<string, Promise<DerivedKeyMaterial>>();
 
 async function getAgent(identity: Identity): Promise<HttpAgent> {
-  const agent = new HttpAgent({ identity });
+  const agent = HttpAgent.createSync({ identity });
   if (process.env.DFX_NETWORK !== 'ic') {
     try {
       await agent.fetchRootKey();

@@ -2,7 +2,7 @@ import { Box, Table } from '@mui/joy';
 
 import { usePriceHistory, useTokenInfoMap, useQuoteLedger } from '@fe/integration';
 import InfoItem from '../../root/info-item';
-import { Principal } from '@dfinity/principal';
+import { Principal } from '@icp-sdk/core/principal';
 import { displayWithDecimals } from '@fe/utils';
 import { useEffect, useRef, useState } from 'react';
 

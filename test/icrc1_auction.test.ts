@@ -1,4 +1,4 @@
-import { Actor, createIdentity, PocketIc } from '@hadronous/pic';
+import { Actor, createIdentity, PocketIc } from '@dfinity/pic';
 
 import {
   _SERVICE as LService,
@@ -14,8 +14,8 @@ import {
 import { _SERVICE as CService, idlFactory as C_IDL, init as cInit } from '../declarations/crypto/crypto.did';
 import { IDL } from '@dfinity/candid';
 import { resolve } from 'node:path';
-import { Principal } from '@dfinity/principal';
-import { Identity } from '@dfinity/agent';
+import { Principal } from '@icp-sdk/core/principal';
+import { Identity } from '@icp-sdk/core/identity';
 import { readFileSync } from "fs";
 import { tmpdir } from "os";
 
@@ -193,8 +193,7 @@ describe('ICRC1 Auction', () => {
         wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction_development/icrc1_auction_development.wasm'),
         arg: IDL.encode(aInit({ IDL }), [[], [], []]),
         sender: controller.getPrincipal(),
-      })).rejects.toThrow(`Error from Canister ${p.toText()}: Canister called \`ic0.trap\` with message: Quote ledger principal not provided.
-Consider gracefully handling failures from this canister or altering the canister to handle exceptions. See documentation: http://internetcomputer.org/docs/current/references/execution-errors#trapped-explicitly`);
+      })).rejects.toThrow(/Quote ledger principal not provided/);
     });
 
     test('should expose ledger principals', async () => {

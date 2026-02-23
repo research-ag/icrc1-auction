@@ -6,7 +6,7 @@ import WithdrawBtcModal from '../withdraw-btc-modal';
 import WithdrawCyclesModal from '../withdraw-cycles-modal';
 import { useState } from 'react';
 import InfoItem from '../../root/info-item';
-import { Principal } from '@dfinity/principal';
+import { Principal } from '@icp-sdk/core/principal';
 import { displayWithDecimals } from '@fe/utils';
 
 const CreditsTable = () => {
