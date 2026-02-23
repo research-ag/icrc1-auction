@@ -36,10 +36,10 @@ mixin(defaultAdmin : ?Principal) {
   };
 
   public shared ({ caller }) func removeAdmin(principal : Principal) : async () {
+    await* assertAdminAccess(caller);
     if (Principal.equal(principal, caller)) {
       throw Error.reject("Cannot remove yourself from admins");
     };
-    await* assertAdminAccess(caller);
     Set.remove(admins, Principal.compare, principal);
   };
 };
