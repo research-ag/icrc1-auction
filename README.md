@@ -72,7 +72,7 @@ cd icrc1-auction
 
 #### Fast verification
 
-```
+```bash
 docker-compose run --rm wasm
 ```
 
@@ -93,7 +93,7 @@ Fast verification from scratch, i.e. including downloading the base image, takes
 
 The module hash of a deployed canister can be obtained by dfx with:
 
-```
+```bash
 dfx canister --ic info <canister id>
 ```
 
@@ -104,7 +104,7 @@ or can be seen on the dashboard https://dashboard.internetcomputer.org/canister/
 If any verification has been run before and the source code has been modified since then,
 for example by checking out a new commit, then:
 
-```
+```bash
 docker-compose run --rm --build wasm
 ```
 
@@ -113,7 +113,7 @@ we have to add the `--build` option to the next run.
 
 #### Full verification
 
-```
+```bash
 docker-compose build base
 docker-compose run --rm --build wasm
 ```
@@ -125,7 +125,7 @@ The above command sequence works in all cases - it does not matter if fast verif
 
 If after full verification we want to try fast verification again then:
 
-```
+```bash
 docker-compose pull base
 docker-compose run --rm --build wasm
 ```
@@ -141,19 +141,19 @@ The generated Wasm module is available in the file `out/out_Linux_x86_64.wasm`.
 
 Create and install the canister with:
 
-```
+```bash
 dfx canister --ic install <canister_id> --wasm out/out_Linux_x86_64.wasm --argument="(opt principal \"cngnf-vqaaa-aaaar-qag4q-cai\", opt principal \"2vxsx-fae\", opt principal \"6jrls-gqaaa-aaaao-a4pgq-cai\")"
 ```
 
 #### Reinstall
 
-```
+```bash
 dfx canister --ic install <canister_id> --wasm out/out_Linux_x86_64.wasm --mode reinstall --argument="(opt principal \"cngnf-vqaaa-aaaar-qag4q-cai\", opt principal \"2vxsx-fae\", opt principal \"6jrls-gqaaa-aaaao-a4pgq-cai\")"
 ```
 
 #### Upgrade
 
-```
+```bash
 dfx canister --ic install <canister_id> --wasm out/out_Linux_x86_64.wasm --mode upgrade -y --argument="(opt principal \"cngnf-vqaaa-aaaar-qag4q-cai\", opt principal \"2vxsx-fae\", opt principal \"6jrls-gqaaa-aaaao-a4pgq-cai\")"
 ```
 
@@ -172,18 +172,18 @@ It is assumed that you have:
 Once you have cloned the repository, follow this process in your terminal:
 
 1) In your project directory, run this command to install npm dependencies:
-```
+```bash
 npm install
 ```
 
 2) Start local Internet Computer replica:
-```
+```bash
 dfx start --clean --background
 ```
 
 3) Create canisters:
 
-```
+```bash
 npm run create
 ```
 
@@ -191,7 +191,7 @@ npm run create
    canister id into `dfx.json::icrc1_auction->init_arg->first principal`
 
 5) Setup and deploy canisters locally
-```
+```bash
 npm run setup
 ```
 
@@ -200,7 +200,7 @@ function. You should create at least one additional ICRC1 ledger in order to be 
 provides additional canister `icrc1_ledger_mock_2`, which you can register as another ICRC1 ledger in auction for testing
 
 7) To start frontend in development mode, run: 
-```
+```bash
 CANISTER_ID_ICRC1_AUCTION=<canister_id> npm run dev:frontend
 ```
 Replace `<canister_id>` with your local auction canister id
