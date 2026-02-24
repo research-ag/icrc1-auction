@@ -142,19 +142,19 @@ The generated Wasm module is available in the file `out/out_Linux_x86_64.wasm`.
 Create and install the canister with:
 
 ```
-dfx canister --ic install <canister_id> --wasm out/out_Linux_x86_64.wasm --argument="(opt principal \"cngnf-vqaaa-aaaar-qag4q-cai\", opt principal \"2vxsx-fae\")"
+dfx canister --ic install <canister_id> --wasm out/out_Linux_x86_64.wasm --argument="(opt principal \"cngnf-vqaaa-aaaar-qag4q-cai\", opt principal \"2vxsx-fae\", opt principal \"6jrls-gqaaa-aaaao-a4pgq-cai\")"
 ```
 
 #### Reinstall
 
 ```
-dfx canister --ic install <canister_id> --wasm out/out_Linux_x86_64.wasm --mode reinstall --argument="(opt principal \"cngnf-vqaaa-aaaar-qag4q-cai\", opt principal \"2vxsx-fae\")"
+dfx canister --ic install <canister_id> --wasm out/out_Linux_x86_64.wasm --mode reinstall --argument="(opt principal \"cngnf-vqaaa-aaaar-qag4q-cai\", opt principal \"2vxsx-fae\", opt principal \"6jrls-gqaaa-aaaao-a4pgq-cai\")"
 ```
 
 #### Upgrade
 
 ```
-dfx canister --ic install <canister_id> --wasm out/out_Linux_x86_64.wasm --mode upgrade -y --argument="(opt principal \"cngnf-vqaaa-aaaar-qag4q-cai\", opt principal \"2vxsx-fae\")"
+dfx canister --ic install <canister_id> --wasm out/out_Linux_x86_64.wasm --mode upgrade -y --argument="(opt principal \"cngnf-vqaaa-aaaar-qag4q-cai\", opt principal \"2vxsx-fae\", opt principal \"6jrls-gqaaa-aaaao-a4pgq-cai\")"
 ```
 
 Note that checking backwards compatibility of the canister's public API or the canister's stable variables is not possible.
