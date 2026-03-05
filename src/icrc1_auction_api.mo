@@ -16,9 +16,13 @@ import Timer "mo:base/Timer";
 import AssocList "mo:base/AssocList";
 
 import Queue "mo:core/Queue";
+import Types "mo:core/Types";
+import PureList "mo:core/pure/List";
 
 import ICRC84 "mo:icrc-84";
 import PT "mo:promtracker";
+import { Counter; Gauge } "mo:promtracker";
+import PtHttp "mo:promtracker/mixins/http";
 import TokenHandler "mo:token-handler";
 import Vec "mo:vector";
 
@@ -30,7 +34,6 @@ import ICRC84Auction "./icrc84_auction";
 import AdminsMixin "./mixins/admins_mixin";
 import BtcHandler "./btc_handler";
 import FloatUtils "./utils/float";
-import HTTP "./utils/http";
 import NotificationDelegate "./notification_delegate";
 import Scheduler "./utils/scheduler";
 import TextUtils "./utils/text";
@@ -38,6 +41,76 @@ import U "./utils";
 
 // arguments have to be provided on first canister install,
 // on upgrade quote ledger will be ignored
+(
+  with migration = func(
+    old : {
+      trustedLedgerPrincipal : Principal;
+      quoteLedgerPrincipal : Principal;
+      var assetsData : Vec.Vector<{ ledgerPrincipal : Principal; minAskVolume : Nat; handler : TokenHandler.StableData; symbol : Text; decimals : Nat }>;
+      var auctionData : Auction.StableDataV5;
+      var ptData : Types.Pure.List<(Text, { #counter : Nat; #gauge : (Nat, Nat, Nat, [Nat], [Nat]); #heatmap : (Nat, Nat, [Nat]) })>;
+      var tokenHandlersJournal : Vec.Vector<(ledger : Principal, p : Principal, logEvent : TokenHandler.LogEvent)>;
+      var consolidationTimerEnabled : Bool;
+    }
+  ) : {
+    trustedLedgerPrincipal : Principal;
+    quoteLedgerPrincipal : Principal;
+    var assetsData : Vec.Vector<{ ledgerPrincipal : Principal; minAskVolume : Nat; handler : TokenHandler.StableData; symbol : Text; decimals : Nat }>;
+    var auctionData : Auction.StableDataV5;
+    var tokenHandlersJournal : Vec.Vector<(ledger : Principal, p : Principal, logEvent : TokenHandler.LogEvent)>;
+    var consolidationTimerEnabled : Bool;
+    pt : PT.Tracker;
+    notifyCounter : Counter.Counter;
+    depositCounter : Counter.Counter;
+    withdrawCounter : Counter.Counter;
+    manageOrdersCounter : Counter.Counter;
+    manageDarkOrderBooksCounter : Counter.Counter;
+    orderPlacementCounter : Counter.Counter;
+    orderReplacementCounter : Counter.Counter;
+    orderCancellationCounter : Counter.Counter;
+  } {
+    let pt = PT.new();
+    let notifyCounter = pt.newCounter("total_calls__icrc84_notify", []);
+    let depositCounter = pt.newCounter("total_calls__icrc84_deposit", []);
+    let withdrawCounter = pt.newCounter("total_calls__icrc84_withdraw", []);
+    let manageOrdersCounter = pt.newCounter("total_calls__manageOrders", []);
+    let manageDarkOrderBooksCounter = pt.newCounter("total_calls__manageDarkOrderBooks", []);
+    let orderPlacementCounter = pt.newCounter("total_calls__order_placement", []);
+    let orderReplacementCounter = pt.newCounter("total_calls__order_replacement", []);
+    let orderCancellationCounter = pt.newCounter("total_calls__order_cancellation", []);
+
+    for (x in PureList.values(old.ptData)) {
+      switch (x) {
+        case (("total_calls__icrc84_notify", #counter(val))) notifyCounter.set(val);
+        case (("total_calls__icrc84_deposit", #counter(val))) depositCounter.set(val);
+        case (("total_calls__icrc84_withdraw", #counter(val))) withdrawCounter.set(val);
+        case (("total_calls__manageOrders", #counter(val))) manageOrdersCounter.set(val);
+        case (("total_calls__manageDarkOrderBooks", #counter(val))) manageDarkOrderBooksCounter.set(val);
+        case (("total_calls__order_placement", #counter(val))) orderPlacementCounter.set(val);
+        case (("total_calls__order_replacement", #counter(val))) orderReplacementCounter.set(val);
+        case (("total_calls__order_cancellation", #counter(val))) orderCancellationCounter.set(val);
+        case (unk) Prim.trap("Skipped applying unknown pt data entry: " # debug_show unk);
+      };
+    };
+    {
+      trustedLedgerPrincipal = old.trustedLedgerPrincipal;
+      quoteLedgerPrincipal = old.quoteLedgerPrincipal;
+      var assetsData = old.assetsData;
+      var auctionData = old.auctionData;
+      var tokenHandlersJournal = old.tokenHandlersJournal;
+      var consolidationTimerEnabled = old.consolidationTimerEnabled;
+      pt;
+      notifyCounter;
+      depositCounter;
+      withdrawCounter;
+      manageOrdersCounter;
+      manageDarkOrderBooksCounter;
+      orderPlacementCounter;
+      orderReplacementCounter;
+      orderCancellationCounter;
+    };
+  }
+)
 persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Principal, cryptoCanisterId : ?Principal) = self {
 
   include AdminsMixin(adminPrincipal_);
@@ -50,7 +123,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   let quoteLedgerPrincipal : Principal = trustedLedgerPrincipal;
   var assetsData : Vec.Vector<StableAssetInfoV1> = Vec.new();
   var auctionData : Auction.StableDataV5 = Auction.defaultStableData();
-  var ptData : PT.StableData = null;
+
   var tokenHandlersJournal : Vec.Vector<(ledger : Principal, p : Principal, logEvent : TokenHandler.LogEvent)> = Vec.new();
   var consolidationTimerEnabled : Bool = true;
 
@@ -292,53 +365,65 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     #ok(id);
   };
 
-  transient let metrics = PT.PromTracker("", 65);
-  metrics.addSystemValues();
-  transient let sessionStartTimeBaseOffsetMetric = metrics.addCounter("session_start_time_base_offset", "", false);
-  transient let sessionStartTimeGauge = metrics.addGauge("session_start_time_offset_ms", "", #none, [0, 1_000, 2_000, 4_000, 8_000, 16_000, 32_000, 64_000, 128_000], false);
+  let pt = PT.new();
+  transient let renderer = PT.Renderer(pt);
+  renderer.addCanisterLabel(self);
+  include PtHttp(renderer.renderExposition, "/metrics");
+  pt.setHoldDown(62);
+
+  ignore renderer.addPullValue(PT.allSystemMetrics);
+  transient let sessionStartTimeBaseOffsetMetric = pt.newCounter("session_start_time_base_offset", []);
+  transient let sessionStartTimeGauge = pt.newGauge("session_start_time_offset_ms", [], [0, 1_000, 2_000, 4_000, 8_000, 16_000, 32_000, 64_000, 128_000]);
+
   transient let startupTime = Prim.time();
-  ignore metrics.addPullValue("uptime", "", func() = Nat64.toNat((Prim.time() - startupTime) / 1_000_000_000));
-  ignore metrics.addPullValue("sessions_counter", "", func() = auction.sessionsCounter);
-  ignore metrics.addPullValue("assets_count", "", func() = auction.assets.nAssets());
-  ignore metrics.addPullValue("users_count", "", func() = auction.users.nUsers());
-  ignore metrics.addPullValue("users_with_credits_count", "", func() = auction.users.nUsersWithCredits());
-  ignore metrics.addPullValue("accounts_count", "", func() = auction.credits.nAccounts());
-  ignore metrics.addPullValue("quote_surplus", "", func() = auction.credits.quoteSurplus);
-  ignore metrics.addPullValue("next_session_timestamp", "", func() = nextAuctionTickTimestamp);
-  ignore metrics.addPullValue("total_unique_participants", "", func() = auction.users.participantsArchiveSize);
-  ignore metrics.addPullValue("active_unique_participants", "", func() = auction.users.nUsersWithActiveOrders());
-  ignore metrics.addPullValue(
-    "monthly_active_participants_count",
-    "",
-    func() {
-      let ts : Nat64 = Prim.time() - 30 * 24 * 60 * 60_000_000_000;
-      var amount : Nat = 0;
-      for ((_, { lastOrderPlacement }) in auction.users.participantsArchive.entries()) {
-        if (lastOrderPlacement > ts) {
-          amount += 1;
-        };
-      };
-      amount;
-    },
+  ignore renderer.addPullValue(
+    PT.bundle(
+      [],
+      [
+        PT.newPullValue("uptime", [], func() = Nat64.toNat((Prim.time() - startupTime) / 1_000_000_000)),
+        PT.newPullValue("sessions_counter", [], func() = auction.sessionsCounter),
+        PT.newPullValue("assets_count", [], func() = auction.assets.nAssets()),
+        PT.newPullValue("users_count", [], func() = auction.users.nUsers()),
+        PT.newPullValue("users_with_credits_count", [], func() = auction.users.nUsersWithCredits()),
+        PT.newPullValue("accounts_count", [], func() = auction.credits.nAccounts()),
+        PT.newPullValue("quote_surplus", [], func() = auction.credits.quoteSurplus),
+        PT.newPullValue("next_session_timestamp", [], func() = nextAuctionTickTimestamp),
+        PT.newPullValue("total_unique_participants", [], func() = auction.users.participantsArchiveSize),
+        PT.newPullValue("active_unique_participants", [], func() = auction.users.nUsersWithActiveOrders()),
+        PT.newPullValue(
+          "monthly_active_participants_count",
+          [],
+          func() {
+            let ts : Nat64 = Prim.time() - 30 * 24 * 60 * 60_000_000_000;
+            var amount : Nat = 0;
+            for ((_, { lastOrderPlacement }) in auction.users.participantsArchive.entries()) {
+              if (lastOrderPlacement > ts) {
+                amount += 1;
+              };
+            };
+            amount;
+          },
+        ),
+        PT.newPullValue("total_orders", [], func() = auction.orders.ordersCounter),
+        PT.newPullValue("auctions_run_count", [], func() = auction.assets.historyLength(#delayed)),
+        PT.newPullValue("trading_pairs_count", [], func() = auction.assets.nAssets() - 1),
+        PT.newPullValue("total_points_supply", [], func() = auction.getTotalLoyaltyPointsSupply()),
+      ],
+    )
   );
-  ignore metrics.addPullValue("total_orders", "", func() = auction.orders.ordersCounter);
-  ignore metrics.addPullValue("auctions_run_count", "", func() = auction.assets.historyLength(#delayed));
-  ignore metrics.addPullValue("trading_pairs_count", "", func() = auction.assets.nAssets() - 1);
-  ignore metrics.addPullValue("total_points_supply", "", func() = auction.getTotalLoyaltyPointsSupply());
 
   // call stats
-  transient let notifyCounter = metrics.addCounter("total_calls__icrc84_notify", "", true);
-  transient let depositCounter = metrics.addCounter("total_calls__icrc84_deposit", "", true);
-  transient let withdrawCounter = metrics.addCounter("total_calls__icrc84_withdraw", "", true);
-  transient let manageOrdersCounter = metrics.addCounter("total_calls__manageOrders", "", true);
-  transient let manageDarkOrderBooksCounter = metrics.addCounter("total_calls__manageDarkOrderBooks", "", true);
-  transient let orderPlacementCounter = metrics.addCounter("total_calls__order_placement", "", true);
-  transient let orderReplacementCounter = metrics.addCounter("total_calls__order_replacement", "", true);
-  transient let orderCancellationCounter = metrics.addCounter("total_calls__order_cancellation", "", true);
+  let notifyCounter = pt.newCounter("total_calls__icrc84_notify", []);
+  let depositCounter = pt.newCounter("total_calls__icrc84_deposit", []);
+  let withdrawCounter = pt.newCounter("total_calls__icrc84_withdraw", []);
+  let manageOrdersCounter = pt.newCounter("total_calls__manageOrders", []);
+  let manageDarkOrderBooksCounter = pt.newCounter("total_calls__manageDarkOrderBooks", []);
+  let orderPlacementCounter = pt.newCounter("total_calls__order_placement", []);
+  let orderReplacementCounter = pt.newCounter("total_calls__order_replacement", []);
+  let orderCancellationCounter = pt.newCounter("total_calls__order_cancellation", []);
 
   private func registerAssetMetrics_(assetId : Auction.AssetId) {
     let tokenHandler = Vec.get(assets, assetId).handler;
-    let labels = "asset_id=\"" # Vec.get(assets, assetId).symbol # "\"";
 
     if (assetId != quoteAssetId) {
       let asset = auction.assets.getAsset(assetId);
@@ -346,73 +431,84 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
       let priceMultiplier = 10 ** Float.fromInt(Vec.get(assets, assetId).decimals);
       let renderPrice = func(price : Float) : Nat = Int.abs(Float.toInt(price * priceMultiplier));
 
-      ignore metrics.addPullValue("asks_count", labels # ",order_book=\"immediate\"", func() = asset.asks.immediate.size);
-      ignore metrics.addPullValue("asks_volume", labels # ",order_book=\"immediate\"", func() = asset.asks.immediate.totalVolume);
-      ignore metrics.addPullValue("asks_count", labels # ",order_book=\"delayed\"", func() = asset.asks.delayed.size);
-      ignore metrics.addPullValue("asks_volume", labels # ",order_book=\"delayed\"", func() = asset.asks.delayed.totalVolume);
-
-      ignore metrics.addPullValue("bids_count", labels # ",order_book=\"immediate\"", func() = asset.bids.immediate.size);
-      ignore metrics.addPullValue("bids_volume", labels # ",order_book=\"immediate\"", func() = asset.bids.immediate.totalVolume);
-      ignore metrics.addPullValue("bids_count", labels # ",order_book=\"delayed\"", func() = asset.bids.delayed.size);
-      ignore metrics.addPullValue("bids_volume", labels # ",order_book=\"delayed\"", func() = asset.bids.delayed.totalVolume);
-
-      ignore metrics.addPullValue("processing_instructions", labels, func() = asset.lastProcessingInstructions);
-      ignore metrics.addPullValue("total_executed_volume_base", labels, func() = asset.totalExecutedVolumeBase);
-      ignore metrics.addPullValue("total_executed_volume_quote", labels, func() = asset.totalExecutedVolumeQuote);
-      ignore metrics.addPullValue("total_executed_orders", labels, func() = asset.totalExecutedOrders);
-
-      ignore metrics.addPullValue(
-        "clearing_price",
-        labels,
-        func() = auction.orderBookInfo(assetId)
-        |> (switch (_.clearing) { case (#match x) { x.price }; case (_) { 0.0 } })
-        |> renderPrice(_),
-      );
-      ignore metrics.addPullValue(
-        "clearing_volume",
-        labels,
-        func() = auction.orderBookInfo(assetId)
-        |> (switch (_.clearing) { case (#match x) { x.volume }; case (_) { 0 } }),
-      );
-
-      ignore metrics.addPullValue(
-        "last_price",
-        labels,
-        func() = auction.getPriceHistory([assetId], #desc, false).next()
-        |> (
-          switch (_) {
-            case (?item) renderPrice(item.4);
-            case (null) 0;
-          }
-        ),
-      );
-      ignore metrics.addPullValue(
-        "last_volume",
-        labels,
-        func() = auction.getPriceHistory([assetId], #desc, false).next()
-        |> (
-          switch (_) {
-            case (?item) item.3;
-            case (null) 0;
-          }
-        ),
+      ignore renderer.addPullValue(
+        PT.bundle(
+          [("asset_id", Vec.get(assets, assetId).symbol)],
+          [
+            PT.bundle(
+              [("order_book", "immediate")],
+              [
+                PT.newPullValue("asks_count", [], func() = asset.asks.immediate.size),
+                PT.newPullValue("asks_volume", [], func() = asset.asks.immediate.totalVolume),
+                PT.newPullValue("bids_count", [], func() = asset.bids.immediate.size),
+                PT.newPullValue("bids_volume", [], func() = asset.bids.immediate.totalVolume),
+              ],
+            ),
+            PT.bundle(
+              [("order_book", "delayed")],
+              [
+                PT.newPullValue("asks_count", [], func() = asset.asks.delayed.size),
+                PT.newPullValue("asks_volume", [], func() = asset.asks.delayed.totalVolume),
+                PT.newPullValue("bids_count", [], func() = asset.bids.delayed.size),
+                PT.newPullValue("bids_volume", [], func() = asset.bids.delayed.totalVolume),
+              ],
+            ),
+            PT.newPullValue("processing_instructions", [], func() = asset.lastProcessingInstructions),
+            PT.newPullValue("total_executed_volume_base", [], func() = asset.totalExecutedVolumeBase),
+            PT.newPullValue("total_executed_volume_quote", [], func() = asset.totalExecutedVolumeQuote),
+            PT.newPullValue("total_executed_orders", [], func() = asset.totalExecutedOrders),
+            PT.newPullValue(
+              "clearing_price",
+              [],
+              func() = auction.orderBookInfo(assetId)
+              |> (switch (_.clearing) { case (#match x) { x.price }; case (_) { 0.0 } })
+              |> renderPrice(_),
+            ),
+            PT.newPullValue(
+              "clearing_volume",
+              [],
+              func() = auction.orderBookInfo(assetId)
+              |> (switch (_.clearing) { case (#match x) { x.volume }; case (_) { 0 } }),
+            ),
+            PT.newPullValue(
+              "last_price",
+              [],
+              func() = auction.getPriceHistory([assetId], #desc, false).next()
+              |> (
+                switch (_) {
+                  case (?item) renderPrice(item.4);
+                  case (null) 0;
+                }
+              ),
+            ),
+            PT.newPullValue(
+              "last_volume",
+              [],
+              func() = auction.getPriceHistory([assetId], #desc, false).next()
+              |> (
+                switch (_) {
+                  case (?item) item.3;
+                  case (null) 0;
+                }
+              ),
+            ),
+          ],
+        )
       );
     };
-    ignore metrics.addPullValue(
-      "token_handler_locks",
-      labels,
-      func() = tokenHandler.state().users.locked,
-    );
-    ignore metrics.addPullValue(
-      "token_handler_frozen",
-      labels,
-      func() = if (tokenHandler.isFrozen()) { 1 } else { 0 },
+    ignore renderer.addPullValue(
+      PT.bundle(
+        [("asset_id", Vec.get(assets, assetId).symbol)],
+        [
+          PT.newPullValue("token_handler_locks", [], func() = tokenHandler.state().users.locked),
+          PT.newPullValue("token_handler_frozen", [], func() = if (tokenHandler.isFrozen()) { 1 } else { 0 }),
+        ],
+      )
     );
   };
   for (assetId in Iter.range(0, auction.assets.nAssets() - 1)) {
     registerAssetMetrics_(assetId);
   };
-  metrics.unshare(ptData);
 
   // ICRC84 API
   public shared query func principalToSubaccount(p : Principal) : async ?Blob = async ?TokenHandler.toSubaccount(p);
@@ -1277,14 +1373,6 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     };
   };
 
-  public query func http_request(req : HTTP.HttpRequest) : async HTTP.HttpResponse {
-    let ?path = Text.split(req.url, #char '?').next() else return HTTP.render400();
-    switch (req.method, path) {
-      case ("GET", "/metrics") metrics.renderExposition("canister=\"" # PT.shortName(self) # "\"") |> HTTP.renderPlainText(_);
-      case (_) HTTP.render400();
-    };
-  };
-
   system func preupgrade() {
     assetsData := Vec.map<AssetInfo, StableAssetInfoV1>(
       assets,
@@ -1297,7 +1385,6 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
       },
     );
     auctionData := auction.share();
-    ptData := metrics.share();
   };
 
   // A timer for consolidating backlog subaccounts, runs each minute at 30th second

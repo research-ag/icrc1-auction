@@ -1,7 +1,6 @@
 [dependencies]
 base = "0.16.0"
 core = "2.0.0"
-promtracker = "0.5.4"
 vector = "0.4.1"
 bitcoin = "0.1.1"
 icrc-84 = "0.1.0"
@@ -9,6 +8,7 @@ token-handler = "0.0.4"
 ckbtc-address = "0.0.1"
 auction = "3.0.0"
 mrr = "https://github.com/research-ag/motoko-lib#9939f9e79ce37e975b64aec18c0f9b186514bdaf"
+promtracker = "https://github.com/research-ag/promtracker#feature/pull-value-convenience-functions@cfbd874fbd8b0d9f1ad63a4acdc143bd13d7066e"
 
 [toolchain]
 moc = "1.1.0"
