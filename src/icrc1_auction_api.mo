@@ -499,12 +499,14 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   };
 
   public shared ({ caller }) func icrc84_notify(args : ICRC84.NotifyArgs) : async ICRC84.NotifyResponse {
+    Prim.trap("Auction is temporarily disabled");
     notifyCounter.add(1);
     let ?assetId = getAssetId(args.token) else return #Err(#NotAvailable({ message = "Unknown token" }));
     await* notify(caller, assetId);
   };
 
   public shared ({ caller }) func icrc84_deposit(args : ICRC84.DepositArgs) : async ICRC84.DepositResponse {
+    Prim.trap("Auction is temporarily disabled");
     depositCounter.add(1);
     let ?assetId = getAssetId(args.token) else throw Error.reject("Unknown token");
     let assetInfo = Vec.get(assets, assetId);
@@ -545,6 +547,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   };
 
   public shared ({ caller }) func icrc84_withdraw(args : ICRC84.WithdrawArgs) : async ICRC84.WithdrawResponse {
+    Prim.trap("Auction is temporarily disabled");
     withdrawCounter.add(1);
     let ?assetId = getAssetId(args.token) else throw Error.reject("Unknown token");
     let handler = Vec.get(assets, assetId).handler;
@@ -579,6 +582,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   };
 
   public shared ({ caller }) func btc_notify() : async BtcNotifyResult {
+    Prim.trap("Auction is temporarily disabled");
     let ?ckbtcAssetId = getAssetId(CKBTC_LEDGER_PRINCIPAL) else throw Error.reject("BTC is not supported");
     switch (await* btcHandler.notify(caller)) {
       case (#ok) await* notify(caller, ckbtcAssetId);
@@ -587,6 +591,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   };
 
   public shared ({ caller }) func btc_withdraw(args : { to : Text; amount : Nat }) : async BtcWithdrawResult {
+    Prim.trap("Auction is temporarily disabled");
     let ?ckbtcAssetId = getAssetId(CKBTC_LEDGER_PRINCIPAL) else throw Error.reject("BTC is not supported");
     let handler = Vec.get(assets, ckbtcAssetId).handler;
 
@@ -622,6 +627,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   };
 
   public shared ({ caller }) func cycles_withdraw(args : { to : Principal; amount : Nat }) : async DirectCyclesWithdrawResult {
+    Prim.trap("Auction is temporarily disabled");
     let ?cyclesAssetId = getAssetId(TCYCLES_LEDGER_PRINCIPAL) else throw Error.reject("Cycles asset is not supported");
 
     let ledgerFee = 100_000_000;
@@ -929,6 +935,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     }],
     expectedAccountRevision : ?Nat,
   ) : async UpperResult<([ICRC84Auction.CancellationResult], [Auction.PlaceOrderResult]), ICRC84Auction.ManageOrdersError> {
+    Prim.trap("Auction is temporarily disabled");
     manageOrdersCounter.add(1);
     let cancellationArg : ?Auction.CancellationAction = switch (cancellations) {
       case (null) null;
@@ -960,6 +967,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   };
 
   public shared ({ caller }) func manageDarkOrderBooks(args : [(Principal, ?Auction.EncryptedOrderBook)], expectedAccountRevision : ?Nat) : async UpperResult<[?Auction.EncryptedOrderBook], { #AccountRevisionMismatch; #UnknownAsset : Principal; #UnknownPrincipal; #NoCredit }> {
+    Prim.trap("Auction is temporarily disabled");
     manageDarkOrderBooksCounter.add(1);
     let pureArgs = Array.init<(Auction.AssetId, ?Auction.EncryptedOrderBook)>(args.size(), (0, null));
     for (i in args.keys()) {
@@ -970,6 +978,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   };
 
   public shared ({ caller }) func placeBids(arg : [(ledger : Principal, orderBookType : Auction.OrderBookType, volume : Nat, price : Float)], expectedAccountRevision : ?Nat) : async [UpperResult<Auction.PlaceOrderResult, ICRC84Auction.PlaceOrderError>] {
+    Prim.trap("Auction is temporarily disabled");
     orderPlacementCounter.add(1);
     let ret = Array.tabulate<UpperResult<Auction.PlaceOrderResult, ICRC84Auction.PlaceOrderError>>(
       arg.size(),
@@ -984,6 +993,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   };
 
   public shared ({ caller }) func replaceBid(orderId : Auction.OrderId, volume : Nat, price : Float, expectedAccountRevision : ?Nat) : async UpperResult<Auction.PlaceOrderResult, ICRC84Auction.ReplaceOrderError> {
+    Prim.trap("Auction is temporarily disabled");
     orderReplacementCounter.add(1);
     let ret = auction.replaceOrder(caller, #bid, orderId, volume : Nat, price : Float, expectedAccountRevision)
     |> R.toUpper(_);
@@ -992,6 +1002,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   };
 
   public shared ({ caller }) func cancelBids(orderIds : [Auction.OrderId], expectedAccountRevision : ?Nat) : async [UpperResult<ICRC84Auction.CancellationResult, ICRC84Auction.CancelOrderError>] {
+    Prim.trap("Auction is temporarily disabled");
     orderCancellationCounter.add(1);
     Array.tabulate<UpperResult<ICRC84Auction.CancellationResult, ICRC84Auction.CancelOrderError>>(
       orderIds.size(),
@@ -1000,6 +1011,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   };
 
   public shared ({ caller }) func placeAsks(arg : [(ledger : Principal, orderBookType : Auction.OrderBookType, volume : Nat, price : Float)], expectedAccountRevision : ?Nat) : async [UpperResult<Auction.PlaceOrderResult, ICRC84Auction.PlaceOrderError>] {
+    Prim.trap("Auction is temporarily disabled");
     orderPlacementCounter.add(1);
     let ret = Array.tabulate<UpperResult<Auction.PlaceOrderResult, ICRC84Auction.PlaceOrderError>>(
       arg.size(),
@@ -1014,6 +1026,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   };
 
   public shared ({ caller }) func replaceAsk(orderId : Auction.OrderId, volume : Nat, price : Float, expectedAccountRevision : ?Nat) : async UpperResult<Auction.PlaceOrderResult, ICRC84Auction.ReplaceOrderError> {
+    Prim.trap("Auction is temporarily disabled");
     orderReplacementCounter.add(1);
     let ret = auction.replaceOrder(caller, #ask, orderId, volume : Nat, price : Float, expectedAccountRevision)
     |> R.toUpper(_);
@@ -1022,6 +1035,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   };
 
   public shared ({ caller }) func cancelAsks(orderIds : [Auction.OrderId], expectedAccountRevision : ?Nat) : async [UpperResult<ICRC84Auction.CancellationResult, ICRC84Auction.CancelOrderError>] {
+    Prim.trap("Auction is temporarily disabled");
     orderCancellationCounter.add(1);
     Array.tabulate<UpperResult<ICRC84Auction.CancellationResult, ICRC84Auction.CancelOrderError>>(
       orderIds.size(),
@@ -1046,6 +1060,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
       pushNotificationsEnabled : ?Bool;
     }
   ) : async SharedUserSettings {
+    Prim.trap("Auction is temporarily disabled");
     let ?user = auction.users.get(caller) else throw Error.reject("Unknown principal");
     switch (settings.pushNotificationsEnabled) {
       case (null) {};
@@ -1337,10 +1352,11 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     },
   );
   if (consolidationTimerEnabled) {
-    consolidationSchedule.start<system>();
+    // consolidationSchedule.start<system>();
   };
 
   public shared ({ caller }) func setConsolidationTimerEnabled(enabled : Bool) : async () {
+    Prim.trap("Auction is temporarily disabled");
     await* permissions.assertAdminAccess(caller);
     consolidationTimerEnabled := enabled;
     if (enabled) {
@@ -1363,9 +1379,10 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   );
   _runAuction := runAuction;
 
-  auctionSchedule.start<system>();
+  // auctionSchedule.start<system>();
 
   public shared ({ caller }) func restartAuctionTimer() : async () {
+    Prim.trap("Auction is temporarily disabled");
     await* permissions.assertAdminAccess(caller);
     auctionSchedule.stop();
     auctionSchedule.start<system>();
@@ -1373,12 +1390,12 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
 
   // If assets are empty, register quote asset
   if (Vec.size(assets) == 0) {
-    ignore Timer.setTimer<system>(
+    /*ignore Timer.setTimer<system>(
       #seconds(0),
       func() : async () {
         ignore U.requireOk(await* registerAsset_(quoteLedgerPrincipal, 0));
       },
-    );
+    );*/
   };
 
 };
