@@ -14,6 +14,7 @@ import R "mo:base/Result";
 import Text "mo:base/Text";
 import Timer "mo:base/Timer";
 import AssocList "mo:base/AssocList";
+import RBTree "mo:base/RBTree";
 
 import Queue "mo:core/Queue";
 
@@ -35,6 +36,8 @@ import Permissions "./utils/permissions";
 import Scheduler "./utils/scheduler";
 import TextUtils "./utils/text";
 import U "./utils";
+
+import Icrc1Api "mo:token-handler/icrc1-api";
 
 // arguments have to be provided on first canister install,
 // on upgrade quote ledger will be ignored
@@ -468,6 +471,25 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
       };
     };
     Vec.toArray(ret);
+  };
+
+
+  public shared ({ caller }) func auditUserBalances() : async Text {
+    await* permissions.assertAdminAccess(caller);
+    var res = "===== ASSSETS ======\n";
+    for (assetInfo in Vec.vals(assets)) {
+      res #= assetInfo.symbol # ": " # Principal.toText(assetInfo.ledgerPrincipal) # "\n";
+    };
+    res #= "\n===== BALANCES ======\n";
+    let usersTree = auction.users.users.share();
+    for ((user, userData) in RBTree.iter(usersTree, #fwd)) {
+      res #= "User: " # Principal.toText(user) # "\n";
+      for ((aid, credit) in auction.getCredits(user).vals()) {
+        res #= Vec.get(assets, aid).symbol # ": " # debug_show(credit) # "\n";
+      };
+      res #= "\n";
+    };
+    res;
   };
 
   private func notify(p : Principal, assetId : Auction.AssetId) : async* ICRC84.NotifyResponse {
