@@ -1,14 +1,11 @@
 [dependencies]
-base = "0.16.0"
-core = "2.0.0"
-vector = "0.4.1"
-bitcoin = "0.1.1"
-icrc-84 = "0.1.0"
-token-handler = "0.0.4"
-ckbtc-address = "0.0.1"
-auction = "3.0.0"
-mrr = "https://github.com/research-ag/motoko-lib#9939f9e79ce37e975b64aec18c0f9b186514bdaf"
-promtracker = "https://github.com/research-ag/promtracker#feature/pull-value-convenience-functions@cfbd874fbd8b0d9f1ad63a4acdc143bd13d7066e"
+core = "2.6.0"
+bitcoin = "0.2.1"
+icrc-84 = "0.1.4"
+token-handler = "https://github.com/research-ag/token-handler#11c3350038bbe9675aecca59302e761b85faf80c"
+ckbtc-address = "0.0.2"
+auction = "3.0.5"
+promtracker = "1.0.1"
 
 [toolchain]
-moc = "1.1.0"
+moc = "1.11.1"
