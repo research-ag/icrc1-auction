@@ -17,27 +17,27 @@ const PriceHistoryTable = () => {
 
   const observerRef = useRef(null);
 
-  const getInfo = (ledger: Principal): { symbol: string, decimals: number } => {
+  const getInfo = (ledger: Principal): { symbol: string; decimals: number } => {
     const mapItem = (symbols || []).find(([p, s]) => p.toText() === ledger.toText());
     return mapItem ? mapItem[1] : { symbol: '-', decimals: 0 };
   };
 
   useEffect(() => {
     if (data) {
-      setItems((prevItems) => [...prevItems, ...data]);
+      setItems(prevItems => [...prevItems, ...data]);
     }
   }, [data]);
 
   // Intersection Observer to detect when we reach the bottom
   useEffect(() => {
     const observer = new IntersectionObserver(
-      (entries) => {
+      entries => {
         if (entries[0].isIntersecting && !isFetching && !isError) {
           // Load next page when scrolled to bottom
-          setOffset((prevOffset) => prevOffset + LIMIT);
+          setOffset(prevOffset => prevOffset + LIMIT);
         }
       },
-      { threshold: 1 }
+      { threshold: 1 },
     );
 
     if (observerRef.current) {
@@ -62,26 +62,26 @@ const PriceHistoryTable = () => {
           <col style={{ width: '95px' }} />
         </colgroup>
         <thead>
-        <tr>
-          <th>Timestamp</th>
-          <th>Session</th>
-          <th>Token symbol</th>
-          <th>Volume</th>
-          <th>Price</th>
-        </tr>
+          <tr>
+            <th>Timestamp</th>
+            <th>Session</th>
+            <th>Token symbol</th>
+            <th>Volume</th>
+            <th>Price</th>
+          </tr>
         </thead>
         <tbody>
-        {(items ?? []).map(([ts, sessionNumber, ledger, volume, price]) => (
-          <tr key={String(ts)}>
-            <td>{String(new Date(Number(ts) / 1_000_000))}</td>
-            <td>{String(sessionNumber)}</td>
-            <td>
-              <InfoItem content={getInfo(ledger).symbol} withCopy={true} />
-            </td>
-            <td>{displayWithDecimals(volume, getInfo(ledger).decimals)}</td>
-            <td>{displayWithDecimals(price, getInfo(quoteLedger!).decimals - getInfo(ledger).decimals, 6)}</td>
-          </tr>
-        ))}
+          {(items ?? []).map(([ts, sessionNumber, ledger, volume, price]) => (
+            <tr key={String(ts)}>
+              <td>{String(new Date(Number(ts) / 1_000_000))}</td>
+              <td>{String(sessionNumber)}</td>
+              <td>
+                <InfoItem content={getInfo(ledger).symbol} withCopy={true} />
+              </td>
+              <td>{displayWithDecimals(volume, getInfo(ledger).decimals)}</td>
+              <td>{displayWithDecimals(price, getInfo(quoteLedger!).decimals - getInfo(ledger).decimals, 6)}</td>
+            </tr>
+          ))}
         </tbody>
       </Table>
       <div ref={observerRef} style={{ height: '20px' }} />

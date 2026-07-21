@@ -15,14 +15,12 @@ module.exports = async () => {
   if (existsSync(picServerPidFile)) {
     try {
       unlinkSync(picServerPidFile);
-    } catch {
-    }
+    } catch {}
   }
   if (existsSync(portFilePath)) {
     try {
       unlinkSync(portFilePath);
-    } catch {
-    }
+    } catch {}
   }
 
   console.log('[jest.setup] Starting PocketIC server...');

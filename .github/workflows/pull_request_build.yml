@@ -7,6 +7,23 @@ env:
   dfx_version: 0.29.0
 
 jobs:
+  fmt:
+    name: Formatting Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: latest
+
+      - name: Prettier Check
+        run: |
+          npm install prettier prettier-plugin-motoko --no-save
+          npx prettier --plugin prettier-plugin-motoko --check '**/*.{mo,json,md,ts,tsx,js}'
+
   build:
     runs-on: ubuntu-22.04
 

@@ -71,7 +71,7 @@ module {
     };
 
     public func register(n : Nat, sessionsCounter : Nat) {
-      for (i in Nat.range(1, n + 1)) {
+      for (_ in Nat.range(0, n)) {
         (
           {
             bids = {

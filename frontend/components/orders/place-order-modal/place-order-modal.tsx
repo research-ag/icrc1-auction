@@ -13,7 +13,7 @@ import {
   ModalDialog,
   Radio,
   RadioGroup,
-  Typography
+  Typography,
 } from '@mui/joy';
 
 import { usePlaceOrder, useQuoteLedger, useTokenInfoMap } from '@fe/integration';
@@ -35,9 +35,7 @@ interface PlaceOrderModalProps {
 }
 
 const schema = zod.object({
-  symbol: zod
-    .string()
-    .min(1),
+  symbol: zod.string().min(1),
   volume: zod
     .string()
     .min(0)
@@ -100,16 +98,19 @@ const PlaceOrderModal = ({ kind, isOpen, onClose }: PlaceOrderModalProps) => {
       return;
     }
     let decimals = getTokenDecimals(data.symbol);
-    placeOrder({
-      ledger: p.toText(),
-      price: data.price * Math.pow(10, getQuoteDecimals() - decimals),
-      volume: Math.round(data.volume * Math.pow(10, decimals)),
-      orderBookType: data.orderBookType,
-    }, {
-      onSuccess: () => {
-        onClose();
+    placeOrder(
+      {
+        ledger: p.toText(),
+        price: data.price * Math.pow(10, getQuoteDecimals() - decimals),
+        volume: Math.round(data.volume * Math.pow(10, decimals)),
+        orderBookType: data.orderBookType,
       },
-    });
+      {
+        onSuccess: () => {
+          onClose();
+        },
+      },
+    );
   };
 
   useEffect(() => {
@@ -120,7 +121,7 @@ const PlaceOrderModal = ({ kind, isOpen, onClose }: PlaceOrderModalProps) => {
   return (
     <Modal open={isOpen} onClose={onClose}>
       <ModalDialog sx={{ width: 'calc(100% - 50px)', maxWidth: '450px' }}>
-        <ModalClose/>
+        <ModalClose />
         <Typography level="h4">Place {kind}</Typography>
         <form onSubmit={handleSubmit(submit)} autoComplete="off">
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -130,12 +131,9 @@ const PlaceOrderModal = ({ kind, isOpen, onClose }: PlaceOrderModalProps) => {
               render={({ field }) => (
                 <FormControl>
                   <FormLabel>Order Book Type</FormLabel>
-                  <RadioGroup
-                    name={field.name}
-                    value={field.value}
-                    onChange={field.onChange}>
-                    <Radio value="delayed" label="Delayed"/>
-                    <Radio value="immediate" label="Immediate"/>
+                  <RadioGroup name={field.name} value={field.value} onChange={field.onChange}>
+                    <Radio value="delayed" label="Delayed" />
+                    <Radio value="immediate" label="Immediate" />
                   </RadioGroup>
                 </FormControl>
               )}
@@ -195,7 +193,7 @@ const PlaceOrderModal = ({ kind, isOpen, onClose }: PlaceOrderModalProps) => {
               )}
             />
           </Box>
-          {!!error && <ErrorAlert errorMessage={(error as Error).message}/>}
+          {!!error && <ErrorAlert errorMessage={(error as Error).message} />}
           <Button
             sx={{ marginTop: 2 }}
             variant="solid"

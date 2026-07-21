@@ -83,15 +83,15 @@ module {
         // bids with greater price and asks with lower price will be fulfilled
         let criticalPrice : Float = 1_000.0;
 
-        for (i in Nat.range(1, nOrders / 2 + 1)) {
-          let user = users[i - 1];
+        for (i in Nat.range(0, nOrders / 2)) {
+          let user = users[i];
           ignore a.appendCredit(user, 0, 5_000_000);
-          ignore a.placeOrder(user, #bid, 1, #delayed, dealVolume / Nat.max(nBids, 1), criticalPrice + Prim.intToFloat((nBids - i)) * 0.1, null);
+          ignore a.placeOrder(user, #bid, 1, #delayed, dealVolume / Nat.max(nBids, 1), criticalPrice + Prim.intToFloat((nBids - i - 1)) * 0.1, null);
         };
-        for (i in Nat.range(1, nOrders / 2 + 1)) {
-          let user = users[nOrders / 2 + i - 1];
+        for (i in Nat.range(0, nOrders / 2)) {
+          let user = users[nOrders / 2 + i];
           ignore a.appendCredit(user, 1, 5_000_000);
-          ignore a.placeOrder(user, #ask, 1, #delayed, dealVolume / Nat.max(nAsks, 1), criticalPrice - Prim.intToFloat((nAsks - i)) * 0.1, null);
+          ignore a.placeOrder(user, #ask, 1, #delayed, dealVolume / Nat.max(nAsks, 1), criticalPrice - Prim.intToFloat((nAsks - i - 1)) * 0.1, null);
         };
         assert a.assets.getAsset(1).bids.delayed.size == nOrders / 2;
         assert a.assets.getAsset(1).asks.delayed.size == nOrders / 2;
@@ -99,9 +99,12 @@ module {
       },
     );
 
-    Bench.V1(schema, func(ri : Nat, ci : Nat) {
-      let auction = auctions[ci * schema.rows.size() + ri];
-      auction.processAsset(1);
-    });
+    Bench.V1(
+      schema,
+      func(ri : Nat, ci : Nat) {
+        let auction = auctions[ci * schema.rows.size() + ri];
+        auction.processAsset(1);
+      },
+    );
   };
 };

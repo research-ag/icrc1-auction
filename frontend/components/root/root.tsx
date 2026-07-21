@@ -46,7 +46,7 @@ const Root = () => {
   const { data: auctionQuery } = useAuctionQuery();
   const { data: points } = usePoints(auctionQuery);
   const { data: sessionsCounter } = useSessionsCounter();
-  const getInfo = (ledger: Principal): { symbol: string, decimals: number } => {
+  const getInfo = (ledger: Principal): { symbol: string; decimals: number } => {
     try {
       const mapItem = (symbols || []).find(([p, s]) => p.toText() == ledger.toText());
       return mapItem ? mapItem[1] : { symbol: '-', decimals: 0 };
@@ -62,8 +62,7 @@ const Root = () => {
     try {
       Principal.fromText(auctionIdInput);
       updateAuctionCanisterId(auctionIdInput);
-    } catch (err) {
-    }
+    } catch (err) {}
   }, [auctionIdInput]);
 
   useEffect(() => {
@@ -115,24 +114,30 @@ const Root = () => {
               marginBottom: 1,
             }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Typography sx={{ fontWeight: 700 }} level="body-xs">Auction backend:</Typography>
-              <input type="text" value={auctionIdInput}
-                     onChange={e => setAuctionIdInput(e.target.value)}></input>
+              <Typography sx={{ fontWeight: 700 }} level="body-xs">
+                Auction backend:
+              </Typography>
+              <input type="text" value={auctionIdInput} onChange={e => setAuctionIdInput(e.target.value)}></input>
               <button onClick={e => setAuctionIdInput(defaultAuctionCanisterId)}>Reset</button>
             </Box>
-            <InfoItem label="Sessions counter"
-                      content={isNaN(Number(sessionsCounter)) ? '-' : String(sessionsCounter)}/>
-            <InfoItem label="Your principal" content={userPrincipal} withCopy/>
+            <InfoItem
+              label="Sessions counter"
+              content={isNaN(Number(sessionsCounter)) ? '-' : String(sessionsCounter)}
+            />
+            <InfoItem label="Your principal" content={userPrincipal} withCopy />
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Typography sx={{ fontWeight: 700 }} level="body-xs">Principal seed:</Typography>
+              <Typography sx={{ fontWeight: 700 }} level="body-xs">
+                Principal seed:
+              </Typography>
               <input type="text" onChange={e => onSeedInput(e.target.value)}></input>
             </Box>
-            <InfoItem label="Quote currency ledger" content={quoteLedger?.toText() || ''} withCopy/>
-            <InfoItem label="Auction principal" content={auctionId} withCopy/>
-            <InfoItem label="Minimum order size"
-                      content={quoteLedger ? displayWithDecimals(minimumOrder || 0, getInfo(quoteLedger).decimals, 6) : '-'}/>
-            <InfoItem label="Points"
-                      content={isNaN(Number(points)) ? '-' : String(points)}/>
+            <InfoItem label="Quote currency ledger" content={quoteLedger?.toText() || ''} withCopy />
+            <InfoItem label="Auction principal" content={auctionId} withCopy />
+            <InfoItem
+              label="Minimum order size"
+              content={quoteLedger ? displayWithDecimals(minimumOrder || 0, getInfo(quoteLedger).decimals, 6) : '-'}
+            />
+            <InfoItem label="Points" content={isNaN(Number(points)) ? '-' : String(points)} />
           </Box>
         </Box>
         <Box
@@ -152,19 +157,19 @@ const Root = () => {
             <Tab color="neutral">Price history</Tab>
             <Tab color="neutral">Admins</Tab>
           </TabList>
-          <ConnectButton/>
-          <ThemeButton sx={{ marginLeft: 1 }}/>
-          <PushBell sx={{ marginLeft: 1 }}/>
+          <ConnectButton />
+          <ThemeButton sx={{ marginLeft: 1 }} />
+          <PushBell sx={{ marginLeft: 1 }} />
         </Box>
-        {tabValue === 0 && <Assets/>}
-        {tabValue === 1 && <Credits/>}
-        {tabValue === 2 && <Orders kind="bid"/>}
-        {tabValue === 3 && <Orders kind="ask"/>}
-        {tabValue === 4 && <DarkOrders/>}
-        {tabValue === 5 && <DepositHistory/>}
-        {tabValue === 6 && <TransactionsHistory/>}
-        {tabValue === 7 && <PriceHistory/>}
-        {tabValue === 8 && <Owners/>}
+        {tabValue === 0 && <Assets />}
+        {tabValue === 1 && <Credits />}
+        {tabValue === 2 && <Orders kind="bid" />}
+        {tabValue === 3 && <Orders kind="ask" />}
+        {tabValue === 4 && <DarkOrders />}
+        {tabValue === 5 && <DepositHistory />}
+        {tabValue === 6 && <TransactionsHistory />}
+        {tabValue === 7 && <PriceHistory />}
+        {tabValue === 8 && <Owners />}
       </Tabs>
     </Box>
   );

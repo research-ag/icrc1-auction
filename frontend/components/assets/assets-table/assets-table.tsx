@@ -15,15 +15,15 @@ const AssetsTable = () => {
           <col style={{ width: '80px' }} />
         </colgroup>
         <thead>
-        <tr>
-          <th>#</th>
-          <th>Symbol</th>
-          <th>Ledger principal</th>
-          <th>Decimals</th>
-        </tr>
+          <tr>
+            <th>#</th>
+            <th>Symbol</th>
+            <th>Ledger principal</th>
+            <th>Decimals</th>
+          </tr>
         </thead>
         <tbody>
-        {(symbols ?? []).map(([p, { symbol, decimals }], i) => {
+          {(symbols ?? []).map(([p, { symbol, decimals }], i) => {
             return (
               <tr key={i}>
                 <td>{String(i)}</td>
@@ -36,7 +36,7 @@ const AssetsTable = () => {
                 <td>{String(decimals)}</td>
               </tr>
             );
-        })}
+          })}
         </tbody>
       </Table>
     </Box>

@@ -23,24 +23,27 @@ export async function getDerivedKeyMaterial(identity: Identity): Promise<Derived
   if (!CRYPTO_CANISTER_ID) return null;
 
   if (!kmCache.has(principalText)) {
-    kmCache.set(principalText, (async () => {
-      const agent = await getAgent(identity);
-      const crypto = createCryptoActor(CRYPTO_CANISTER_ID, { agent });
+    kmCache.set(
+      principalText,
+      (async () => {
+        const agent = await getAgent(identity);
+        const crypto = createCryptoActor(CRYPTO_CANISTER_ID, { agent });
 
-      const dpkBytes = new Uint8Array(await crypto.get_ibe_public_key());
-      const dpk = DerivedPublicKey.deserialize(dpkBytes);
+        const dpkBytes = new Uint8Array(await crypto.get_ibe_public_key());
+        const dpk = DerivedPublicKey.deserialize(dpkBytes);
 
-      const tsk = TransportSecretKey.random();
-      const tpk = tsk.publicKeyBytes();
+        const tsk = TransportSecretKey.random();
+        const tpk = tsk.publicKeyBytes();
 
-      const enc = new Uint8Array(await (crypto as any).encrypted_symmetric_key_for_user(tpk));
-      const encrypted = EncryptedVetKey.deserialize(enc);
+        const enc = new Uint8Array(await (crypto as any).encrypted_symmetric_key_for_user(tpk));
+        const encrypted = EncryptedVetKey.deserialize(enc);
 
-      const input = (identity.getPrincipal() as any).toUint8Array();
-      const vetKey = encrypted.decryptAndVerify(tsk, dpk, input);
+        const input = (identity.getPrincipal() as any).toUint8Array();
+        const vetKey = encrypted.decryptAndVerify(tsk, dpk, input);
 
-      return await vetKey.asDerivedKeyMaterial();
-    })());
+        return await vetKey.asDerivedKeyMaterial();
+      })(),
+    );
   }
 
   return kmCache.get(principalText)!;

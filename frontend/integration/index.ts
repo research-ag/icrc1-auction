@@ -187,7 +187,11 @@ export const useTokenInfoMap = () => {
     'assetInfos',
     async () => {
       const assets = queryClient.getQueryData('assets') as Principal[] | undefined;
-      const info = await Promise.all((assets || []).map(async p => createLedgerActor(p, { agentOptions: { host: 'https://icp-api.io' } }).icrc1_metadata()));
+      const info = await Promise.all(
+        (assets || []).map(async p =>
+          createLedgerActor(p, { agentOptions: { host: 'https://icp-api.io' } }).icrc1_metadata(),
+        ),
+      );
       const mapInfo = (
         info: ['icrc1:decimals' | 'icrc1:symbol', { Nat: bigint } | { Text: string }][],
       ): {
@@ -381,7 +385,14 @@ export const usePlaceOrder = (kind: 'ask' | 'bid') => {
   return useMutation(
     (formObj: { ledger: string; volume: number; price: number; orderBookType: 'delayed' | 'immediate' }) =>
       (kind === 'bid' ? auction.placeBids : auction.placeAsks).bind(auction)(
-        [[Principal.fromText(formObj.ledger), { [formObj.orderBookType]: null } as any, BigInt(formObj.volume), Number(formObj.price)]],
+        [
+          [
+            Principal.fromText(formObj.ledger),
+            { [formObj.orderBookType]: null } as any,
+            BigInt(formObj.volume),
+            Number(formObj.price),
+          ],
+        ],
         [],
       ),
     {
@@ -397,7 +408,9 @@ export const usePlaceOrder = (kind: 'ask' | 'bid') => {
             enqueueSnackbar(`${kind} placed, order ID: ${orderId}`, { variant: 'success' });
           } else if ('executed' in res['Ok'][1]) {
             let [price, volumeExecuted] = res['Ok'][1]['executed'][0];
-            enqueueSnackbar(`${kind} executed with price ${price}, volume executed: ${Number(volumeExecuted)}`, { variant: 'success' });
+            enqueueSnackbar(`${kind} executed with price ${price}, volume executed: ${Number(volumeExecuted)}`, {
+              variant: 'success',
+            });
           }
         }
       },
@@ -629,7 +642,6 @@ export const useIsAdmin = () => {
     [data, identity],
   );
 };
-
 
 export const useListDarkOrderBooks = (auctionQueryData: AuctionQueryResponse | undefined) => {
   return useQuery(['dark-order-books', auctionQueryData], async () => auctionQueryData?.dark_order_books || [], {

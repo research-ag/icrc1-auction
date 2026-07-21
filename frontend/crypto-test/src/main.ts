@@ -1,5 +1,5 @@
-import { createActor } from "../../../declarations/crypto";
-import { DerivedPublicKey, IbeCiphertext, IbeIdentity, IbeSeed } from "@dfinity/vetkeys";
+import { createActor } from '../../../declarations/crypto';
+import { DerivedPublicKey, IbeCiphertext, IbeIdentity, IbeSeed } from '@dfinity/vetkeys';
 
 function $(id: string): HTMLElement {
   const el = document.getElementById(id);
@@ -8,8 +8,8 @@ function $(id: string): HTMLElement {
 }
 
 function log(msg: string) {
-  const logEl = $("log");
-  logEl.textContent = `${logEl.textContent ? logEl.textContent + "\n" : ""}${msg}`;
+  const logEl = $('log');
+  logEl.textContent = `${logEl.textContent ? logEl.textContent + '\n' : ''}${msg}`;
   logEl.scrollTop = logEl.scrollHeight;
 }
 
@@ -27,16 +27,18 @@ function bytesEq(a: Uint8Array, b: Uint8Array): boolean {
 
 function toHex(u8: Uint8Array, max = 16): string {
   const slice = u8.slice(0, Math.min(max, u8.length));
-  return Array.from(slice)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("") + (u8.length > max ? "…" : "");
+  return (
+    Array.from(slice)
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('') + (u8.length > max ? '…' : '')
+  );
 }
 
 async function main() {
-  const runBtn = $("run") as HTMLButtonElement;
+  const runBtn = $('run') as HTMLButtonElement;
 
-  const CANISTER_ID = "6jrls-gqaaa-aaaao-a4pgq-cai";
-  const IC_HOST = "https://icp0.io";
+  const CANISTER_ID = '6jrls-gqaaa-aaaao-a4pgq-cai';
+  const IC_HOST = 'https://icp0.io';
 
   runBtn.onclick = async () => {
     runBtn.disabled = true;
@@ -87,7 +89,9 @@ async function main() {
             } else {
               mismatchCount++;
               if (mismatchCount <= 3) {
-                log(`Mismatch in batch ${b} item ${i + 1}: got len=${out.length}, expected len=${original.length} (got=${toHex(out)}, exp=${toHex(original)})`);
+                log(
+                  `Mismatch in batch ${b} item ${i + 1}: got len=${out.length}, expected len=${original.length} (got=${toHex(out)}, exp=${toHex(original)})`,
+                );
               }
             }
           } else {
@@ -97,10 +101,14 @@ async function main() {
         totalOk += okCount;
         totalNone += noneCount;
         totalMismatch += mismatchCount;
-        log(`Batch ${b}/${totalBatches}: sent ${chunks.length} (avg ciphertext ${avgSize} bytes), ok=${okCount}, none=${noneCount}, mismatch=${mismatchCount}`);
+        log(
+          `Batch ${b}/${totalBatches}: sent ${chunks.length} (avg ciphertext ${avgSize} bytes), ok=${okCount}, none=${noneCount}, mismatch=${mismatchCount}`,
+        );
       }
       const elapsed = Date.now() - start;
-      log(`Completed ${totalBatches} batches in ${elapsed}ms. Totals: ok=${totalOk}, none=${totalNone}, mismatch=${totalMismatch}`);
+      log(
+        `Completed ${totalBatches} batches in ${elapsed}ms. Totals: ok=${totalOk}, none=${totalNone}, mismatch=${totalMismatch}`,
+      );
     } catch (e: any) {
       console.error(e);
       log(`Error: ${e?.message || e}`);
@@ -110,8 +118,8 @@ async function main() {
   };
 }
 
-window.addEventListener("DOMContentLoaded", () => {
-  main().catch((e) => {
+window.addEventListener('DOMContentLoaded', () => {
+  main().catch(e => {
     console.error(e);
     log(`Init error: ${e?.message || e}`);
   });

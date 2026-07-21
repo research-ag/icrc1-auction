@@ -41,7 +41,6 @@ import Scheduler "./utils/scheduler";
 import TextUtils "./utils/text";
 import U "./utils";
 
-
 // arguments have to be provided on first canister install,
 // on upgrade quote ledger will be ignored
 (
@@ -424,7 +423,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
         PT.newValue("auctions_run_count", [], func() = auction.assets.historyLength(#delayed)),
         PT.newValue("trading_pairs_count", [], func() = auction.assets.nAssets() - 1),
       ],
-      []
+      [],
     )
   );
 
@@ -457,7 +456,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
                 PT.newValue("bids_count", [], func() = asset.bids.immediate.size),
                 PT.newValue("bids_volume", [], func() = asset.bids.immediate.totalVolume),
               ],
-              [("order_book", "immediate")]
+              [("order_book", "immediate")],
             ),
             PT.bundle(
               [
@@ -466,7 +465,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
                 PT.newValue("bids_count", [], func() = asset.bids.delayed.size),
                 PT.newValue("bids_volume", [], func() = asset.bids.delayed.totalVolume),
               ],
-              [("order_book", "delayed")]
+              [("order_book", "delayed")],
             ),
             PT.newValue("processing_instructions", [], func() = asset.lastProcessingInstructions),
             PT.newValue("total_executed_volume_base", [], func() = asset.totalExecutedVolumeBase),
@@ -508,7 +507,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
               ),
             ),
           ],
-          [("asset_id", Vec.at(assets, assetId).symbol)]
+          [("asset_id", Vec.at(assets, assetId).symbol)],
         )
       );
     };
@@ -518,7 +517,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
           PT.newValue("token_handler_locks", [], func() = TokenHandler.state(tokenHandler).users.locked),
           PT.newValue("token_handler_frozen", [], func() = if (TokenHandler.isFrozen(tokenHandler)) { 1 } else { 0 }),
         ],
-        [("asset_id", Vec.at(assets, assetId).symbol)]
+        [("asset_id", Vec.at(assets, assetId).symbol)],
       )
     );
   };

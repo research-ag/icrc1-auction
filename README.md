@@ -8,7 +8,6 @@ Auction development backend: `z4s7u-byaaa-aaaao-a3paa-cai`
 
 Auction production backend: `farwr-jqaaa-aaaao-qj4ya-cai`
 
-
 ## Reproducible build
 
 This applies only to auction backend canister.
@@ -25,18 +24,18 @@ This allows to reproduce the exact same Wasm module even on different machine ar
 
 The repository is used by three different roles in the following ways:
 
-* Developer: uses this repo as a template for the canister repo, then develops the canister as usual.
+- Developer: uses this repo as a template for the canister repo, then develops the canister as usual.
 
-* Deployer: runs the reproducible build in the canister repo, then deploys the resulting Wasm module.
+- Deployer: runs the reproducible build in the canister repo, then deploys the resulting Wasm module.
 
-* Verifier: runs the reproducible build in the canister repo, then compares the resulting module hash against the deployed canister.
+- Verifier: runs the reproducible build in the canister repo, then compares the resulting module hash against the deployed canister.
 
 The repository is structured to make verification as easy possible.
 For example:
 
-* have minimal requirements (only docker)
-* be easy to use (run a single command)
-* be fast
+- have minimal requirements (only docker)
+- be easy to use (run a single command)
+- be fast
 
 ### Prerequisites
 
@@ -79,9 +78,11 @@ docker-compose run --rm wasm
 The fast verification pulls a base docker image from a registry and then builds a project-specific Docker image on top of it.
 
 The output should look similarly to this:
+
 ```
 79b15176dc613860f35867828f40e7d6db884c25a5cfd0004f49c3b4b0b3fd5c  out/out_Linux_x86_64.wasm
 ```
+
 This is the hash that needs to be compared against the module hash of the deployed canister.
 
 The base docker image is optimized for size and is 76 MB large.
@@ -162,45 +163,66 @@ Normally, dfx offers such a check but it can only work if the old and new canist
 This is not the case because we use the reproducible build process.
 Hence, we supress the backwards compatibility check with the `-y` option.
 
+## Formatting
+
+To format the code, run:
+
+```bash
+npm run format
+```
+
+This will format all Motoko, TypeScript, JavaScript, JSON, and Markdown files in the project using Prettier.
+
+To check if the code is formatted properly without making changes, run:
+
+```bash
+npm run format:check
+```
 
 ## Local setup
 
 It is assumed that you have:
+
 - Dfinity SDK installed
 - NodeJS installed
 
 Once you have cloned the repository, follow this process in your terminal:
 
-1) In your project directory, run this command to install npm dependencies:
+1. In your project directory, run this command to install npm dependencies:
+
 ```bash
 npm install
 ```
 
-2) Start local Internet Computer replica:
+2. Start local Internet Computer replica:
+
 ```bash
 dfx start --clean --background
 ```
 
-3) Create canisters:
+3. Create canisters:
 
 ```bash
 npm run create
 ```
 
-4) If you want to use mocked ICRC1 ledger as quote ledger for debug purposes, put just created `icrc1_ledger_mock`
+4. If you want to use mocked ICRC1 ledger as quote ledger for debug purposes, put just created `icrc1_ledger_mock`
    canister id into `dfx.json::icrc1_auction->init_arg->first principal`
 
-5) Setup and deploy canisters locally
+5. Setup and deploy canisters locally
+
 ```bash
 npm run setup
 ```
 
-6) Now you can use auction locally. Mocked ICRC1 ledger allows to create tokens out of thin air using `issueTokens` 
-function. You should create at least one additional ICRC1 ledger in order to be able to place any bid/ask. This repo 
-provides additional canister `icrc1_ledger_mock_2`, which you can register as another ICRC1 ledger in auction for testing
+6. Now you can use auction locally. Mocked ICRC1 ledger allows to create tokens out of thin air using `issueTokens`
+   function. You should create at least one additional ICRC1 ledger in order to be able to place any bid/ask. This repo
+   provides additional canister `icrc1_ledger_mock_2`, which you can register as another ICRC1 ledger in auction for testing
 
-7) To start frontend in development mode, run: 
+7. To start frontend in development mode, run:
+
 ```bash
 CANISTER_ID_ICRC1_AUCTION=<canister_id> npm run dev:frontend
 ```
+
 Replace `<canister_id>` with your local auction canister id

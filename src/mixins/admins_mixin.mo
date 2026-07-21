@@ -6,7 +6,7 @@ import Set "mo:core/Set";
 import Prim "mo:prim";
 
 /// Mixin that adds admin functionality
-mixin(defaultAdmin : ?Principal) {
+mixin (defaultAdmin : ?Principal) {
   var admins : Set.Set<Principal> = Set.empty();
 
   switch (Set.size(admins)) {

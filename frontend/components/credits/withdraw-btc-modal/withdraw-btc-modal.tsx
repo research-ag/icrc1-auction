@@ -24,7 +24,9 @@ const schema = zod.object({
     .refine(value => !isNaN(Number(value))),
   to: zod
     .string()
-    .regex(/\b((bc|tb)(0([ac-hj-np-z02-9]{39}|[ac-hj-np-z02-9]{59})|1[ac-hj-np-z02-9]{8,87})|([13]|[mn2])[a-km-zA-HJ-NP-Z1-9]{25,39})\b/g),
+    .regex(
+      /\b((bc|tb)(0([ac-hj-np-z02-9]{39}|[ac-hj-np-z02-9]{59})|1[ac-hj-np-z02-9]{8,87})|([13]|[mn2])[a-km-zA-HJ-NP-Z1-9]{25,39})\b/g,
+    ),
 });
 
 const WithdrawBtcModal = ({ isOpen, onClose }: WithdrawBtcModalProps) => {
@@ -50,7 +52,6 @@ const WithdrawBtcModal = ({ isOpen, onClose }: WithdrawBtcModalProps) => {
 
   const { mutate: withdraw, error, isLoading, reset: resetApi } = useWithdrawBtc();
 
-
   const submit: SubmitHandler<WithdrawBtcFormValues> = data => {
     withdraw(
       { address: data.to, amount: Math.round(data.amount * Math.pow(10, 8)) },
@@ -70,7 +71,7 @@ const WithdrawBtcModal = ({ isOpen, onClose }: WithdrawBtcModalProps) => {
   return (
     <Modal open={isOpen} onClose={onClose}>
       <ModalDialog sx={{ width: 'calc(100% - 50px)', maxWidth: '450px' }}>
-        <ModalClose/>
+        <ModalClose />
         <Typography level="h4">Withdraw BTC directly</Typography>
         <form onSubmit={handleSubmit(submit)} autoComplete="off">
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -111,7 +112,7 @@ const WithdrawBtcModal = ({ isOpen, onClose }: WithdrawBtcModalProps) => {
               )}
             />
           </Box>
-          {!!error && <ErrorAlert errorMessage={(error as Error).message}/>}
+          {!!error && <ErrorAlert errorMessage={(error as Error).message} />}
           <Button
             sx={{ marginTop: 2 }}
             variant="solid"

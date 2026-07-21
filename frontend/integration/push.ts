@@ -22,17 +22,14 @@ export const useGetUserSettings = () => {
   const { identity } = useIdentity();
   const principalText = identity?.getPrincipal?.().toText?.();
   const isAnonymous = !principalText || principalText === '2vxsx-fae';
-  return useQuery(
-    ['userSettings', principalText],
-    async () => auction.getUserSettings(),
-    {
-      enabled: !isAnonymous,
-      placeholderData: { pushNotificationsEnabled: false },
-      onError: (err: unknown) => {
-        console.error('[push] getUserSettings failed', err);
-        queryClient.removeQueries(['userSettings', principalText]);
-      },
-    });
+  return useQuery(['userSettings', principalText], async () => auction.getUserSettings(), {
+    enabled: !isAnonymous,
+    placeholderData: { pushNotificationsEnabled: false },
+    onError: (err: unknown) => {
+      console.error('[push] getUserSettings failed', err);
+      queryClient.removeQueries(['userSettings', principalText]);
+    },
+  });
 };
 
 export const useUpdateUserSettings = () => {
@@ -162,8 +159,7 @@ export const useWebPush = () => {
     void (async () => {
       try {
         await refreshStatus();
-      } catch (_) {
-      }
+      } catch (_) {}
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [identity, client]);

@@ -82,56 +82,56 @@ module {
               case (#ok(_, oids)) oids;
               case (_) Prim.trap("Cannot prepare N set orders");
             };
-            ((? #orders(Array.tabulate<{ #ask : Auction.OrderId; #bid : Auction.OrderId }>(nActions, func(i) = #bid(orderIds[i].0)))), []);
+            ((?#orders(Array.tabulate<{ #ask : Auction.OrderId; #bid : Auction.OrderId }>(nActions, func(i) = #bid(orderIds[i].0)))), []);
           };
           case (3) {
             let orderIds = switch (a.manageOrders(user, null, createBidsActions, null)) {
               case (#ok(_, oids)) oids;
               case (_) Prim.trap("Cannot prepare N set orders");
             };
-            ((? #orders(Array.tabulate<{ #ask : Auction.OrderId; #bid : Auction.OrderId }>(nActions, func(i) = #bid(orderIds[nActions - 1 - i].0)))), []);
+            ((?#orders(Array.tabulate<{ #ask : Auction.OrderId; #bid : Auction.OrderId }>(nActions, func(i) = #bid(orderIds[nActions - 1 - i].0)))), []);
           };
           case (4) {
             switch (a.manageOrders(user, null, createBidsActions, null)) {
               case (#ok _) ();
               case (_) Prim.trap("Cannot prepare N set orders");
             };
-            (? #all(null), []);
+            (?#all(null), []);
           };
           case (5) {
             switch (a.manageOrders(user, null, createBidsActions, null)) {
               case (#ok _) ();
               case (_) Prim.trap("Cannot prepare N set orders");
             };
-            (? #all(?[1]), []);
+            (?#all(?[1]), []);
           };
           case (6) {
             let orderIds = switch (a.manageOrders(user, null, createBidsActions, null)) {
               case (#ok(_, oids)) oids;
               case (_) Prim.trap("Cannot prepare N set orders");
             };
-            ((? #orders(Array.tabulate<{ #ask : Auction.OrderId; #bid : Auction.OrderId }>(nActions, func(i) = #bid(orderIds[i].0)))), createBidsActions);
+            ((?#orders(Array.tabulate<{ #ask : Auction.OrderId; #bid : Auction.OrderId }>(nActions, func(i) = #bid(orderIds[i].0)))), createBidsActions);
           };
           case (7) {
             let orderIds = switch (a.manageOrders(user, null, createBidsActions, null)) {
               case (#ok(_, oids)) oids;
               case (_) Prim.trap("Cannot prepare N set orders");
             };
-            ((? #orders(Array.tabulate<{ #ask : Auction.OrderId; #bid : Auction.OrderId }>(nActions, func(i) = #bid(orderIds[nActions - 1 - i].0)))), Array.reverse(createBidsActions));
+            ((?#orders(Array.tabulate<{ #ask : Auction.OrderId; #bid : Auction.OrderId }>(nActions, func(i) = #bid(orderIds[nActions - 1 - i].0)))), Array.reverse(createBidsActions));
           };
           case (8) {
             switch (a.manageOrders(user, null, createBidsActions, null)) {
               case (#ok _) ();
               case (_) Prim.trap("Cannot prepare N set orders");
             };
-            (? #all(null), createBidsActions);
+            (?#all(null), createBidsActions);
           };
           case (9) {
             switch (a.manageOrders(user, null, createBidsActions, null)) {
               case (#ok _) ();
               case (_) Prim.trap("Cannot prepare N set orders");
             };
-            (? #all(null), Array.reverse(createBidsActions));
+            (?#all(null), Array.reverse(createBidsActions));
           };
           case (_) Prim.trap("Unknown row");
         };
@@ -139,13 +139,16 @@ module {
       },
     );
 
-    Bench.V1(schema, func(ri : Nat, ci : Nat) {
-      let (auction, cancellation, placements) = env[ci * schema.rows.size() + ri];
-      let res = auction.manageOrders(user, cancellation, placements, null);
-      switch (res) {
-        case (#ok _) ();
-        case (#err _) Prim.trap("Actions failed");
-      };
-    });
+    Bench.V1(
+      schema,
+      func(ri : Nat, ci : Nat) {
+        let (auction, cancellation, placements) = env[ci * schema.rows.size() + ri];
+        let res = auction.manageOrders(user, cancellation, placements, null);
+        switch (res) {
+          case (#ok _) ();
+          case (#err _) Prim.trap("Actions failed");
+        };
+      },
+    );
   };
 };
