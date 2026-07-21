@@ -2,7 +2,7 @@ import Nat "mo:core/Nat";
 import Prim "mo:prim";
 import Principal "mo:core/Principal";
 
-import Vec "mo:core/List";
+import List "mo:core/List";
 import Map "mo:core/Map";
 import PureList "mo:core/pure/List";
 import Queue "mo:core/Queue";
@@ -65,8 +65,8 @@ module {
           var credits = Map.empty();
           var accountRevision = 0;
           var loyaltyPoints = 0;
-          var depositHistory = Vec.empty<T.DepositHistoryItem>();
-          var transactionHistory = Vec.empty<T.TransactionHistoryItem>();
+          var depositHistory = List.empty<T.DepositHistoryItem>();
+          var transactionHistory = List.empty<T.TransactionHistoryItem>();
           userSettings = {
             var pushNotificationsEnabled = false;
           };

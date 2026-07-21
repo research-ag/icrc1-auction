@@ -8,16 +8,16 @@ import Array "mo:core/Array";
 import Float "mo:core/Float";
 import Int "mo:core/Int";
 import Iter "mo:core/Iter";
-import PureList "mo:core/pure/List";
+import List "mo:core/List";
+import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Nat64 "mo:core/Nat64";
 import Option "mo:core/Option";
 import Prim "mo:prim";
 import Principal "mo:core/Principal";
+import PureList "mo:core/pure/List";
 import R "mo:core/Result";
-import Map "mo:core/Map";
 
-import Vec "mo:core/List";
 
 import AssetOrderBook "./asset_order_book";
 import Assets "./assets";
@@ -32,14 +32,14 @@ import T "./types";
 module {
 
   public func defaultStableData() : T.StableDataV5 = {
-    assets = Vec.empty();
+    assets = List.empty();
     orders = { globalCounter = 0 };
     quoteToken = { surplus = 0 };
     sessions = {
       counter = 0;
       history = {
         immediate = ([var], 0, 0);
-        delayed = Vec.empty<T.PriceHistoryItem>();
+        delayed = List.empty<T.PriceHistoryItem>();
       };
     };
     users = {
@@ -138,7 +138,7 @@ module {
       func(assetId : T.AssetId, advantageFor : { #ask; #bid }) : [(price : Float, volume : Nat, fulfilledOrders : PureList.List<Processor.FulfilledOrder>)] {
         if (assetId == quoteAssetId) return [];
         let assetInfo = assets.getAsset(assetId);
-        let ret = Vec.empty<(Float, Nat, PureList.List<Processor.FulfilledOrder>)>();
+        let ret = List.empty<(Float, Nat, PureList.List<Processor.FulfilledOrder>)>();
         let asks = orders.asks.createOrderBookExecutionService(assetInfo, #immediate);
         let bids = orders.bids.createOrderBookExecutionService(assetInfo, #immediate);
         label l while true {
@@ -154,13 +154,13 @@ module {
           if (quoteSurplus > 0) {
             credits.quoteSurplus += quoteSurplus;
           };
-          Vec.add(ret, (price, volume, fulfilledOrders));
+          ret.add((price, volume, fulfilledOrders));
           let executionsCounter = assetInfo.immediateExecutionsCounter;
           assetInfo.immediateExecutionsCounter += 1;
           assets.pushToHistory(#immediate, (Prim.time(), executionsCounter, assetId, volume, price));
           assetInfo.lastImmediateRate := price;
         };
-        Vec.toArray(ret);
+        ret.toArray();
       }
     );
 
@@ -285,7 +285,7 @@ module {
     public func appendCredit(p : Principal, assetId : AssetId, amount : Nat) : Nat {
       let userInfo = users.getOrCreate(p);
       let acc = credits.getOrCreate(userInfo, assetId);
-      Vec.add<T.DepositHistoryItem>(userInfo.depositHistory, (Prim.time(), #deposit, assetId, amount));
+      userInfo.depositHistory.add((Prim.time(), #deposit, assetId, amount));
       userInfo.accountRevision += 1;
       credits.appendCredit(acc, amount);
     };
@@ -300,13 +300,13 @@ module {
             #ok(
               0,
               func() = ignore credits.getOrCreate(user, assetId) |> credits.appendCredit(_, amount),
-              func() = Vec.add<T.DepositHistoryItem>(user.depositHistory, (Prim.time(), #withdrawal, assetId, amount)),
+              func() = user.depositHistory.add((Prim.time(), #withdrawal, assetId, amount)),
             );
           } else {
             #ok(
               balance,
               func() = ignore credits.appendCredit(creditAcc, amount),
-              func() = Vec.add<T.DepositHistoryItem>(user.depositHistory, (Prim.time(), #withdrawal, assetId, amount)),
+              func() = user.depositHistory.add((Prim.time(), #withdrawal, assetId, amount)),
             );
           };
         };
@@ -422,8 +422,8 @@ module {
       var iter = userInfo.depositHistory
       |> (
         switch (order) {
-          case (#asc) Vec.values(_);
-          case (#desc) Vec.reverseValues(_);
+          case (#asc) List.values(_);
+          case (#desc) List.reverseValues(_);
         }
       );
       if (assetIds.size() > 0) {
@@ -437,8 +437,8 @@ module {
       var iter = userInfo.transactionHistory
       |> (
         switch (order) {
-          case (#asc) Vec.values(_);
-          case (#desc) Vec.reverseValues(_);
+          case (#asc) List.values(_);
+          case (#desc) List.reverseValues(_);
         }
       );
       if (assetIds.size() > 0) {
@@ -469,8 +469,7 @@ module {
 
     // ============= system interface =============
     public func share() : T.StableDataV5 = {
-      assets = Vec.map<T.AssetInfo, T.StableAssetInfoV3>(
-        assets.assets,
+      assets = assets.assets.map<T.AssetInfo, T.StableAssetInfoV3>(
         func(x) = {
           lastRate = x.lastRate;
           lastImmediateRate = x.lastImmediateRate;
@@ -530,8 +529,7 @@ module {
     };
 
     public func unshare(data : T.StableDataV5) {
-      assets.assets := Vec.map<T.StableAssetInfoV3, T.AssetInfo>(
-        data.assets,
+      assets.assets := data.assets.map<T.StableAssetInfoV3, T.AssetInfo>(
         func(x) = {
           asks = {
             delayed = AssetOrderBook.nil(#ask);

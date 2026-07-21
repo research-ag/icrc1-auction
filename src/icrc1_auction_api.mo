@@ -3,6 +3,7 @@ import Error "mo:core/Error";
 import Float "mo:core/Float";
 import Int "mo:core/Int";
 import Iter "mo:core/Iter";
+import List "mo:core/List";
 import Nat "mo:core/Nat";
 import Nat8 "mo:core/Nat8";
 import Nat64 "mo:core/Nat64";
@@ -24,7 +25,6 @@ import PT "mo:promtracker";
 import { Counter; Gauge } "mo:promtracker";
 import PtHttp "mo:promtracker/mixins/http";
 import TokenHandler "mo:token-handler";
-import Vec "mo:core/List";
 import M "migration_types";
 
 import Auction "./auction/src";
@@ -52,10 +52,10 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
 
   let trustedLedgerPrincipal : Principal = U.requireMsg(quoteLedger_, "Quote ledger principal not provided");
   let quoteLedgerPrincipal : Principal = trustedLedgerPrincipal;
-  var assetsData : Vec.List<StableAssetInfoV1> = Vec.empty();
+  var assetsData : List.List<StableAssetInfoV1> = List.empty();
   var auctionData : Auction.StableDataV5 = Auction.defaultStableData();
 
-  var tokenHandlersJournal : Vec.List<(ledger : Principal, p : Principal, logEvent : TokenHandler.LogEvent)> = Vec.empty();
+  var tokenHandlersJournal : List.List<(ledger : Principal, p : Principal, logEvent : TokenHandler.LogEvent)> = List.empty();
   var consolidationTimerEnabled : Bool = true;
 
   // constants
@@ -119,7 +119,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   };
   func mapOrder(order : Auction.Order) : Order = ({
     order with
-    icrc1Ledger = Vec.at(assets, order.assetId).ledgerPrincipal;
+    icrc1Ledger = assets.at(order.assetId).ledgerPrincipal;
     volume = order.volume;
   });
 
@@ -245,7 +245,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
       ownPrincipal = Principal.fromActor(self);
       assertInvariant = func() = true;
       onFeeChanged = func(oldFee, newFee) {};
-      log = func(p : Principal, logEvent : TokenHandler.LogEvent) = Vec.add(tokenHandlersJournal, (ledgerPrincipal, p, logEvent));
+      log = func(p : Principal, logEvent : TokenHandler.LogEvent) = tokenHandlersJournal.add((ledgerPrincipal, p, logEvent));
     };
   };
 
@@ -267,8 +267,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     };
   };
 
-  transient let assets : Vec.List<AssetInfo> = Vec.map<StableAssetInfoV1, AssetInfo>(
-    assetsData,
+  transient let assets : List.List<AssetInfo> = assetsData.map<StableAssetInfoV1, AssetInfo>(
     func(x) = createAssetInfo_(x.ledgerPrincipal, x.minAskVolume, x.decimals, x.symbol, ?x.handler),
   );
   transient let auction : Auction.Auction = Auction.Auction(
@@ -277,7 +276,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
       volumeStepLog10 = 3; // minimum quote volume step 1_000
       minVolumeSteps = 5; // minimum quote volume is 5_000
       priceMaxDigits = 5;
-      minAskVolume = func(assetId, _) = Vec.at(assets, assetId).minAskVolume;
+      minAskVolume = func(assetId, _) = assets.at(assetId).minAskVolume;
       performanceCounter = Prim.performanceCounter;
     },
   );
@@ -290,7 +289,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   transient var nextSessionTimestamp = 0;
 
   private func registerAsset_(ledgerPrincipal : Principal, minAskVolume : Nat) : async* R.Result<Nat, RegisterAssetError> {
-    let id = Vec.size(assets);
+    let id = assets.size();
     assert id == auction.assets.nAssets();
     if (id == 0 and not Principal.equal(ledgerPrincipal, quoteLedgerPrincipal)) {
       Prim.trap("Cannot register another token before registering quote");
@@ -301,10 +300,10 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     let decimals = Nat8.toNat(await decimalsCall);
     let symbol = await symbolCall;
 
-    if (Vec.any<AssetInfo>(assets, func(a) = Principal.equal(ledgerPrincipal, a.ledgerPrincipal))) {
+    if (assets.any<AssetInfo>(func(a) = Principal.equal(ledgerPrincipal, a.ledgerPrincipal))) {
       return #err(#AlreadyRegistered);
     };
-    createAssetInfo_(ledgerPrincipal, minAskVolume, decimals, symbol, null) |> Vec.add<AssetInfo>(assets, _);
+    createAssetInfo_(ledgerPrincipal, minAskVolume, decimals, symbol, null) |> assets.add<AssetInfo>(_);
     auction.registerAssets(1);
     registerAssetMetrics_(id);
     #ok(id);
@@ -367,12 +366,12 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   let orderCancellationCounter = PT.Tracker.newCounter(pt, "total_calls__order_cancellation", []);
 
   private func registerAssetMetrics_(assetId : Auction.AssetId) {
-    let tokenHandler = Vec.at(assets, assetId).handler;
+    let tokenHandler = assets.at(assetId).handler;
 
     if (assetId != quoteAssetId) {
       let asset = auction.assets.getAsset(assetId);
 
-      let priceMultiplier = 10 ** Int.toFloat(Vec.at(assets, assetId).decimals);
+      let priceMultiplier = 10 ** Int.toFloat(assets.at(assetId).decimals);
       let renderPrice = func(price : Float) : Nat = Int.abs(Float.toInt(price * priceMultiplier));
 
       renderer.addValue(
@@ -436,7 +435,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
               ),
             ),
           ],
-          [("asset_id", Vec.at(assets, assetId).symbol)],
+          [("asset_id", assets.at(assetId).symbol)],
         )
       );
     };
@@ -446,7 +445,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
           PT.newValue("token_handler_locks", [], func() = TokenHandler.state(tokenHandler).users.locked),
           PT.newValue("token_handler_frozen", [], func() = if (TokenHandler.isFrozen(tokenHandler)) { 1 } else { 0 }),
         ],
-        [("asset_id", Vec.at(assets, assetId).symbol)],
+        [("asset_id", assets.at(assetId).symbol)],
       )
     );
   };
@@ -459,13 +458,13 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
 
   public shared query func icrc84_supported_tokens() : async [Principal] {
     Array.tabulate<Principal>(
-      Vec.size(assets),
-      func(i) = Vec.at(assets, i).ledgerPrincipal,
+      assets.size(),
+      func(i) = assets.at(i).ledgerPrincipal,
     );
   };
 
   public shared query func icrc84_token_info(token : Principal) : async ICRC84.TokenInfo {
-    for ((i, assetInfo) in Iter.enumerate(Vec.values(assets))) {
+    for ((i, assetInfo) in Iter.enumerate(assets.values())) {
       if (Principal.equal(assetInfo.ledgerPrincipal, token)) {
         return {
           deposit_fee = TokenHandler.fee(assetInfo.handler, #deposit);
@@ -485,23 +484,23 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     },
   )] {
     let tokens : [Principal] = switch (arg.size()) {
-      case (0) Vec.map<AssetInfo, Principal>(assets, func({ ledgerPrincipal }) = ledgerPrincipal) |> Vec.toArray(_);
+      case (0) assets.map<AssetInfo, Principal>(func({ ledgerPrincipal }) = ledgerPrincipal) |> _.toArray();
       case (_) arg;
     };
-    let ret : Vec.List<(Principal, { credit : Int; tracked_deposit : ?Nat })> = Vec.empty();
+    let ret : List.List<(Principal, { credit : Int; tracked_deposit : ?Nat })> = List.empty();
     for (token in tokens.values()) {
       let ?aid = getAssetId(token) else throw Error.reject("Unknown token " # Principal.toText(token));
       let credit = auction.getCredit(caller, aid).available;
       if (credit > 0) {
-        let tracked_deposit = TokenHandler.trackedDeposit(Vec.at(assets, aid).handler, caller);
-        Vec.add(ret, (token, { credit; tracked_deposit }));
+        let tracked_deposit = TokenHandler.trackedDeposit(assets.at(aid).handler, caller);
+        ret.add((token, { credit; tracked_deposit }));
       };
     };
-    Vec.toArray(ret);
+    ret.toArray();
   };
 
   private func notify(p : Principal, assetId : Auction.AssetId) : async* ICRC84.NotifyResponse {
-    let assetInfo = Vec.at(assets, assetId);
+    let assetInfo = assets.at(assetId);
     let result = try {
       await* TokenHandler.notify(assetInfo.handler, p, getTokenHandlerContext(assetInfo.ledgerPrincipal));
     } catch (err) {
@@ -537,7 +536,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   public shared ({ caller }) func icrc84_deposit(args : ICRC84.DepositArgs) : async ICRC84.DepositResponse {
     depositCounter.add(1);
     let ?assetId = getAssetId(args.token) else throw Error.reject("Unknown token");
-    let assetInfo = Vec.at(assets, assetId);
+    let assetInfo = assets.at(assetId);
     let res = await* TokenHandler.depositFromAllowance(assetInfo.handler, caller, args.from, args.amount, args.expected_fee, getTokenHandlerContext(args.token));
     switch (res) {
       case (#ok(creditInc, txid)) {
@@ -577,7 +576,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   public shared ({ caller }) func icrc84_withdraw(args : ICRC84.WithdrawArgs) : async ICRC84.WithdrawResponse {
     withdrawCounter.add(1);
     let ?assetId = getAssetId(args.token) else throw Error.reject("Unknown token");
-    let handler = Vec.at(assets, assetId).handler;
+    let handler = assets.at(assetId).handler;
     let (rollbackCredit, doneCallback) = switch (auction.deductCredit(caller, assetId, args.amount)) {
       case (#err _) return #Err(#InsufficientCredit({}));
       case (#ok(_, r, d)) (r, d);
@@ -618,7 +617,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
 
   public shared ({ caller }) func btc_withdraw(args : { to : Text; amount : Nat }) : async BtcWithdrawResult {
     let ?ckbtcAssetId = getAssetId(CKBTC_LEDGER_PRINCIPAL) else throw Error.reject("BTC is not supported");
-    let handler = Vec.at(assets, ckbtcAssetId).handler;
+    let handler = assets.at(ckbtcAssetId).handler;
 
     let (rollbackCredit, doneCallback) = switch (auction.deductCredit(caller, ckbtcAssetId, args.amount)) {
       case (#err _) return #Err(#InsufficientCredit({}));
@@ -706,9 +705,9 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
 
   public shared query func totalPointsSupply() : async Nat = async auction.getTotalLoyaltyPointsSupply();
 
-  private func getIcrc1Ledger(assetId : Nat) : Principal = Vec.at(assets, assetId).ledgerPrincipal;
+  private func getIcrc1Ledger(assetId : Nat) : Principal = assets.at(assetId).ledgerPrincipal;
   private func getAssetId(icrc1Ledger : Principal) : ?Nat {
-    for ((i, assetInfo) in Iter.enumerate(Vec.values(assets))) {
+    for ((i, assetInfo) in Iter.enumerate(assets.values())) {
       if (Principal.equal(assetInfo.ledgerPrincipal, icrc1Ledger)) {
         return ?i;
       };
@@ -725,16 +724,16 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
         Array.tabulate<Auction.AssetId>(auction.assets.nAssets() - 1, func(i) = i + 1),
       );
     } else {
-      var v : Vec.List<Auction.AssetId> = Vec.empty();
-      var vBase : Vec.List<Auction.AssetId> = Vec.empty();
+      var v : List.List<Auction.AssetId> = List.empty();
+      var vBase : List.List<Auction.AssetId> = List.empty();
       for (p in tokens.values()) {
         let ?aid = getAssetId(p) else return #err(p);
-        Vec.add(v, aid);
+        v.add(aid);
         if (aid != quoteAssetId) {
-          Vec.add(vBase, aid);
+          vBase.add(aid);
         };
       };
-      (Vec.toArray(v), Vec.toArray(vBase));
+      (v.toArray(), vBase.toArray());
     };
 
     let userInfo = auction.users.get(p);
@@ -752,11 +751,11 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
       if (allAssetsMode) {
         return getFunc(null);
       } else {
-        let v : Vec.List<T> = Vec.empty();
+        let v : List.List<T> = List.empty();
         for (aid in baseAssetIds.values()) {
-          Vec.addAll(v, getFunc(?aid).values());
+          v.addAll(getFunc(?aid).values());
         };
-        Vec.toArray(v);
+        v.toArray();
       };
     };
 
@@ -866,7 +865,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     };
 
     func mapHistoryItem(x : Auction.PriceHistoryItem) : PriceHistoryItem {
-      (x.0, x.1, Vec.at(assets, x.2).ledgerPrincipal, x.3, x.4);
+      (x.0, x.1, assets.at(x.2).ledgerPrincipal, x.3, x.4);
     };
     #ok({
       session_numbers = sessionNumbers |> Array.tabulate<(Principal, Nat)>(_.size(), func(i) = (getIcrc1Ledger(_[i].0), _[i].1));
@@ -874,8 +873,8 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
       bids = bids |> Array.tabulate<(Auction.OrderId, Order)>(_.size(), func(i) = (_[i].0, mapOrder(_[i].1)));
       credits = credits |> Array.tabulate<(Principal, Auction.CreditInfo)>(_.size(), func(i) = (getIcrc1Ledger(_[i].0), _[i].1));
       dark_order_books = darkOrderBooks |> Array.tabulate<(Principal, Auction.EncryptedOrderBook)>(_.size(), func(i) = (getIcrc1Ledger(_[i].0), _[i].1));
-      deposit_history = depositHistory |> Array.map<Auction.DepositHistoryItem, DepositHistoryItem>(_, func(x) = (x.0, x.1, Vec.at(assets, x.2).ledgerPrincipal, x.3));
-      transaction_history = transactionHistory |> Array.map<Auction.TransactionHistoryItem, TransactionHistoryItem>(_, func(x) = (x.0, x.1, x.2, Vec.at(assets, x.3).ledgerPrincipal, x.4, x.5));
+      deposit_history = depositHistory |> Array.map<Auction.DepositHistoryItem, DepositHistoryItem>(_, func(x) = (x.0, x.1, assets.at(x.2).ledgerPrincipal, x.3));
+      transaction_history = transactionHistory |> Array.map<Auction.TransactionHistoryItem, TransactionHistoryItem>(_, func(x) = (x.0, x.1, x.2, assets.at(x.3).ledgerPrincipal, x.4, x.5));
       price_history = priceHistory |> Array.map<Auction.PriceHistoryItem, PriceHistoryItem>(_, mapHistoryItem);
       immediate_price_history = immediatePriceHistory |> Array.map<Auction.PriceHistoryItem, PriceHistoryItem>(_, mapHistoryItem);
       last_prices = lastPrices |> Array.map<Auction.PriceHistoryItem, PriceHistoryItem>(_, mapHistoryItem);
@@ -883,14 +882,14 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
       order_book_info = switch (selection.order_book_info) {
         case (?true) baseAssetIds |> Array.map<Auction.AssetId, (Principal, Auction.OrderBookInfo)>(
           _,
-          func(aid) = (Vec.at(assets, aid).ledgerPrincipal, auction.orderBookInfo(aid)),
+          func(aid) = (assets.at(aid).ledgerPrincipal, auction.orderBookInfo(aid)),
         );
         case (_) [];
       };
       immediate_order_book_info = switch (selection.immediate_order_book_info) {
         case (?true) baseAssetIds |> Array.map<Auction.AssetId, (Principal, Auction.ImmediateOrderBookInfo)>(
           _,
-          func(aid) = (Vec.at(assets, aid).ledgerPrincipal, auction.immediateOrderBookInfo(aid)),
+          func(aid) = (assets.at(aid).ledgerPrincipal, auction.immediateOrderBookInfo(aid)),
         );
         case (_) [];
       };
@@ -908,23 +907,22 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
 
   private func drainPushNotifications() : async* () {
     let q = auction.users.stagedPushNotifications;
-    let buf = Vec.empty<(Principal, NotificationDelegate.NotificationBody)>();
+    let buf = List.empty<(Principal, NotificationDelegate.NotificationBody)>();
     label l while (not Queue.isEmpty(q)) {
       let ?(p, n) = Queue.popFront(q) else break l;
-      Vec.add(
-        buf,
+      buf.add(
         (
           p,
           switch (n) {
             case (#orderFulfilled { assetId; kind; price; baseVolume; quoteVolume; isPartial }) {
-              let baseDecimals = Vec.at(assets, assetId).decimals;
-              let quoteDecimals = Vec.at(assets, quoteAssetId).decimals;
+              let baseDecimals = assets.at(assetId).decimals;
+              let quoteDecimals = assets.at(quoteAssetId).decimals;
               let priceLog10Multiplier : Int = baseDecimals - quoteDecimals;
               {
                 title = "Order fulfillment";
                 content = "Your "
                 # (switch (kind) { case (#ask) "ask "; case (#bid) "bid " })
-                # "on " # Vec.at(assets, assetId).symbol
+                # "on " # assets.at(assetId).symbol
                 # " was "
                 # (if (isPartial) { "partially " } else { "" })
                 # "fulfilled. Price: " # TextUtils.floatToSig5(FloatUtils.scaleFloat(price, priceLog10Multiplier))
@@ -938,7 +936,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
         ),
       );
     };
-    let items = Vec.toArray(buf);
+    let items = buf.toArray();
     if (items.size() > 0) {
       try {
         ignore await NotificationDelegate.getActor().sendNotifications(items);
@@ -1086,13 +1084,13 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
 
   public func updateTokenHandlerFee(ledger : Principal) : async ?Nat {
     let ?assetId = getAssetId(ledger) else throw Error.reject("Unknown asset");
-    let assetInfo = Vec.at(assets, assetId);
+    let assetInfo = assets.at(assetId);
     await* TokenHandler.fetchFee(assetInfo.handler, getTokenHandlerContext(assetInfo.ledgerPrincipal));
   };
 
   public query func isTokenHandlerFrozen(ledger : Principal) : async Bool {
     let ?assetId = getAssetId(ledger) else throw Error.reject("Unknown asset");
-    TokenHandler.isFrozen(Vec.at(assets, assetId).handler);
+    TokenHandler.isFrozen(assets.at(assetId).handler);
   };
 
   public query func queryTokenHandlerState(ledger : Principal) : async {
@@ -1138,21 +1136,21 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     };
   } {
     let ?assetId = getAssetId(ledger) else throw Error.reject("Unknown asset");
-    TokenHandler.state(Vec.at(assets, assetId).handler);
+    TokenHandler.state(assets.at(assetId).handler);
   };
 
   public query func queryUserCreditsInTokenHandler(ledger : Principal, user : Principal) : async Int {
     let ?assetId = getAssetId(ledger) else throw Error.reject("Unknown asset");
-    TokenHandler.userCredit(Vec.at(assets, assetId).handler, user);
+    TokenHandler.userCredit(assets.at(assetId).handler, user);
   };
 
   public query func queryTokenHandlerNotificationsOnPause(ledger : Principal) : async Bool {
     let ?assetId = getAssetId(ledger) else throw Error.reject("Unknown asset");
-    TokenHandler.notificationsOnPause(Vec.at(assets, assetId).handler);
+    TokenHandler.notificationsOnPause(assets.at(assetId).handler);
   };
 
   public query func queryTokenHandlerJournal(ledger : Principal, limit : Nat, skip : Nat) : async [(Principal, TokenHandler.LogEvent)] {
-    Vec.values(tokenHandlersJournal)
+    tokenHandlersJournal.values()
     |> Iter.filter<(Principal, Principal, TokenHandler.LogEvent)>(_, func(l, _, _) = Principal.equal(l, ledger))
     |> Iter.map<(Principal, Principal, TokenHandler.LogEvent), (Principal, TokenHandler.LogEvent)>(_, func(_, p, e) = (p, e))
     |> U.sliceIter(_, limit, skip);
@@ -1167,10 +1165,10 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   public shared ({ caller }) func wipePriceHistory(icrc1Ledger : Principal) : async () {
     await* assertAdminAccess(caller);
     let ?assetId = getAssetId(icrc1Ledger) else throw Error.reject("Unknown asset");
-    let newHistory : Vec.List<Auction.PriceHistoryItem> = Vec.empty();
-    for (x in Vec.values(auction.assets.history.delayed)) {
+    let newHistory : List.List<Auction.PriceHistoryItem> = List.empty();
+    for (x in auction.assets.history.delayed.values()) {
       if (x.2 != assetId) {
-        Vec.add(newHistory, x);
+        newHistory.add(x);
       };
     };
     auction.assets.history.delayed := newHistory;
@@ -1188,7 +1186,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     for (p in Map.keys(auction.users.users)) {
       ignore Map.delete(auction.users.users, Principal.compare, p);
     };
-    for (asset in Vec.values(auction.assets.assets)) {
+    for (asset in auction.assets.assets.values()) {
       AssetOrderBook.clear(asset.asks.immediate);
       AssetOrderBook.clear(asset.asks.delayed);
       AssetOrderBook.clear(asset.bids.immediate);
@@ -1252,10 +1250,10 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     if (startIndex == 0) {
       vetKey := null;
     };
-    let newSwapRates : Vec.List<(Auction.AssetId, Float)> = Vec.empty();
-    Vec.add(newSwapRates, (quoteAssetId, 1.0));
+    let newSwapRates : List.List<(Auction.AssetId, Float)> = List.empty();
+    newSwapRates.add((quoteAssetId, 1.0));
     var nextAssetId = 0;
-    label l for (assetId in Nat.range(startIndex, Vec.size(assets))) {
+    label l for (assetId in Nat.range(startIndex, assets.size())) {
       if (assetId == quoteAssetId) continue l;
       nextAssetId := assetId + 1;
       if (auction.nDarkOrderBooks(assetId) > 0) {
@@ -1283,7 +1281,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
       lastBidProcessingInstructions += Prim.performanceCounter(0) - startInstructions;
       lastBidProcessingChunks += 1;
     };
-    if (nextAssetId == Vec.size(assets)) {
+    if (nextAssetId == assets.size()) {
       #done();
     } else {
       #nextIndex(nextAssetId);
@@ -1319,8 +1317,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   };
 
   system func preupgrade() {
-    assetsData := Vec.map<AssetInfo, StableAssetInfoV1>(
-      assets,
+    assetsData := assets.map<AssetInfo, StableAssetInfoV1>(
       func(x) = {
         ledgerPrincipal = x.ledgerPrincipal;
         minAskVolume = x.minAskVolume;
@@ -1337,7 +1334,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     60,
     30,
     func(_ : Nat) : async* () {
-      for (asset in Vec.values(assets)) {
+      for (asset in assets.values()) {
         await* TokenHandler.trigger(asset.handler, 10, getTokenHandlerContext(asset.ledgerPrincipal));
       };
     },
@@ -1378,7 +1375,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   };
 
   // If assets are empty, register quote asset
-  if (Vec.size(assets) == 0) {
+  if (assets.size() == 0) {
     ignore Timer.setTimer<system>(
       #seconds(0),
       func() : async () {
