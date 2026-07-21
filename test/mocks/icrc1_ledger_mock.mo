@@ -1,8 +1,9 @@
 import Array "mo:core/Array";
-import AssocList "mo:core/AssocList";
 import Blob "mo:core/Blob";
+import Map "mo:core/Map";
 import Nat8 "mo:core/Nat8";
 import Option "mo:core/Option";
+import Order "mo:core/Order";
 import Principal "mo:core/Principal";
 
 persistent actor class ICRC1Ledger(symbol_ : ?Text, decimals_ : ?Nat8) = self {
@@ -35,19 +36,22 @@ persistent actor class ICRC1Ledger(symbol_ : ?Text, decimals_ : ?Nat8) = self {
   transient let TOKEN_SYMBOL = Option.get<Text>(symbol_, "MOCK");
   transient let TOKEN_DECIMALS = Option.get<Nat8>(decimals_, 2);
 
-  transient let zeroSubaccount = Blob.fromArray(Array.tabulate<Nat8>(32, func(n) = 0));
+  transient let zeroSubaccount = Array.tabulate<Nat8>(32, func(n) = 0).toBlob();
   func deoptRef(r : AccountRefOpt) : AccountRef = ({
     owner = r.owner;
     subaccount = Option.get(r.subaccount, zeroSubaccount);
   });
 
-  func accRefEqual(a : AccountRef, b : AccountRef) : Bool = Principal.equal(a.owner, b.owner) and Blob.equal(a.subaccount, b.subaccount);
+  func accRefOrder(a : AccountRef, b : AccountRef) : Order.Order = switch (Principal.compare(a.owner, b.owner)) {
+    case (#equal) Blob.compare(a.subaccount, b.subaccount);
+    case (x) x;
+  };
   // Define a map to store accounts
-  transient var accounts : AssocList.AssocList<AccountRef, Account> = null;
+  transient var accounts : Map.Map<AccountRef, Account> = Map.empty();
   transient var fee : Nat = 0;
   transient var txIndex : Nat = 29138;
 
-  private func getBalance(account : AccountRefOpt) : Nat = switch (AssocList.find<AccountRef, Account>(accounts, deoptRef(account), accRefEqual)) {
+  private func getBalance(account : AccountRefOpt) : Nat = switch (accounts.get(accRefOrder, deoptRef(account))) {
     case (null) 0;
     case (?acc) acc.balance;
   };
@@ -58,7 +62,7 @@ persistent actor class ICRC1Ledger(symbol_ : ?Text, decimals_ : ?Nat8) = self {
     #Ok : Nat;
     #Err : TransferError;
   }) {
-    switch (AssocList.find<AccountRef, Account>(accounts, { owner = caller; subaccount = Option.get(args.from_subaccount, zeroSubaccount) }, accRefEqual)) {
+    switch (accounts.get(accRefOrder, { owner = caller; subaccount = Option.get(args.from_subaccount, zeroSubaccount) })) {
       case (null) #Err(#InsufficientFunds({ balance = 0 }));
       case (?fromAcc) {
         if (Option.get(args.fee, fee) != fee) {
@@ -68,9 +72,9 @@ persistent actor class ICRC1Ledger(symbol_ : ?Text, decimals_ : ?Nat8) = self {
           return #Err(#InsufficientFunds({ balance = fromAcc.balance }));
         };
         fromAcc.balance -= args.amount + fee;
-        switch (AssocList.find(accounts, deoptRef(args.to), accRefEqual)) {
+        switch (accounts.get(accRefOrder, deoptRef(args.to))) {
           case (null) {
-            accounts := AssocList.replace<AccountRef, Account>(accounts, deoptRef(args.to), accRefEqual, ?{ var balance = args.amount }).0;
+            accounts.add(accRefOrder, deoptRef(args.to), { var balance = args.amount });
           };
           case (?toAcc) {
             toAcc.balance += args.amount;
@@ -103,7 +107,7 @@ persistent actor class ICRC1Ledger(symbol_ : ?Text, decimals_ : ?Nat8) = self {
   // Define a function to add some tokens to account for testing
   public shared func issueTokens(account : AccountRefOpt, tokensAmount : Nat) : async () {
     let curBalance = getBalance(account);
-    accounts := AssocList.replace<AccountRef, Account>(accounts, deoptRef(account), accRefEqual, ?{ var balance = curBalance + tokensAmount }).0;
+    accounts.add(accRefOrder, deoptRef(account), { var balance = curBalance + tokensAmount });
   };
   public shared func updateFee(newFee : Nat) : async () {
     fee := newFee;

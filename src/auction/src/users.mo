@@ -7,8 +7,6 @@ import Map "mo:core/Map";
 import PureList "mo:core/pure/List";
 import Queue "mo:core/Queue";
 
-import AssocList "./assoc_list";
-
 import T "./types";
 
 module {
@@ -33,7 +31,7 @@ module {
     public func nUsersWithCredits() : Nat {
       var res : Nat = 0;
       for (user in Map.values(users)) {
-        if (not PureList.isEmpty(user.credits)) {
+        if (not user.credits.isEmpty()) {
           res += 1;
         };
       };
@@ -42,7 +40,7 @@ module {
     public func nUsersWithActiveOrders() : Nat {
       var res : Nat = 0;
       for (user in Map.values(users)) {
-        if (not PureList.isEmpty(user.asks.map) or not PureList.isEmpty(user.bids.map)) {
+        if (not user.asks.map.isEmpty() or not user.bids.map.isEmpty()) {
           res += 1;
         };
       };
@@ -61,10 +59,10 @@ module {
       case (?info) info;
       case (null) {
         let data : T.UserInfo = {
-          asks = { var map = null };
-          bids = { var map = null };
-          var darkOrderBooks = null;
-          var credits = null;
+          asks = { var map = Map.empty() };
+          bids = { var map = Map.empty() };
+          var darkOrderBooks = Map.empty();
+          var credits = Map.empty();
           var accountRevision = 0;
           var loyaltyPoints = 0;
           var depositHistory = Vec.empty<T.DepositHistoryItem>();
@@ -91,30 +89,26 @@ module {
     };
 
     public func findOrder(userInfo : T.UserInfo, kind : { #ask; #bid }, orderId : T.OrderId) : ?T.Order {
-      AssocList.find(getOrderBook(userInfo, kind).map, orderId, Nat.equal);
+      getOrderBook(userInfo, kind).map.get(orderId);
     };
 
     public func putOrder(user : T.UserInfo, kind : { #ask; #bid }, orderId : T.OrderId, order : T.Order) {
-      let orderBook = getOrderBook(user, kind);
-      AssocList.replace<T.OrderId, T.Order>(orderBook.map, orderId, Nat.equal, ?order) |> (orderBook.map := _.0);
+      getOrderBook(user, kind).map.add(orderId, order);
     };
 
     public func deleteOrder(user : T.UserInfo, kind : { #ask; #bid }, orderId : T.OrderId) : ?T.Order {
-      let orderBook = getOrderBook(user, kind);
-      let (updatedList, oldValue) = AssocList.replace(orderBook.map, orderId, Nat.equal, null);
-      let ?existingOrder = oldValue else return null;
-      orderBook.map := updatedList;
-      ?existingOrder;
+      getOrderBook(user, kind).map.take(orderId);
     };
 
     public func findDarkOrderBook(user : T.UserInfo, asset : T.AssetId) : ?T.EncryptedOrderBook {
-      AssocList.find(user.darkOrderBooks, asset, Nat.equal);
+      user.darkOrderBooks.get(asset);
     };
 
     public func putDarkOrderBook(user : T.UserInfo, asset : T.AssetId, data : ?T.EncryptedOrderBook) : ?T.EncryptedOrderBook {
-      let (upd, oldValue) = AssocList.replace(user.darkOrderBooks, asset, Nat.equal, data);
-      user.darkOrderBooks := upd;
-      oldValue;
+      switch (data) {
+        case (?d) user.darkOrderBooks.swap(asset, d);
+        case (null) user.darkOrderBooks.take(asset);
+      };
     };
 
   };

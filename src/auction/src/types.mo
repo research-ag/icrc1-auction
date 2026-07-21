@@ -1,8 +1,7 @@
-import AssocList "./assoc_list";
+import List "mo:core/List";
+import Map "mo:core/Map";
 
-import Vec "mo:core/List";
-
-import PriorityQueue "./priority_queue";
+import PriorityQueue "./models/priority_queue";
 
 module {
 
@@ -44,7 +43,7 @@ module {
   };
 
   public type UserOrderBook = {
-    var map : AssocList.AssocList<OrderId, Order>;
+    var map : Map.Map<OrderId, Order>;
   };
 
   public type AssetInfo = {
@@ -57,7 +56,7 @@ module {
       delayed : AssetOrderBook;
     };
     darkOrderBooks : {
-      var encrypted : AssocList.AssocList<Principal, EncryptedOrderBook>;
+      var encrypted : Map.Map<Principal, EncryptedOrderBook>;
       // set right before auction execution
       var decrypted : ?[(Principal, [DecryptedOrderData])];
     };
@@ -78,12 +77,12 @@ module {
   public type UserInfo = {
     asks : UserOrderBook;
     bids : UserOrderBook;
-    var darkOrderBooks : AssocList.AssocList<AssetId, EncryptedOrderBook>;
-    var credits : AssocList.AssocList<AssetId, Account>;
+    var darkOrderBooks : Map.Map<AssetId, EncryptedOrderBook>;
+    var credits : Map.Map<AssetId, Account>;
     var accountRevision : Nat;
     var loyaltyPoints : Nat;
-    var depositHistory : Vec.List<DepositHistoryItem>;
-    var transactionHistory : Vec.List<TransactionHistoryItem>;
+    var depositHistory : List.List<DepositHistoryItem>;
+    var transactionHistory : List.List<TransactionHistoryItem>;
     userSettings : UserSettings;
   };
 
@@ -93,14 +92,14 @@ module {
 
   // stable data types
   public type StableDataV5 = {
-    assets : Vec.List<StableAssetInfoV3>;
+    assets : List.List<StableAssetInfoV3>;
     orders : { globalCounter : Nat };
     quoteToken : { surplus : Nat };
     sessions : {
       counter : Nat;
       history : {
         immediate : ([var ?PriceHistoryItem], Nat, Nat);
-        delayed : Vec.List<PriceHistoryItem>;
+        delayed : List.List<PriceHistoryItem>;
       };
     };
     users : {
@@ -117,17 +116,17 @@ module {
   };
   public type StableUserInfoV4 = {
     asks : {
-      var map : AssocList.AssocList<OrderId, StableOrderDataV2>;
+      var map : Map.Map<OrderId, StableOrderDataV2>;
     };
     bids : {
-      var map : AssocList.AssocList<OrderId, StableOrderDataV2>;
+      var map : Map.Map<OrderId, StableOrderDataV2>;
     };
-    darkOrderBooks : AssocList.AssocList<AssetId, EncryptedOrderBook>;
-    credits : AssocList.AssocList<AssetId, Account>;
+    darkOrderBooks : Map.Map<AssetId, EncryptedOrderBook>;
+    credits : Map.Map<AssetId, Account>;
     accountRevision : Nat;
     loyaltyPoints : Nat;
-    depositHistory : Vec.List<DepositHistoryItem>;
-    transactionHistory : Vec.List<TransactionHistoryItem>;
+    depositHistory : List.List<DepositHistoryItem>;
+    transactionHistory : List.List<TransactionHistoryItem>;
     userSettings : { pushNotificationsEnabled : Bool };
   };
 

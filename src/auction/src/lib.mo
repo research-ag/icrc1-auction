@@ -175,12 +175,12 @@ module {
 
     public func nDarkOrderBooks(assetId : AssetId) : Nat {
       let assetInfo = assets.getAsset(assetId);
-      PureList.size(assetInfo.darkOrderBooks.encrypted);
+      assetInfo.darkOrderBooks.encrypted.size();
     };
 
     public func decryptDarkOrderBooks(assetId : AssetId, cryptoCanisterId : Principal, vetKey : Blob) : async* () {
       let assetInfo = assets.getAsset(assetId);
-      let darkOrderBook = assetInfo.darkOrderBooks.encrypted |> PureList.toArray(_);
+      let darkOrderBook = assetInfo.darkOrderBooks.encrypted.entries().toArray();
       if (darkOrderBook.size() == 0) {
         assetInfo.darkOrderBooks.decrypted := ?[];
         return;
@@ -333,12 +333,12 @@ module {
     public func getOrders(p : Principal, kind : { #ask; #bid }, assetId : ?AssetId) : [(OrderId, T.Order)] = switch (users.get(p)) {
       case (null) [];
       case (?ui) {
-        var list = users.getOrderBook(ui, kind).map;
+        var list = users.getOrderBook(ui, kind).map.entries();
         switch (assetId) {
-          case (?aid) list := PureList.filter<(OrderId, T.Order)>(list, func(_, o) = o.assetId == aid);
+          case (?aid) list := list.filter(func(_, o) = o.assetId == aid);
           case (_) {};
         };
-        PureList.toArray(list);
+        list.toArray();
       };
     };
 
@@ -502,10 +502,10 @@ module {
               p,
               {
                 asks = {
-                  var map = PureList.map<(T.OrderId, T.Order), (T.OrderId, T.StableOrderDataV2)>(u.asks.map, func(oid, o) = (oid, { assetId = o.assetId; orderBookType = o.orderBookType; price = o.price; user = o.user; volume = o.volume }));
+                  var map = u.asks.map.map<T.OrderId, T.Order, T.StableOrderDataV2>(func(oid, o) = { assetId = o.assetId; orderBookType = o.orderBookType; price = o.price; user = o.user; volume = o.volume });
                 };
                 bids = {
-                  var map = PureList.map<(T.OrderId, T.Order), (T.OrderId, T.StableOrderDataV2)>(u.bids.map, func(oid, o) = (oid, { assetId = o.assetId; orderBookType = o.orderBookType; price = o.price; user = o.user; volume = o.volume }));
+                  var map = u.bids.map.map<T.OrderId, T.Order, T.StableOrderDataV2>(func(oid, o) = { assetId = o.assetId; orderBookType = o.orderBookType; price = o.price; user = o.user; volume = o.volume });
                 };
                 darkOrderBooks = u.darkOrderBooks;
                 credits = u.credits;
@@ -542,7 +542,7 @@ module {
             immediate = AssetOrderBook.nil(#bid);
           };
           darkOrderBooks = {
-            var encrypted = null;
+            var encrypted = Map.empty();
             var decrypted = null;
           };
           var lastRate = x.lastRate;
@@ -571,10 +571,10 @@ module {
       for ((p, u) in data.users.registry.entries.values()) {
         let userData : UserInfo = {
           asks = {
-            var map = null;
+            var map = Map.empty();
           };
           bids = {
-            var map = null;
+            var map = Map.empty();
           };
           var darkOrderBooks = u.darkOrderBooks;
           var credits = u.credits;
@@ -586,7 +586,7 @@ module {
             var pushNotificationsEnabled = u.userSettings.pushNotificationsEnabled;
           };
         };
-        for ((oid, orderData) in PureList.values(u.asks.map)) {
+        for ((oid, orderData) in u.asks.map.entries()) {
           let order : T.Order = {
             orderData with userInfoRef = userData;
             var volume = orderData.volume;
@@ -594,7 +594,7 @@ module {
           users.putOrder(userData, #ask, oid, order);
           ignore assets.putOrder(assets.getAsset(order.assetId), #ask, oid, order);
         };
-        for ((oid, orderData) in PureList.values(u.bids.map)) {
+        for ((oid, orderData) in u.bids.map.entries()) {
           let order : T.Order = {
             orderData with userInfoRef = userData;
             var volume = orderData.volume;
@@ -602,7 +602,7 @@ module {
           users.putOrder(userData, #bid, oid, order);
           ignore assets.putOrder(assets.getAsset(order.assetId), #bid, oid, order);
         };
-        for ((assetId, data) in PureList.values(u.darkOrderBooks)) {
+        for ((assetId, data) in u.darkOrderBooks.entries()) {
           ignore assets.putDarkOrderBook(assets.getAsset(assetId), p, ?data);
         };
         Map.add(users.users, Principal.compare, p, userData);

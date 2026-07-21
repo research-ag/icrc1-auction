@@ -12,8 +12,6 @@ import R "mo:core/Result";
 import Map "mo:core/Map";
 import VarArray "mo:core/VarArray";
 
-import AssocList "./assoc_list";
-
 import List "mo:core/List";
 
 import Assets "./assets";
@@ -23,7 +21,7 @@ import Users "./users";
 
 import T "./types";
 import AssetOrderBook "asset_order_book";
-import PriorityQueue "priority_queue";
+import PriorityQueue "./models/priority_queue";
 
 module {
 
@@ -385,7 +383,7 @@ module {
       };
 
       // temporary list of new balances for all affected user credit accounts
-      var newBalances : AssocList.AssocList<T.AssetId, Nat> = null;
+      var newBalances : Map.Map<T.AssetId, Nat> = Map.empty();
       // temporary lists of newly placed/cancelled orders
       type OrdersDelta = {
         var placed : PureList.List<(?T.OrderId, T.Order)>;
@@ -409,36 +407,29 @@ module {
       // update temporary balances: add unlocked credits for each cancelled order
       func affectNewBalancesWithCancellation(ordersService : OrdersService, order : T.Order) {
         let srcAssetId = ordersService.srcAssetId(order.assetId);
-        let balance = switch (AssocList.find<T.AssetId, Nat>(newBalances, srcAssetId, Nat.equal)) {
+        let balance = switch (newBalances.get(srcAssetId)) {
           case (?b) b;
           case (null) credits.balance(userInfo, srcAssetId);
         };
-        AssocList.replace<T.AssetId, Nat>(
-          newBalances,
+        newBalances.add(
           srcAssetId,
-          Nat.equal,
-          ?(balance + ordersService.srcVolume(order.volume, order.price)),
-        ) |> (newBalances := _.0);
+          (balance + ordersService.srcVolume(order.volume, order.price)),
+        );
       };
 
       // prepare cancellation of all orders by type (ask or bid)
       func prepareBulkCancellation(ordersService : OrdersService) {
         let userOrderBook = users.getOrderBook(userInfo, ordersService.kind);
-        for ((orderId, order) in PureList.values(userOrderBook.map)) {
+        for ((orderId, order) in userOrderBook.map.entries()) {
           affectNewBalancesWithCancellation(ordersService, order);
         };
         cancellationCommitActions := PureList.pushFront<() -> [CancellationResult]>(
           cancellationCommitActions,
           func() {
             let ret : List.List<CancellationResult> = List.empty();
-            label l while (true) {
-              switch (userOrderBook.map) {
-                case (?((orderId, _), _)) {
-                  let ?order = ordersService.cancel(userInfo, orderId) else Prim.trap("Can never happen");
-                  List.add(ret, (orderId, order.assetId, order.orderBookType, order.volume, order.price));
-                };
-                case (_) break l;
-              };
+            for (orderId in userOrderBook.map.keys()) {
+              let ?order = ordersService.cancel(userInfo, orderId) else Prim.trap("Can never happen");
+              ret.add((orderId, order.assetId, order.orderBookType, order.volume, order.price));
             };
             List.toArray(ret);
           },
@@ -450,7 +441,7 @@ module {
         // TODO can be optimized: cancelOrderInternal searches for order by it's id with linear complexity
         let userOrderBook = users.getOrderBook(userInfo, ordersService.kind);
         let orderIds : List.List<T.OrderId> = List.empty();
-        for ((orderId, order) in PureList.values(userOrderBook.map)) {
+        for ((orderId, order) in userOrderBook.map.entries()) {
           if (isCancel(order.assetId, orderId)) {
             affectNewBalancesWithCancellation(ordersService, order);
             List.add(orderIds, orderId);
@@ -489,7 +480,7 @@ module {
           asksDelta.isOrderCancelled := func(_, orderId) = Map.get(cancelledAsks, Nat.compare, orderId) |> not Option.isNull(_);
           bidsDelta.isOrderCancelled := func(_, orderId) = Map.get(cancelledBids, Nat.compare, orderId) |> not Option.isNull(_);
 
-          var assetIdSet : AssocList.AssocList<T.AssetId, Nat> = null;
+          var assetIdSet : Map.Map<T.AssetId, Nat> = Map.empty();
           for (i in orders.keys()) {
             let (ordersService, orderId, cancelledTree) = switch (orders[i]) {
               case (#ask orderId) (asks, orderId, cancelledAsks);
@@ -505,13 +496,13 @@ module {
                 [(orderId, order.assetId, order.orderBookType, order.volume, order.price)];
               },
             );
-            AssocList.replace<T.AssetId, Nat>(assetIdSet, oldOrder.assetId, Nat.equal, ?i) |> (assetIdSet := _.0);
+            assetIdSet.add(oldOrder.assetId, i);
           };
         };
       };
 
       // validate and prepare placements
-      var assetIdSet : AssocList.AssocList<T.AssetId, Nat> = null;
+      var assetIdSet : Map.Map<T.AssetId, Nat> = Map.empty();
       for (i in placements.keys()) {
         let (ordersService, (assetId, orderBookType, volume, rawPrice), ordersDelta, oppositeOrdersDelta) = switch (placements[i]) {
           case (#ask(args)) (asks, args, asksDelta, bidsDelta);
@@ -533,19 +524,18 @@ module {
         let srcAssetId = ordersService.srcAssetId(assetId);
         let chargeAmount = ordersService.srcVolume(volume, price);
         let ?chargeAcc = credits.getAccount(userInfo, srcAssetId) else return #err(#placement({ index = i; error = #NoCredit }));
-        let balance = switch (AssocList.find<T.AssetId, Nat>(newBalances, srcAssetId, Nat.equal)) {
+        let balance = switch (newBalances.get(srcAssetId)) {
           case (?b) b;
           case (null) credits.accountBalance(chargeAcc);
         };
         if (balance < chargeAmount) {
           return #err(#placement({ index = i; error = #NoCredit }));
         };
-        AssocList.replace<T.AssetId, Nat>(newBalances, srcAssetId, Nat.equal, ?(balance - chargeAmount))
-        |> (newBalances := _.0);
+        newBalances.add(srcAssetId, (balance - chargeAmount) : Nat);
 
         // build list of placed orders + orders to be placed during this call
         func buildOrdersList(user : T.UserInfo, kind : { #ask; #bid }, delta : OrdersDelta) : Iter.Iter<(?T.OrderId, T.Order)> = users.getOrderBook(user, kind).map
-        |> PureList.values(_)
+        |> _.entries()
         |> Iter.map<(T.OrderId, T.Order), (?T.OrderId, T.Order)>(_, func(oid, o) = (?oid, o))
         |> Iter.concat<(?T.OrderId, T.Order)>(_, PureList.values(delta.placed));
 
@@ -626,7 +616,7 @@ module {
             case (_) (orderId, #placed);
           };
         };
-        AssocList.replace<T.AssetId, Nat>(assetIdSet, assetId, Nat.equal, ?i) |> (assetIdSet := _.0);
+        assetIdSet.add(assetId, i);
       };
 
       // commit changes, return results
@@ -701,7 +691,7 @@ module {
     };
 
     public func processDarkOrderBooks(assetId : T.AssetId, asset : T.AssetInfo) : (asks : PureList.List<T.Order>, bids : PureList.List<T.Order>) {
-      if (Option.isNull(asset.darkOrderBooks.encrypted)) return (null, null);
+      if (asset.darkOrderBooks.encrypted.isEmpty()) return (null, null);
       let ?decryptedOrderBooks = asset.darkOrderBooks.decrypted else Prim.trap("Dark order books were not decrypted");
       var asksQueue : PureList.List<T.Order> = null;
       var bidsQueue : PureList.List<T.Order> = null;
@@ -758,7 +748,7 @@ module {
         };
         ignore users.putDarkOrderBook(userInfo, assetId, null);
       };
-      asset.darkOrderBooks.encrypted := null;
+      asset.darkOrderBooks.encrypted := Map.empty();
       asset.darkOrderBooks.decrypted := null;
       (asksQueue, bidsQueue);
     };

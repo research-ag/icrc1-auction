@@ -3,7 +3,7 @@ import PureList "mo:core/pure/List";
 import O "mo:core/Order";
 
 import T "./types";
-import PriorityQueue "./priority_queue";
+import PriorityQueue "./models/priority_queue";
 
 module OrderBook {
 

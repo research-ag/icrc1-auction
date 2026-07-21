@@ -6,8 +6,6 @@ token-handler = "https://github.com/research-ag/token-handler#11c3350038bbe9675a
 ckbtc-address = "0.0.2"
 auction = "3.0.5"
 promtracker = "1.0.1"
-vector = "0.4.6"
-circular-buffer = "0.0.1"
 
 [toolchain]
 moc = "1.11.1"

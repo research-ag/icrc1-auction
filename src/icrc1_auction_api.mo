@@ -18,7 +18,6 @@ import VarArray "mo:core/VarArray";
 import Queue "mo:core/Queue";
 import Types "mo:core/Types";
 import PureList "mo:core/pure/List";
-import AssocList "./auction/src/assoc_list";
 
 import ICRC84 "mo:icrc-84";
 import PT "mo:promtracker";
@@ -43,76 +42,6 @@ import U "./utils";
 
 // arguments have to be provided on first canister install,
 // on upgrade quote ledger will be ignored
-(
-  with migration = func(
-    old : {
-      trustedLedgerPrincipal : Principal;
-      quoteLedgerPrincipal : Principal;
-      var assetsData : Vec.List<{ ledgerPrincipal : Principal; minAskVolume : Nat; handler : M.StableTokenHandlerData; symbol : Text; decimals : Nat }>;
-      var auctionData : Auction.StableDataV5;
-      var ptData : Types.Pure.List<(Text, { #counter : Nat; #gauge : (Nat, Nat, Nat, [Nat], [Nat]); #heatmap : (Nat, Nat, [Nat]) })>;
-      var tokenHandlersJournal : Vec.List<(ledger : Principal, p : Principal, logEvent : TokenHandler.LogEvent)>;
-      var consolidationTimerEnabled : Bool;
-    }
-  ) : {
-    trustedLedgerPrincipal : Principal;
-    quoteLedgerPrincipal : Principal;
-    var assetsData : Vec.List<{ ledgerPrincipal : Principal; minAskVolume : Nat; handler : M.StableTokenHandlerData; symbol : Text; decimals : Nat }>;
-    var auctionData : Auction.StableDataV5;
-    var tokenHandlersJournal : Vec.List<(ledger : Principal, p : Principal, logEvent : TokenHandler.LogEvent)>;
-    var consolidationTimerEnabled : Bool;
-    pt : PT.Tracker;
-    notifyCounter : Counter.Counter;
-    depositCounter : Counter.Counter;
-    withdrawCounter : Counter.Counter;
-    manageOrdersCounter : Counter.Counter;
-    manageDarkOrderBooksCounter : Counter.Counter;
-    orderPlacementCounter : Counter.Counter;
-    orderReplacementCounter : Counter.Counter;
-    orderCancellationCounter : Counter.Counter;
-  } {
-    let pt = PT.Tracker.new();
-    let notifyCounter = PT.Tracker.newCounter(pt, "total_calls__icrc84_notify", []);
-    let depositCounter = PT.Tracker.newCounter(pt, "total_calls__icrc84_deposit", []);
-    let withdrawCounter = PT.Tracker.newCounter(pt, "total_calls__icrc84_withdraw", []);
-    let manageOrdersCounter = PT.Tracker.newCounter(pt, "total_calls__manageOrders", []);
-    let manageDarkOrderBooksCounter = PT.Tracker.newCounter(pt, "total_calls__manageDarkOrderBooks", []);
-    let orderPlacementCounter = PT.Tracker.newCounter(pt, "total_calls__order_placement", []);
-    let orderReplacementCounter = PT.Tracker.newCounter(pt, "total_calls__order_replacement", []);
-    let orderCancellationCounter = PT.Tracker.newCounter(pt, "total_calls__order_cancellation", []);
-
-    for (x in PureList.values(old.ptData)) {
-      switch (x) {
-        case (("total_calls__icrc84_notify", #counter(val))) notifyCounter.set(val);
-        case (("total_calls__icrc84_deposit", #counter(val))) depositCounter.set(val);
-        case (("total_calls__icrc84_withdraw", #counter(val))) withdrawCounter.set(val);
-        case (("total_calls__manageOrders", #counter(val))) manageOrdersCounter.set(val);
-        case (("total_calls__manageDarkOrderBooks", #counter(val))) manageDarkOrderBooksCounter.set(val);
-        case (("total_calls__order_placement", #counter(val))) orderPlacementCounter.set(val);
-        case (("total_calls__order_replacement", #counter(val))) orderReplacementCounter.set(val);
-        case (("total_calls__order_cancellation", #counter(val))) orderCancellationCounter.set(val);
-        case (unk) Prim.trap("Skipped applying unknown pt data entry: " # debug_show unk);
-      };
-    };
-    {
-      trustedLedgerPrincipal = old.trustedLedgerPrincipal;
-      quoteLedgerPrincipal = old.quoteLedgerPrincipal;
-      var assetsData = old.assetsData;
-      var auctionData = old.auctionData;
-      var tokenHandlersJournal = old.tokenHandlersJournal;
-      var consolidationTimerEnabled = old.consolidationTimerEnabled;
-      pt;
-      notifyCounter;
-      depositCounter;
-      withdrawCounter;
-      manageOrdersCounter;
-      manageDarkOrderBooksCounter;
-      orderPlacementCounter;
-      orderReplacementCounter;
-      orderCancellationCounter;
-    };
-  }
-)
 persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal_ : ?Principal, cryptoCanisterId : ?Principal) = self {
 
   include AdminsMixin(adminPrincipal_);
@@ -848,8 +777,8 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     let darkOrderBooks = retrieveElements<(Auction.AssetId, Auction.EncryptedOrderBook)>(
       selection.dark_order_books,
       func(assetId) = switch (assetId, userInfo) {
-        case (null, ?ui) ui.darkOrderBooks |> PureList.toArray(_);
-        case (?aid, ?ui) AssocList.find(ui.darkOrderBooks, aid, Nat.equal) |> (
+        case (null, ?ui) ui.darkOrderBooks.entries().toArray();
+        case (?aid, ?ui) ui.darkOrderBooks.get(aid) |> (
           switch (_) {
             case (?dob) [(aid, dob)];
             case (null) [];

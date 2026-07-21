@@ -1,13 +1,12 @@
 import Int "mo:core/Int";
 import Iter "mo:core/Iter";
+import List "mo:core/List";
+import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Prim "mo:prim";
 import Principal "mo:core/Principal";
 
-import AssocList "./assoc_list";
-
-import CircularBuffer "./circular_buffer";
-import Vec "mo:core/List";
+import CircularBuffer "./models/circular_buffer";
 
 import AssetOrderBook "./asset_order_book";
 import T "./types";
@@ -19,19 +18,19 @@ module {
     public let IMMEDIATE_BUFFER_CAPACITY = 65_536;
 
     // asset info, index == assetId
-    public var assets : Vec.List<T.AssetInfo> = Vec.empty();
+    public var assets : List.List<T.AssetInfo> = List.empty();
     // asset history
     public var history : {
       immediate : CircularBuffer.CircularBuffer<T.PriceHistoryItem>;
-      var delayed : Vec.List<T.PriceHistoryItem>;
+      var delayed : List.List<T.PriceHistoryItem>;
     } = {
       immediate = CircularBuffer.CircularBuffer<T.PriceHistoryItem>(IMMEDIATE_BUFFER_CAPACITY);
-      var delayed = Vec.empty();
+      var delayed = List.empty();
     };
 
-    public func nAssets() : Nat = Vec.size(assets);
+    public func nAssets() : Nat = assets.size();
 
-    public func getAsset(assetId : T.AssetId) : T.AssetInfo = Vec.at(assets, assetId);
+    public func getAsset(assetId : T.AssetId) : T.AssetInfo = assets.at(assetId);
 
     public func historyIter(orderBookType : T.OrderBookType, order : { #asc; #desc }) : Iter.Iter<T.PriceHistoryItem> {
       switch (orderBookType) {
@@ -58,8 +57,8 @@ module {
         };
         case (#delayed) (
           switch (order) {
-            case (#asc) Vec.values(history.delayed);
-            case (#desc) Vec.reverseValues(history.delayed);
+            case (#asc) history.delayed.values();
+            case (#desc) history.delayed.reverseValues();
           }
         );
       };
@@ -67,7 +66,7 @@ module {
 
     public func historyLength(orderBookType : T.OrderBookType) : Nat = switch (orderBookType) {
       case (#immediate) Nat.min(IMMEDIATE_BUFFER_CAPACITY, history.immediate.pushesAmount());
-      case (#delayed) Vec.size(history.delayed);
+      case (#delayed) history.delayed.size();
     };
 
     public func register(n : Nat, sessionsCounter : Nat) {
@@ -83,7 +82,7 @@ module {
               delayed = AssetOrderBook.nil(#ask);
             };
             darkOrderBooks = {
-              var encrypted = null;
+              var encrypted = Map.empty();
               var decrypted = null;
             };
             var lastRate = 0;
@@ -96,7 +95,7 @@ module {
             var sessionsCounter = sessionsCounter;
           } : T.AssetInfo
         )
-        |> Vec.add(assets, _);
+        |> assets.add(_);
       };
     };
 
@@ -126,15 +125,18 @@ module {
     };
 
     public func putDarkOrderBook(asset : T.AssetInfo, user : Principal, data : ?T.EncryptedOrderBook) : ?T.EncryptedOrderBook {
-      let (upd, oldValue) = AssocList.replace(asset.darkOrderBooks.encrypted, user, Principal.equal, data);
-      asset.darkOrderBooks.encrypted := upd;
+      let oldValue = asset.darkOrderBooks.encrypted.get(user);
+      switch (data) {
+        case (?d) asset.darkOrderBooks.encrypted.add(user, d);
+        case (null) asset.darkOrderBooks.encrypted.remove(user);
+      };
       oldValue;
     };
 
     public func pushToHistory(orderBookType : T.OrderBookType, item : T.PriceHistoryItem) {
       switch (orderBookType) {
         case (#immediate) history.immediate.push(item);
-        case (#delayed) Vec.add(history.delayed, item);
+        case (#delayed) history.delayed.add(item);
       };
     };
 

@@ -86,10 +86,10 @@
   },
   "defaults": {
     "build": {
-      "args": "--legacy-persistence",
+      "args": "",
       "packtool": "mops sources"
     }
   },
-  "dfx": "0.29.0",
+  "dfx": "0.31.0",
   "version": 1
 }

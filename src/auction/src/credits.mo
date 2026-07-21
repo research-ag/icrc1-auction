@@ -1,8 +1,8 @@
 import Array "mo:core/Array";
+import Iter "mo:core/Iter";
 import PureList "mo:core/pure/List";
+import Map "mo:core/Map";
 import Nat "mo:core/Nat";
-
-import AssocList "./assoc_list";
 
 import T "./types";
 
@@ -22,14 +22,14 @@ module {
 
     public func nAccounts() : Nat = accountsAmount;
 
-    public func getAccount(userInfo : T.UserInfo, assetId : T.AssetId) : ?T.Account = AssocList.find<T.AssetId, T.Account>(userInfo.credits, assetId, Nat.equal);
+    public func getAccount(userInfo : T.UserInfo, assetId : T.AssetId) : ?T.Account = userInfo.credits.get(assetId);
 
     public func getOrCreate(userInfo : T.UserInfo, assetId : T.AssetId) : T.Account {
       switch (getAccount(userInfo, assetId)) {
         case (?acc) acc;
         case (null) {
           let acc = { var credit = 0; var lockedCredit = 0 };
-          AssocList.replace<T.AssetId, T.Account>(userInfo.credits, assetId, Nat.equal, ?acc) |> (userInfo.credits := _.0);
+          userInfo.credits.add(assetId, acc);
           accountsAmount += 1;
           acc;
         };
@@ -37,10 +37,10 @@ module {
     };
 
     public func deleteIfEmpty(userInfo : T.UserInfo, assetId : T.AssetId) : Bool {
-      let (upd, ?acc) = AssocList.replace<T.AssetId, T.Account>(userInfo.credits, assetId, Nat.equal, null) else return false;
+      let ?acc = userInfo.credits.get(assetId) else return false;
       if (isAccountEmpty(acc)) {
         accountsAmount -= 1;
-        userInfo.credits := upd;
+        userInfo.credits.remove(assetId);
         return true;
       };
       false;
@@ -57,19 +57,7 @@ module {
     };
 
     public func infoAll(userInfo : T.UserInfo) : [(T.AssetId, CreditInfo)] {
-      let length = PureList.size(userInfo.credits);
-      var list = userInfo.credits;
-      Array.tabulate<(T.AssetId, CreditInfo)>(
-        length,
-        func(i) {
-          let popped = PureList.popFront(list);
-          list := popped.1;
-          switch (popped.0) {
-            case null { loop { assert false } };
-            case (?x) (x.0, accountInfo(x.1));
-          };
-        },
-      );
+      userInfo.credits.entries().map(func(aid, ci) = (aid, accountInfo(ci))).toArray();
     };
 
     public func accountBalance(account : T.Account) : Nat = account.credit - account.lockedCredit;
