@@ -1,6 +1,7 @@
-import Array "mo:base/Array";
+import Array "mo:core/Array";
 import Prim "mo:prim";
-import Principal "mo:base/Principal";
+import Principal "mo:core/Principal";
+import VarArray "mo:core/VarArray";
 
 import { init; createFt } "./test.util";
 
@@ -126,8 +127,8 @@ do {
   let ft = createFt(auction);
   auction.processAsset(ft);
 
-  let userExpectedCredits : [var Nat] = Array.init(2, 0);
-  let user2ExpectedCredits : [var Nat] = Array.init(2, 0);
+  let userExpectedCredits : [var Nat] = VarArray.repeat<Nat>(0, 2);
+  let user2ExpectedCredits : [var Nat] = VarArray.repeat<Nat>(0, 2);
   func assertBalances(u : Principal, expectedCredits : [var Nat]) : () {
     let cr = auction.getCredits(u);
     if (cr[0].0 == 0) {

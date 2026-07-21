@@ -1,8 +1,8 @@
-import Float "mo:base/Float";
-import Int "mo:base/Int";
-import Iter "mo:base/Iter";
-import List "mo:base/List";
-import Option "mo:base/Option";
+import Float "mo:core/Float";
+import Int "mo:core/Int";
+import Iter "mo:core/Iter";
+import PureList "mo:core/pure/List";
+import Option "mo:core/Option";
 import Prim "mo:prim";
 
 import { clear } "mo:auction";
@@ -22,7 +22,7 @@ module {
 
   public type AuctionProcessingResult = {
     quoteSurplus : Nat;
-    fulfilledOrders : List.List<FulfilledOrder>;
+    fulfilledOrders : PureList.List<FulfilledOrder>;
   };
 
   public func clearAuction(asks : Orders.OrderBookExecutionService, bids : Orders.OrderBookExecutionService) : (price : Float, volume : Nat) {
@@ -35,14 +35,14 @@ module {
   public func processAuction(sessionNumber : Nat, asks : Orders.OrderBookExecutionService, bids : Orders.OrderBookExecutionService, price : Float, dealVolume : Nat) : AuctionProcessingResult {
     var quoteSurplus : Int = 0;
     var dealVolumeLeft = dealVolume;
-    var fulfilledOrders : List.List<FulfilledOrder> = null;
+    var fulfilledOrders : PureList.List<FulfilledOrder> = null;
 
     while (dealVolumeLeft > 0) {
       let ?(orderId, order) = asks.nextOrder() else Prim.trap("Can never happen: list shorter than before");
       let (baseVolume, quoteVolume, isPartial) = asks.fulfilOrder(sessionNumber, orderId, order, dealVolumeLeft, price);
       dealVolumeLeft -= baseVolume;
       quoteSurplus -= quoteVolume;
-      fulfilledOrders := List.push({ order; baseVolume; quoteVolume; isPartial; kind = #ask }, fulfilledOrders);
+      fulfilledOrders := PureList.pushFront(fulfilledOrders, { order; baseVolume; quoteVolume; isPartial; kind = #ask });
     };
 
     dealVolumeLeft := dealVolume;
@@ -51,7 +51,7 @@ module {
       let (baseVolume, quoteVolume, isPartial) = bids.fulfilOrder(sessionNumber, orderId, order, dealVolumeLeft, price);
       dealVolumeLeft -= baseVolume;
       quoteSurplus += quoteVolume;
-      fulfilledOrders := List.push({ order; baseVolume; quoteVolume; isPartial; kind = #bid }, fulfilledOrders);
+      fulfilledOrders := PureList.pushFront(fulfilledOrders, { order; baseVolume; quoteVolume; isPartial; kind = #bid });
     };
 
     assert quoteSurplus >= 0;

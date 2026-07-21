@@ -1,6 +1,6 @@
-import Float "mo:base/Float";
-import List "mo:base/List";
-import O "mo:base/Order";
+import Float "mo:core/Float";
+import PureList "mo:core/pure/List";
+import O "mo:core/Order";
 
 import T "./types";
 import PriorityQueue "./priority_queue";
@@ -13,13 +13,13 @@ module OrderBook {
 
   public func nil(kind : { #ask; #bid }) : AssetOrderBook = {
     kind;
-    var queue = List.nil();
+    var queue = PureList.empty();
     var size = 0;
     var totalVolume = 0;
   };
 
   public func clear(orderBook : AssetOrderBook) {
-    orderBook.queue := List.nil();
+    orderBook.queue := PureList.empty();
     orderBook.size := 0;
     orderBook.totalVolume := 0;
   };

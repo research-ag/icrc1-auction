@@ -1,9 +1,9 @@
-import List "mo:base/List";
-import Order "mo:base/Order";
+import PureList "mo:core/pure/List";
+import Order "mo:core/Order";
 
 module {
 
-  public type PriorityQueue<T> = List.List<T>;
+  public type PriorityQueue<T> = PureList.List<T>;
 
   // inserts item to the queue, places it after all items with higher or equal priority
   // returns updated queue and distance of placed item from the queue head

@@ -1,7 +1,7 @@
-import Float "mo:base/Float";
-import Int "mo:base/Int";
+import Float "mo:core/Float";
+import Int "mo:core/Int";
 import Prim "mo:prim";
-import Principal "mo:base/Principal";
+import Principal "mo:core/Principal";
 
 import { init; createFt } "./test.util";
 
@@ -82,7 +82,7 @@ do {
   let askVolume = 1_000_000_000_000;
   let askPrice = 0.0000000022790000000000002;
 
-  func denominateVolumeInQuoteAsset(volume : Nat, unitPrice : Float) : Nat = unitPrice * Float.fromInt(volume)
+  func denominateVolumeInQuoteAsset(volume : Nat, unitPrice : Float) : Nat = unitPrice * Int.toFloat(volume)
   |> Float.ceil(_)
   |> Int.abs(Float.toInt(_));
 
@@ -104,7 +104,7 @@ do {
   auction.processAsset(ft);
   let ?priceHistoryItem = auction.getPriceHistory([ft], #desc, false).next() else Prim.trap("");
   assert priceHistoryItem.3 == askVolume;
-  assert Float.equalWithin(priceHistoryItem.4, bidPrice, 0.000000000000001);
+  assert Float.abs(priceHistoryItem.4 - bidPrice) < 0.000000000000001;
 
   assert auction.getCredit(user, 0).locked == denominateVolumeInQuoteAsset(bidVolume - askVolume, bidPrice);
 

@@ -1,17 +1,20 @@
-import Array "mo:base/Array";
-import AssocList "mo:base/AssocList";
-import Float "mo:base/Float";
-import Int "mo:base/Int";
+import Array "mo:core/Array";
+import Float "mo:core/Float";
+import Int "mo:core/Int";
 import Iter "mo:core/Iter";
-import List "mo:base/List";
-import Nat "mo:base/Nat";
-import Option "mo:base/Option";
+import PureList "mo:core/pure/List";
+import Nat "mo:core/Nat";
+import Option "mo:core/Option";
 import Prim "mo:prim";
+import Principal "mo:core/Principal";
 import Queue "mo:core/Queue";
-import R "mo:base/Result";
-import RBTree "mo:base/RBTree";
+import R "mo:core/Result";
+import Map "mo:core/Map";
+import VarArray "mo:core/VarArray";
 
-import Vec "mo:vector";
+import AssocList "./assoc_list";
+
+import List "mo:core/List";
 
 import Assets "./assets";
 import C "./constants";
@@ -61,7 +64,7 @@ module {
     assetInfo : T.AssetInfo,
     orderBookType : {
       #immediate;
-      #combined : { encryptedOrdersQueue : List.List<T.Order> };
+      #combined : { encryptedOrdersQueue : PureList.List<T.Order> };
     },
   ) {
 
@@ -70,7 +73,7 @@ module {
         // Note: for immediate order book we always take only the first entry, because clearing happens for each ask-bid pair separately
         case (#immediate) {
           service.assetOrderBook(assetInfo, #immediate).queue
-          |> List.toIter(_)
+          |> PureList.values(_)
           |> Iter.take(_, 1)
           |> Iter.map<(T.OrderId, T.Order), (?T.OrderId, T.Order)>(_, func(oid, o) = (?oid, o));
         };
@@ -158,13 +161,13 @@ module {
       assetInfo : T.AssetInfo,
       orderBookType : {
         #immediate;
-        #combined : { encryptedOrdersQueue : List.List<T.Order> };
+        #combined : { encryptedOrdersQueue : PureList.List<T.Order> };
       },
     ) : OrderBookExecutionService = OrderBookExecutionService(self, assetInfo, orderBookType);
 
     public let kind : { #ask; #bid } = kind_;
 
-    func denominateVolumeInQuoteAsset(volume : Nat, unitPrice : Float) : Nat = unitPrice * Float.fromInt(volume)
+    func denominateVolumeInQuoteAsset(volume : Nat, unitPrice : Float) : Nat = unitPrice * Int.toFloat(volume)
     |> (switch (kind) { case (#ask) Float.floor(_); case (#bid) Float.ceil(_) })
     |> Int.abs(Float.toInt(_));
 
@@ -241,7 +244,7 @@ module {
 
       // source and destination volumes
       let srcVol = switch (isPartial, kind) {
-        case (true, #bid) price * Float.fromInt(baseVolume) |> Float.floor(_) |> Int.abs(Float.toInt(_));
+        case (true, #bid) price * Int.toFloat(baseVolume) |> Float.floor(_) |> Int.abs(Float.toInt(_));
         case (_) srcVolume(baseVolume, price);
       };
       let destVol = destVolume(baseVolume, price);
@@ -268,7 +271,7 @@ module {
       let acc = credits.getOrCreate(order.userInfoRef, destAssetId(order.assetId));
       ignore credits.appendCredit(acc, destVol);
 
-      Vec.add(order.userInfoRef.transactionHistory, (Prim.time(), sessionNumber, kind, order.assetId, baseVolume, price));
+      List.add(order.userInfoRef.transactionHistory, (Prim.time(), sessionNumber, kind, order.assetId, baseVolume, price));
 
       let quoteVolume = switch (kind) {
         case (#ask) destVol;
@@ -307,10 +310,10 @@ module {
     public let minQuoteVolume : Nat = settings.minVolumeSteps * quoteVolumeStep;
     public let priceMaxDigits : Nat = settings.priceMaxDigits;
 
-    public var executeImmediateOrderBooks : ?((assetId : T.AssetId, advantageFor : { #ask; #bid }) -> [(price : Float, volume : Nat, fulfilledOrders : List.List<{ order : T.Order; baseVolume : Nat; quoteVolume : Nat; isPartial : Bool; kind : { #ask; #bid } }>)]) = null;
+    public var executeImmediateOrderBooks : ?((assetId : T.AssetId, advantageFor : { #ask; #bid }) -> [(price : Float, volume : Nat, fulfilledOrders : PureList.List<{ order : T.Order; baseVolume : Nat; quoteVolume : Nat; isPartial : Bool; kind : { #ask; #bid } }>)]) = null;
 
     public func getBaseVolumeStep(price : Float) : Nat {
-      let p = price / Float.fromInt(10 ** settings.volumeStepLog10);
+      let p = price / Int.toFloat(10 ** settings.volumeStepLog10);
       if (p >= 1) return 1;
       let zf = - Float.log(p) / 2.302_585_092_994_045;
       Int.abs(10 ** Float.toInt(zf));
@@ -320,10 +323,10 @@ module {
       if (price >= 1) {
         let e1 = Float.log(price) / 2.302_585_092_994_045;
         let e = Float.trunc(e1);
-        let m = 10 ** (e + 1 - Prim.intToFloat(priceMaxDigits));
+        let m = 10 ** (e + 1 - Int.toFloat(priceMaxDigits));
         let n = price / m; // normalized
         let r = Float.nearest(n); // rounded
-        if (Float.equalWithin(n, r, 1e-10)) {
+        if (Float.abs(n - r) < 1e-10) {
           ?(r * m);
         } else {
           null;
@@ -331,10 +334,10 @@ module {
       } else {
         let e1 = Float.log(price) / 2.302_585_092_994_047;
         let e = Float.trunc(e1);
-        let m = 10 ** (Prim.intToFloat(priceMaxDigits) - e);
+        let m = 10 ** (Int.toFloat(priceMaxDigits) - e);
         let n = price * m; // normalized
         let r = Float.nearest(n); // rounded
-        if (Float.equalWithin(n, r, 1e-10)) {
+        if (Float.abs(n - r) < 1e-10) {
           ?(r / m);
         } else {
           null;
@@ -385,7 +388,7 @@ module {
       var newBalances : AssocList.AssocList<T.AssetId, Nat> = null;
       // temporary lists of newly placed/cancelled orders
       type OrdersDelta = {
-        var placed : List.List<(?T.OrderId, T.Order)>;
+        var placed : PureList.List<(?T.OrderId, T.Order)>;
         var isOrderCancelled : (assetId : T.AssetId, orderId : T.OrderId) -> Bool;
       };
       var asksDelta : OrdersDelta = {
@@ -398,10 +401,10 @@ module {
       };
 
       // array of functions which will write all changes to the state
-      var cancellationCommitActions : List.List<() -> [CancellationResult]> = null;
-      let placementCommitActions = Array.init<() -> PlaceOrderResult>(placements.size(), func() = (0, #placed));
+      var cancellationCommitActions : PureList.List<() -> [CancellationResult]> = null;
+      let placementCommitActions = VarArray.repeat<() -> PlaceOrderResult>(func() = (0, #placed), placements.size());
 
-      let newPushNotifications : Vec.Vector<(Principal, Users.PushNotification)> = Vec.new();
+      let newPushNotifications : List.List<(Principal, Users.PushNotification)> = List.empty();
 
       // update temporary balances: add unlocked credits for each cancelled order
       func affectNewBalancesWithCancellation(ordersService : OrdersService, order : T.Order) {
@@ -421,24 +424,24 @@ module {
       // prepare cancellation of all orders by type (ask or bid)
       func prepareBulkCancellation(ordersService : OrdersService) {
         let userOrderBook = users.getOrderBook(userInfo, ordersService.kind);
-        for ((orderId, order) in List.toIter(userOrderBook.map)) {
+        for ((orderId, order) in PureList.values(userOrderBook.map)) {
           affectNewBalancesWithCancellation(ordersService, order);
         };
-        cancellationCommitActions := List.push<() -> [CancellationResult]>(
+        cancellationCommitActions := PureList.pushFront<() -> [CancellationResult]>(
+          cancellationCommitActions,
           func() {
-            let ret : Vec.Vector<CancellationResult> = Vec.new();
+            let ret : List.List<CancellationResult> = List.empty();
             label l while (true) {
               switch (userOrderBook.map) {
                 case (?((orderId, _), _)) {
                   let ?order = ordersService.cancel(userInfo, orderId) else Prim.trap("Can never happen");
-                  Vec.add(ret, (orderId, order.assetId, order.orderBookType, order.volume, order.price));
+                  List.add(ret, (orderId, order.assetId, order.orderBookType, order.volume, order.price));
                 };
                 case (_) break l;
               };
             };
-            Vec.toArray(ret);
+            List.toArray(ret);
           },
-          cancellationCommitActions,
         );
       };
 
@@ -446,23 +449,23 @@ module {
       func prepareBulkCancellationWithFilter(ordersService : OrdersService, isCancel : (assetId : T.AssetId, orderId : T.OrderId) -> Bool) {
         // TODO can be optimized: cancelOrderInternal searches for order by it's id with linear complexity
         let userOrderBook = users.getOrderBook(userInfo, ordersService.kind);
-        let orderIds : Vec.Vector<T.OrderId> = Vec.new();
-        for ((orderId, order) in List.toIter(userOrderBook.map)) {
+        let orderIds : List.List<T.OrderId> = List.empty();
+        for ((orderId, order) in PureList.values(userOrderBook.map)) {
           if (isCancel(order.assetId, orderId)) {
             affectNewBalancesWithCancellation(ordersService, order);
-            Vec.add(orderIds, orderId);
+            List.add(orderIds, orderId);
           };
         };
-        cancellationCommitActions := List.push<() -> [CancellationResult]>(
-          func() {
-            let ret : Vec.Vector<CancellationResult> = Vec.new();
-            for (orderId in Vec.vals(orderIds)) {
-              let ?order = ordersService.cancel(userInfo, orderId) else Prim.trap("Can never happen");
-              Vec.add(ret, (orderId, order.assetId, order.orderBookType, order.volume, order.price));
-            };
-            Vec.toArray(ret);
-          },
+        cancellationCommitActions := PureList.pushFront<() -> [CancellationResult]>(
           cancellationCommitActions,
+          func() {
+            let ret : List.List<CancellationResult> = List.empty();
+            for (orderId in List.values(orderIds)) {
+              let ?order = ordersService.cancel(userInfo, orderId) else Prim.trap("Can never happen");
+              List.add(ret, (orderId, order.assetId, order.orderBookType, order.volume, order.price));
+            };
+            List.toArray(ret);
+          },
         );
       };
 
@@ -481,10 +484,10 @@ module {
           prepareBulkCancellationWithFilter(bids, bidsDelta.isOrderCancelled);
         };
         case (?#orders(orders)) {
-          let cancelledAsks : RBTree.RBTree<T.OrderId, ()> = RBTree.RBTree(Nat.compare);
-          let cancelledBids : RBTree.RBTree<T.OrderId, ()> = RBTree.RBTree(Nat.compare);
-          asksDelta.isOrderCancelled := func(_, orderId) = cancelledAsks.get(orderId) |> not Option.isNull(_);
-          bidsDelta.isOrderCancelled := func(_, orderId) = cancelledBids.get(orderId) |> not Option.isNull(_);
+          let cancelledAsks : Map.Map<T.OrderId, ()> = Map.empty();
+          let cancelledBids : Map.Map<T.OrderId, ()> = Map.empty();
+          asksDelta.isOrderCancelled := func(_, orderId) = Map.get(cancelledAsks, Nat.compare, orderId) |> not Option.isNull(_);
+          bidsDelta.isOrderCancelled := func(_, orderId) = Map.get(cancelledBids, Nat.compare, orderId) |> not Option.isNull(_);
 
           var assetIdSet : AssocList.AssocList<T.AssetId, Nat> = null;
           for (i in orders.keys()) {
@@ -494,13 +497,13 @@ module {
             };
             let ?oldOrder = users.findOrder(userInfo, ordersService.kind, orderId) else return #err(#cancellation({ index = i; error = #UnknownOrder }));
             affectNewBalancesWithCancellation(ordersService, oldOrder);
-            cancelledTree.put(orderId, ());
-            cancellationCommitActions := List.push<() -> [CancellationResult]>(
+            Map.add(cancelledTree, Nat.compare, orderId, ());
+            cancellationCommitActions := PureList.pushFront<() -> [CancellationResult]>(
+              cancellationCommitActions,
               func() {
                 let ?order = ordersService.cancel(userInfo, orderId) else return [];
                 [(orderId, order.assetId, order.orderBookType, order.volume, order.price)];
               },
-              cancellationCommitActions,
             );
             AssocList.replace<T.AssetId, Nat>(assetIdSet, oldOrder.assetId, Nat.equal, ?i) |> (assetIdSet := _.0);
           };
@@ -542,9 +545,9 @@ module {
 
         // build list of placed orders + orders to be placed during this call
         func buildOrdersList(user : T.UserInfo, kind : { #ask; #bid }, delta : OrdersDelta) : Iter.Iter<(?T.OrderId, T.Order)> = users.getOrderBook(user, kind).map
-        |> List.toIter(_)
+        |> PureList.values(_)
         |> Iter.map<(T.OrderId, T.Order), (?T.OrderId, T.Order)>(_, func(oid, o) = (?oid, o))
-        |> Iter.concat<(?T.OrderId, T.Order)>(_, List.toIter(delta.placed));
+        |> Iter.concat<(?T.OrderId, T.Order)>(_, PureList.values(delta.placed));
 
         // validate conflicting orders
         for ((orderId, order) in buildOrdersList(userInfo, ordersService.kind, ordersDelta)) {
@@ -585,7 +588,7 @@ module {
           price;
           var volume = volume;
         };
-        ordersDelta.placed := List.push((null, order), ordersDelta.placed);
+        ordersDelta.placed := PureList.pushFront(ordersDelta.placed, (null, order));
 
         placementCommitActions[i] := func() {
           let orderId = ordersCounter;
@@ -595,10 +598,10 @@ module {
               let ?executeFunc = executeImmediateOrderBooks else Prim.trap("execute function was not set");
               let executionResults = executeFunc(order.assetId, ordersService.kind);
               if (executionResults.size() > 0) {
-                for ((price, volume, fulfilledOrders) in Array.vals(executionResults)) {
-                  for ({ order; baseVolume; quoteVolume; isPartial; kind } in List.toIter(fulfilledOrders)) {
+                for ((price, volume, fulfilledOrders) in Array.values(executionResults)) {
+                  for ({ order; baseVolume; quoteVolume; isPartial; kind } in PureList.values(fulfilledOrders)) {
                     if (order.user != p and order.userInfoRef.userSettings.pushNotificationsEnabled) {
-                      Vec.add(
+                      List.add(
                         newPushNotifications,
                         (
                           order.user,
@@ -627,32 +630,32 @@ module {
       };
 
       // commit changes, return results
-      let retCancellations : Vec.Vector<CancellationResult> = Vec.new();
-      for (cancel in List.toIter(cancellationCommitActions)) {
-        for (c in cancel().vals()) {
-          Vec.add(retCancellations, c);
+      let retCancellations : List.List<CancellationResult> = List.empty();
+      for (cancel in PureList.values(cancellationCommitActions)) {
+        for (c in cancel().values()) {
+          List.add(retCancellations, c);
         };
       };
       let retPlacements = Array.tabulate<PlaceOrderResult>(placementCommitActions.size(), func(i) = placementCommitActions[i]());
 
-      if (Vec.size(retCancellations) > 0 or placements.size() > 0) {
+      if (List.size(retCancellations) > 0 or placements.size() > 0) {
         userInfo.accountRevision += 1;
-        userInfo.loyaltyPoints += (Vec.size(retCancellations) + placements.size()) * C.LOYALTY_REWARD.ORDER_MODIFICATION;
+        userInfo.loyaltyPoints += (List.size(retCancellations) + placements.size()) * C.LOYALTY_REWARD.ORDER_MODIFICATION;
       };
 
       if (placements.size() > 0) {
-        let oldRecord = users.participantsArchive.replace(p, { lastOrderPlacement = Prim.time() });
+        let oldRecord = Map.swap(users.participantsArchive, Principal.compare, p, { lastOrderPlacement = Prim.time() });
         switch (oldRecord) {
           case (null) users.participantsArchiveSize += 1;
           case (_) {};
         };
       };
 
-      for (n in Vec.vals(newPushNotifications)) {
+      for (n in List.values(newPushNotifications)) {
         Queue.pushBack(users.stagedPushNotifications, n);
       };
 
-      #ok(Vec.toArray(retCancellations), retPlacements);
+      #ok(List.toArray(retCancellations), retPlacements);
     };
 
     public func manageDarkOrderBooks(
@@ -661,7 +664,7 @@ module {
       placements : [(assetId : T.AssetId, data : ?T.EncryptedOrderBook)],
       expectedAccountRevision : ?Nat,
     ) : R.Result<[?T.EncryptedOrderBook], { #AccountRevisionMismatch; #NoCredit }> {
-      let ret = Array.init<?T.EncryptedOrderBook>(placements.size(), null);
+      let ret = VarArray.repeat<?T.EncryptedOrderBook>(null, placements.size());
       switch (expectedAccountRevision) {
         case (?rev) {
           if (rev != userInfo.accountRevision) {
@@ -694,15 +697,15 @@ module {
         let oldValue = users.putDarkOrderBook(userInfo, assetId, data);
         ret[i] := oldValue;
       };
-      #ok(Array.freeze(ret));
+      #ok(VarArray.toArray(ret));
     };
 
-    public func processDarkOrderBooks(assetId : T.AssetId, asset : T.AssetInfo) : (asks : List.List<T.Order>, bids : List.List<T.Order>) {
+    public func processDarkOrderBooks(assetId : T.AssetId, asset : T.AssetInfo) : (asks : PureList.List<T.Order>, bids : PureList.List<T.Order>) {
       if (Option.isNull(asset.darkOrderBooks.encrypted)) return (null, null);
       let ?decryptedOrderBooks = asset.darkOrderBooks.decrypted else Prim.trap("Dark order books were not decrypted");
-      var asksQueue : List.List<T.Order> = null;
-      var bidsQueue : List.List<T.Order> = null;
-      label l for ((user, orders) in decryptedOrderBooks.vals()) {
+      var asksQueue : PureList.List<T.Order> = null;
+      var bidsQueue : PureList.List<T.Order> = null;
+      label l for ((user, orders) in decryptedOrderBooks.values()) {
         let ?userInfo = users.get(user) else continue l;
         let ?quoteAccount = credits.getAccount(userInfo, quoteAssetId) else Prim.trap("Can never happen");
         ignore credits.unlockCredit(quoteAccount, C.DARK_ORDER_BOOK_LOCK_AMOUNT);
@@ -711,7 +714,7 @@ module {
         let baseAccount = credits.getAccount(userInfo, assetId);
         var quoteToLock = 0;
         var baseToLock = 0;
-        label il for ({ kind; price; volume } in orders.vals()) {
+        label il for ({ kind; price; volume } in orders.values()) {
           let ordersService = (switch (kind) { case (#ask) { asks }; case (#bid) { bids } });
           let order : T.Order = {
             user;

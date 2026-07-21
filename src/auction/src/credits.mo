@@ -1,7 +1,8 @@
-import Array "mo:base/Array";
-import AssocList "mo:base/AssocList";
-import List "mo:base/List";
-import Nat "mo:base/Nat";
+import Array "mo:core/Array";
+import PureList "mo:core/pure/List";
+import Nat "mo:core/Nat";
+
+import AssocList "./assoc_list";
 
 import T "./types";
 
@@ -56,12 +57,12 @@ module {
     };
 
     public func infoAll(userInfo : T.UserInfo) : [(T.AssetId, CreditInfo)] {
-      let length = List.size(userInfo.credits);
+      let length = PureList.size(userInfo.credits);
       var list = userInfo.credits;
       Array.tabulate<(T.AssetId, CreditInfo)>(
         length,
         func(i) {
-          let popped = List.pop(list);
+          let popped = PureList.popFront(list);
           list := popped.1;
           switch (popped.0) {
             case null { loop { assert false } };

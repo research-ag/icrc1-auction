@@ -1,12 +1,13 @@
-import AssocList "mo:base/AssocList";
-import List "mo:base/List";
-import Nat "mo:base/Nat";
+import Nat "mo:core/Nat";
 import Prim "mo:prim";
-import Principal "mo:base/Principal";
-import RBTree "mo:base/RBTree";
+import Principal "mo:core/Principal";
 
-import Vec "mo:vector";
+import Vec "mo:core/List";
+import Map "mo:core/Map";
+import PureList "mo:core/pure/List";
 import Queue "mo:core/Queue";
+
+import AssocList "./assoc_list";
 
 import T "./types";
 
@@ -26,13 +27,13 @@ module {
   public class Users() {
 
     public var usersAmount : Nat = 0;
-    public let users : RBTree.RBTree<Principal, T.UserInfo> = RBTree.RBTree<Principal, T.UserInfo>(Principal.compare);
+    public let users : Map.Map<Principal, T.UserInfo> = Map.empty<Principal, T.UserInfo>();
 
     public func nUsers() : Nat = usersAmount;
     public func nUsersWithCredits() : Nat {
       var res : Nat = 0;
-      for ((_, user) in users.entries()) {
-        if (not List.isNil(user.credits)) {
+      for (user in Map.values(users)) {
+        if (not PureList.isEmpty(user.credits)) {
           res += 1;
         };
       };
@@ -40,8 +41,8 @@ module {
     };
     public func nUsersWithActiveOrders() : Nat {
       var res : Nat = 0;
-      for ((_, user) in users.entries()) {
-        if (not List.isNil(user.asks.map) or not List.isNil(user.bids.map)) {
+      for (user in Map.values(users)) {
+        if (not PureList.isEmpty(user.asks.map) or not PureList.isEmpty(user.bids.map)) {
           res += 1;
         };
       };
@@ -49,12 +50,12 @@ module {
     };
 
     public var participantsArchiveSize : Nat = 0;
-    public let participantsArchive : RBTree.RBTree<Principal, { lastOrderPlacement : Nat64 }> = RBTree.RBTree<Principal, { lastOrderPlacement : Nat64 }>(Principal.compare);
+    public let participantsArchive : Map.Map<Principal, { lastOrderPlacement : Nat64 }> = Map.empty<Principal, { lastOrderPlacement : Nat64 }>();
 
     // This field does not survive upgrades, since we (currently) send them straight away
     public var stagedPushNotifications : Queue.Queue<(user : Principal, notification : PushNotification)> = Queue.empty();
 
-    public func get(p : Principal) : ?T.UserInfo = users.get(p);
+    public func get(p : Principal) : ?T.UserInfo = Map.get(users, Principal.compare, p);
 
     public func getOrCreate(p : Principal) : T.UserInfo = switch (get(p)) {
       case (?info) info;
@@ -66,19 +67,19 @@ module {
           var credits = null;
           var accountRevision = 0;
           var loyaltyPoints = 0;
-          var depositHistory = Vec.new<T.DepositHistoryItem>();
-          var transactionHistory = Vec.new<T.TransactionHistoryItem>();
+          var depositHistory = Vec.empty<T.DepositHistoryItem>();
+          var transactionHistory = Vec.empty<T.TransactionHistoryItem>();
           userSettings = {
             var pushNotificationsEnabled = false;
           };
         };
-        let oldValue = users.replace(p, data);
+        let oldValue = Map.swap(users, Principal.compare, p, data);
         switch (oldValue) {
           case (?_) Prim.trap("Prevented user data overwrite");
           case (_) {};
         };
         usersAmount += 1;
-        participantsArchive.put(p, { lastOrderPlacement = 0 });
+        Map.add(participantsArchive, Principal.compare, p, { lastOrderPlacement = 0 : Nat64 });
         participantsArchiveSize += 1;
         data;
       };

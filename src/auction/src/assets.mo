@@ -1,12 +1,13 @@
-import Int "mo:base/Int";
-import Iter "mo:base/Iter";
-import Nat "mo:base/Nat";
-import AssocList "mo:base/AssocList";
+import Int "mo:core/Int";
+import Iter "mo:core/Iter";
+import Nat "mo:core/Nat";
 import Prim "mo:prim";
-import Principal "mo:base/Principal";
+import Principal "mo:core/Principal";
 
-import CircularBuffer "mo:mrr/CircularBuffer";
-import Vec "mo:vector";
+import AssocList "./assoc_list";
+
+import CircularBuffer "./circular_buffer";
+import Vec "mo:core/List";
 
 import AssetOrderBook "./asset_order_book";
 import T "./types";
@@ -18,19 +19,19 @@ module {
     public let IMMEDIATE_BUFFER_CAPACITY = 65_536;
 
     // asset info, index == assetId
-    public var assets : Vec.Vector<T.AssetInfo> = Vec.new();
+    public var assets : Vec.List<T.AssetInfo> = Vec.empty();
     // asset history
     public var history : {
       immediate : CircularBuffer.CircularBuffer<T.PriceHistoryItem>;
-      var delayed : Vec.Vector<T.PriceHistoryItem>;
+      var delayed : Vec.List<T.PriceHistoryItem>;
     } = {
       immediate = CircularBuffer.CircularBuffer<T.PriceHistoryItem>(IMMEDIATE_BUFFER_CAPACITY);
-      var delayed = Vec.new();
+      var delayed = Vec.empty();
     };
 
     public func nAssets() : Nat = Vec.size(assets);
 
-    public func getAsset(assetId : T.AssetId) : T.AssetInfo = Vec.get(assets, assetId);
+    public func getAsset(assetId : T.AssetId) : T.AssetInfo = Vec.at(assets, assetId);
 
     public func historyIter(orderBookType : T.OrderBookType, order : { #asc; #desc }) : Iter.Iter<T.PriceHistoryItem> {
       switch (orderBookType) {
@@ -57,8 +58,8 @@ module {
         };
         case (#delayed) (
           switch (order) {
-            case (#asc) Vec.vals(history.delayed);
-            case (#desc) Vec.valsRev(history.delayed);
+            case (#asc) Vec.values(history.delayed);
+            case (#desc) Vec.reverseValues(history.delayed);
           }
         );
       };
@@ -70,7 +71,7 @@ module {
     };
 
     public func register(n : Nat, sessionsCounter : Nat) {
-      for (i in Iter.range(1, n)) {
+      for (i in Nat.range(1, n + 1)) {
         (
           {
             bids = {

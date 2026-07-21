@@ -1,12 +1,12 @@
-import Array "mo:base/Array";
-import Bench "mo:bench";
-import Blob "mo:base/Blob";
-import Iter "mo:base/Iter";
-import Nat "mo:base/Nat";
-import Nat8 "mo:base/Nat8";
+import Array "mo:core/Array";
+import Bench "mo:bench-helper";
+import Blob "mo:core/Blob";
+import Iter "mo:core/Iter";
+import Nat "mo:core/Nat";
+import Nat8 "mo:core/Nat8";
 import Prim "mo:prim";
-import Principal "mo:base/Principal";
-import Text "mo:base/Text";
+import Principal "mo:core/Principal";
+import Text "mo:core/Text";
 
 import Auction "../src";
 
@@ -27,19 +27,27 @@ module {
     );
   };
 
-  public func init() : Bench.Bench {
-    let bench = Bench.Bench();
+  public func init() : Bench.V1 {
+    let schema : Bench.Schema = {
+      name = "Auction processing (high volumes)";
+      description = "Process a trading pair which has N placed orders and high token precision, e.g. deal volumes have 18+ digits";
+      rows = [
+        "Fulfil `0` asks, `0` bids",
+        "Fulfil `1` ask, `1` bid",
+        "Fulfil `N/2` asks, `1` bid",
+        "Fulfil `1` ask, `N/2` bids",
+        "Fulfil `N/2` asks, `N/2` bids",
+      ];
+      cols = [
+        "10",
+        "50",
+        "100",
+        "500",
+        "1000",
+        "5000",
+      ];
+    };
 
-    bench.name("Auction processing (high volumes)");
-    bench.description("Process a trading pair which has N placed orders and high token precision, e.g. deal volumes have 18+ digits");
-
-    let rows = [
-      "Fulfil `0` asks, `0` bids",
-      "Fulfil `1` ask, `1` bid",
-      "Fulfil `N/2` asks, `1` bid",
-      "Fulfil `1` ask, `N/2` bids",
-      "Fulfil `N/2` asks, `N/2` bids",
-    ];
     // amount of asks/bids to be fulfilled
     func get_nAsks_nBids(nOrders : Nat, ri : Nat) : (Nat, Nat) = switch (ri) {
       case (0) (0, 0);
@@ -50,21 +58,9 @@ module {
       case (_) Prim.trap("Cannot determine nAsks, nBids");
     };
 
-    let cols = [
-      "10",
-      "50",
-      "100",
-      "500",
-      "1000",
-      "5000",
-    ];
-
-    bench.rows(rows);
-    bench.cols(cols);
-
     let users : [Principal] = Array.tabulate<Principal>(100_000, principalFromNat);
     let auctions : [Auction.Auction] = Array.tabulate<Auction.Auction>(
-      rows.size() * cols.size(),
+      schema.rows.size() * schema.cols.size(),
       func(i) {
         let a = Auction.Auction(
           0,
@@ -77,47 +73,35 @@ module {
           },
         );
         a.registerAssets(2);
-        let row : Nat = i % rows.size();
-        let col : Nat = i / rows.size();
+        let row : Nat = i % schema.rows.size();
+        let col : Nat = i / schema.rows.size();
 
-        let ?nOrders = Nat.fromText(cols[col]) else Prim.trap("Cannot parse nOrders");
+        let ?nOrders = Nat.fromText(schema.cols[col]) else Prim.trap("Cannot parse nOrders");
         let (nAsks, nBids) = get_nAsks_nBids(nOrders, row);
 
         let dealVolume : Nat = 5_000_000_000_000_000_000_000;
         // bids with greater price and asks with lower price will be fulfilled
         let criticalPrice : Float = 1_000.0;
 
-        for (i in Iter.range(1, nOrders / 2)) {
+        for (i in Nat.range(1, nOrders / 2 + 1)) {
           let user = users[i - 1];
           ignore a.appendCredit(user, 0, 5_000_000_000_000_000_000_000_000_000);
-          ignore a.placeOrder(user, #bid, 1, dealVolume / Nat.max(nBids, 1), criticalPrice + Prim.intToFloat((nBids - i)) * 0.1, null);
+          ignore a.placeOrder(user, #bid, 1, #delayed, dealVolume / Nat.max(nBids, 1), criticalPrice + Prim.intToFloat((nBids - i)) * 0.1, null);
         };
-        for (i in Iter.range(1, nOrders / 2)) {
+        for (i in Nat.range(1, nOrders / 2 + 1)) {
           let user = users[nOrders / 2 + i - 1];
           ignore a.appendCredit(user, 1, 5_000_000_000_000_000_000_000_000_000);
-          ignore a.placeOrder(user, #ask, 1, dealVolume / Nat.max(nAsks, 1), criticalPrice - Prim.intToFloat((nAsks - i)) * 0.1, null);
+          ignore a.placeOrder(user, #ask, 1, #delayed, dealVolume / Nat.max(nAsks, 1), criticalPrice - Prim.intToFloat((nAsks - i)) * 0.1, null);
         };
-        assert a.assets.getAsset(1).bids.size == nOrders / 2;
-        assert a.assets.getAsset(1).asks.size == nOrders / 2;
+        assert a.assets.getAsset(1).bids.delayed.size == nOrders / 2;
+        assert a.assets.getAsset(1).asks.delayed.size == nOrders / 2;
         a;
       },
     );
 
-    bench.runner(
-      func(row, col) {
-        let ?ci = Array.indexOf<Text>(col, cols, Text.equal) else Prim.trap("Cannot determine column: " # col);
-        let ?ri = Array.indexOf<Text>(row, rows, Text.equal) else Prim.trap("Cannot determine row: " # row);
-        let auction = auctions[ci * rows.size() + ri];
-        auction.processAsset(1);
-
-        // make sure everything worked as expected
-        // let ?nOrders = Nat.fromText(col) else Prim.trap("Cannot parse nOrders");
-        // let (nAsks, nBids) = get_nAsks_nBids(nOrders, ri);
-        // assert auction.assets.getAsset(1).bids.size + nBids == nOrders / 2;
-        // assert auction.assets.getAsset(1).asks.size + nAsks == nOrders / 2;
-      }
-    );
-
-    bench;
+    Bench.V1(schema, func(ri : Nat, ci : Nat) {
+      let auction = auctions[ci * schema.rows.size() + ri];
+      auction.processAsset(1);
+    });
   };
 };

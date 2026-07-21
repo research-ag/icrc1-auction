@@ -1,7 +1,8 @@
-import Int "mo:base/Int";
-import Nat64 "mo:base/Nat64";
-import Principal "mo:base/Principal";
-import R "mo:base/Result";
+import Int "mo:core/Int";
+import Nat "mo:core/Nat";
+import Nat64 "mo:core/Nat64";
+import Principal "mo:core/Principal";
+import R "mo:core/Result";
 
 import TokenHandler "mo:token-handler";
 import CkBtcAddress "mo:ckbtc-address";
@@ -165,7 +166,7 @@ module {
       switch (resp) {
         case (#Err err) return #err(err);
         case (#Ok utxos) {
-          for (utxo in utxos.vals()) {
+          for (utxo in utxos.values()) {
             switch (utxo) {
               case (#Minted _) {};
               case (_) return #err(#NotMinted);
@@ -199,7 +200,7 @@ module {
         case (#Ok _) {
           await ckbtcMinter.retrieve_btc_with_approval({
             address;
-            amount = Nat64.fromNat(allowanceAmount - ledgerFee);
+            amount = Nat.toNat64(allowanceAmount - ledgerFee);
             from_subaccount = null;
           });
         };

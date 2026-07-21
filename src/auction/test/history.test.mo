@@ -1,6 +1,6 @@
-import Iter "mo:base/Iter";
+import Iter "mo:core/Iter";
 import Prim "mo:prim";
-import Principal "mo:base/Principal";
+import Principal "mo:core/Principal";
 
 import { init; createFt } "./test.util";
 

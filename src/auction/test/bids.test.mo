@@ -1,5 +1,5 @@
 import Prim "mo:prim";
-import Principal "mo:base/Principal";
+import Principal "mo:core/Principal";
 
 import { init; createFt } "./test.util";
 

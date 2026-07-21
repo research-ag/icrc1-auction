@@ -4,20 +4,20 @@
 /// Main author: Andy Gura
 /// Contributors: Timo Hanke
 
-import Array "mo:base/Array";
-import Float "mo:base/Float";
-import Int "mo:base/Int";
-import Iter "mo:base/Iter";
-import List "mo:base/List";
-import Nat "mo:base/Nat";
-import Nat64 "mo:base/Nat64";
-import Option "mo:base/Option";
+import Array "mo:core/Array";
+import Float "mo:core/Float";
+import Int "mo:core/Int";
+import Iter "mo:core/Iter";
+import PureList "mo:core/pure/List";
+import Nat "mo:core/Nat";
+import Nat64 "mo:core/Nat64";
+import Option "mo:core/Option";
 import Prim "mo:prim";
-import Principal "mo:base/Principal";
-import R "mo:base/Result";
-import RBTree "mo:base/RBTree";
+import Principal "mo:core/Principal";
+import R "mo:core/Result";
+import Map "mo:core/Map";
 
-import Vec "mo:vector";
+import Vec "mo:core/List";
 
 import AssetOrderBook "./asset_order_book";
 import Assets "./assets";
@@ -32,23 +32,23 @@ import T "./types";
 module {
 
   public func defaultStableData() : T.StableDataV5 = {
-    assets = Vec.new();
+    assets = Vec.empty();
     orders = { globalCounter = 0 };
     quoteToken = { surplus = 0 };
     sessions = {
       counter = 0;
       history = {
         immediate = ([var], 0, 0);
-        delayed = Vec.new<T.PriceHistoryItem>();
+        delayed = Vec.empty<T.PriceHistoryItem>();
       };
     };
     users = {
       registry = {
-        tree = #leaf;
+        entries = [];
         size = 0;
       };
       participantsArchive = {
-        tree = #leaf;
+        entries = [];
         size = 0;
       };
       accountsAmount = 0;
@@ -135,10 +135,10 @@ module {
       settings,
     );
     orders.executeImmediateOrderBooks := ?(
-      func(assetId : T.AssetId, advantageFor : { #ask; #bid }) : [(price : Float, volume : Nat, fulfilledOrders : List.List<Processor.FulfilledOrder>)] {
+      func(assetId : T.AssetId, advantageFor : { #ask; #bid }) : [(price : Float, volume : Nat, fulfilledOrders : PureList.List<Processor.FulfilledOrder>)] {
         if (assetId == quoteAssetId) return [];
         let assetInfo = assets.getAsset(assetId);
-        let ret = Vec.new<(Float, Nat, List.List<Processor.FulfilledOrder>)>();
+        let ret = Vec.empty<(Float, Nat, PureList.List<Processor.FulfilledOrder>)>();
         let asks = orders.asks.createOrderBookExecutionService(assetInfo, #immediate);
         let bids = orders.bids.createOrderBookExecutionService(assetInfo, #immediate);
         label l while true {
@@ -175,12 +175,12 @@ module {
 
     public func nDarkOrderBooks(assetId : AssetId) : Nat {
       let assetInfo = assets.getAsset(assetId);
-      List.size(assetInfo.darkOrderBooks.encrypted);
+      PureList.size(assetInfo.darkOrderBooks.encrypted);
     };
 
     public func decryptDarkOrderBooks(assetId : AssetId, cryptoCanisterId : Principal, vetKey : Blob) : async* () {
       let assetInfo = assets.getAsset(assetId);
-      let darkOrderBook = assetInfo.darkOrderBooks.encrypted |> List.toArray(_);
+      let darkOrderBook = assetInfo.darkOrderBooks.encrypted |> PureList.toArray(_);
       if (darkOrderBook.size() == 0) {
         assetInfo.darkOrderBooks.decrypted := ?[];
         return;
@@ -276,7 +276,7 @@ module {
 
     public func getTotalLoyaltyPointsSupply() : Nat {
       var res = 0;
-      for ((_, ui) in users.users.entries()) {
+      for (ui in Map.values(users.users)) {
         res += ui.loyaltyPoints;
       };
       res;
@@ -335,16 +335,16 @@ module {
       case (?ui) {
         var list = users.getOrderBook(ui, kind).map;
         switch (assetId) {
-          case (?aid) list := List.filter<(OrderId, T.Order)>(list, func(_, o) = o.assetId == aid);
+          case (?aid) list := PureList.filter<(OrderId, T.Order)>(list, func(_, o) = o.assetId == aid);
           case (_) {};
         };
-        List.toArray(list);
+        PureList.toArray(list);
       };
     };
 
     public func listAssetOrders(assetId : AssetId, kind : { #ask; #bid }, orderBookType : T.OrderBookType) : [(OrderId, T.Order)] {
       let orderBook = assets.getAsset(assetId) |> assets.getOrderBook(_, kind, orderBookType);
-      let queueIter = List.toIter(orderBook.queue);
+      let queueIter = PureList.values(orderBook.queue);
       Array.tabulate<(OrderId, T.Order)>(
         orderBook.size,
         func(_) {
@@ -422,12 +422,12 @@ module {
       var iter = userInfo.depositHistory
       |> (
         switch (order) {
-          case (#asc) Vec.vals(_);
-          case (#desc) Vec.valsRev(_);
+          case (#asc) Vec.values(_);
+          case (#desc) Vec.reverseValues(_);
         }
       );
       if (assetIds.size() > 0) {
-        iter := Iter.filter<T.DepositHistoryItem>(iter, func x = not Option.isNull(Array.indexOf(x.2, assetIds, Nat.equal)));
+        iter := Iter.filter<T.DepositHistoryItem>(iter, func x = not Option.isNull(Array.find<Nat>(assetIds, func y = y == x.2)));
       };
       iter;
     };
@@ -437,12 +437,12 @@ module {
       var iter = userInfo.transactionHistory
       |> (
         switch (order) {
-          case (#asc) Vec.vals(_);
-          case (#desc) Vec.valsRev(_);
+          case (#asc) Vec.values(_);
+          case (#desc) Vec.reverseValues(_);
         }
       );
       if (assetIds.size() > 0) {
-        iter := Iter.filter<T.TransactionHistoryItem>(iter, func x = not Option.isNull(Array.indexOf(x.3, assetIds, Nat.equal)));
+        iter := Iter.filter<T.TransactionHistoryItem>(iter, func x = not Option.isNull(Array.find<Nat>(assetIds, func y = y == x.3)));
       };
       iter;
     };
@@ -450,7 +450,7 @@ module {
     public func getPriceHistory(assetIds : [AssetId], order : { #asc; #desc }, skipEmpty : Bool) : Iter.Iter<T.PriceHistoryItem> {
       var iter = assets.historyIter(#delayed, order);
       if (assetIds.size() > 0) {
-        iter := Iter.filter<T.PriceHistoryItem>(iter, func x = not Option.isNull(Array.indexOf(x.2, assetIds, Nat.equal)));
+        iter := Iter.filter<T.PriceHistoryItem>(iter, func x = not Option.isNull(Array.find<Nat>(assetIds, func y = y == x.2)));
       };
       if (skipEmpty) {
         iter := Iter.filter<T.PriceHistoryItem>(iter, func x = x.3 > 0);
@@ -461,7 +461,7 @@ module {
     public func getImmediatePriceHistory(assetIds : [AssetId], order : { #asc; #desc }) : Iter.Iter<T.PriceHistoryItem> {
       var iter = assets.historyIter(#immediate, order);
       if (assetIds.size() > 0) {
-        iter := Iter.filter<T.PriceHistoryItem>(iter, func x = not Option.isNull(Array.indexOf(x.2, assetIds, Nat.equal)));
+        iter := Iter.filter<T.PriceHistoryItem>(iter, func x = not Option.isNull(Array.find<Nat>(assetIds, func y = y == x.2)));
       };
       iter;
     };
@@ -496,38 +496,33 @@ module {
       };
       users = {
         registry = {
-          tree = (
-            func() : RBTree.Tree<Principal, T.StableUserInfoV4> {
-              let stableUsers = RBTree.RBTree<Principal, T.StableUserInfoV4>(Principal.compare);
-              for ((p, u) in users.users.entries()) {
-                stableUsers.put(
-                  p,
-                  {
-                    asks = {
-                      var map = List.map<(T.OrderId, T.Order), (T.OrderId, T.StableOrderDataV2)>(u.asks.map, func(oid, o) = (oid, { assetId = o.assetId; orderBookType = o.orderBookType; price = o.price; user = o.user; volume = o.volume }));
-                    };
-                    bids = {
-                      var map = List.map<(T.OrderId, T.Order), (T.OrderId, T.StableOrderDataV2)>(u.bids.map, func(oid, o) = (oid, { assetId = o.assetId; orderBookType = o.orderBookType; price = o.price; user = o.user; volume = o.volume }));
-                    };
-                    darkOrderBooks = u.darkOrderBooks;
-                    credits = u.credits;
-                    accountRevision = u.accountRevision;
-                    loyaltyPoints = u.loyaltyPoints;
-                    depositHistory = u.depositHistory;
-                    transactionHistory = u.transactionHistory;
-                    userSettings = {
-                      pushNotificationsEnabled = u.userSettings.pushNotificationsEnabled;
-                    };
-                  },
-                );
-              };
-              stableUsers.share();
-            }
-          )();
+          entries = Iter.map<(Principal, T.UserInfo), (Principal, T.StableUserInfoV4)>(
+            Map.entries(users.users),
+            func(p, u) = (
+              p,
+              {
+                asks = {
+                  var map = PureList.map<(T.OrderId, T.Order), (T.OrderId, T.StableOrderDataV2)>(u.asks.map, func(oid, o) = (oid, { assetId = o.assetId; orderBookType = o.orderBookType; price = o.price; user = o.user; volume = o.volume }));
+                };
+                bids = {
+                  var map = PureList.map<(T.OrderId, T.Order), (T.OrderId, T.StableOrderDataV2)>(u.bids.map, func(oid, o) = (oid, { assetId = o.assetId; orderBookType = o.orderBookType; price = o.price; user = o.user; volume = o.volume }));
+                };
+                darkOrderBooks = u.darkOrderBooks;
+                credits = u.credits;
+                accountRevision = u.accountRevision;
+                loyaltyPoints = u.loyaltyPoints;
+                depositHistory = u.depositHistory;
+                transactionHistory = u.transactionHistory;
+                userSettings = {
+                  pushNotificationsEnabled = u.userSettings.pushNotificationsEnabled;
+                };
+              },
+            ),
+          ) |> Iter.toArray(_);
           size = users.usersAmount;
         };
         participantsArchive = {
-          tree = users.participantsArchive.share();
+          entries = Map.entries(users.participantsArchive) |> Iter.toArray(_);
           size = users.participantsArchiveSize;
         };
         accountsAmount = credits.accountsAmount;
@@ -573,9 +568,7 @@ module {
       assets.history.delayed := data.sessions.history.delayed;
 
       users.usersAmount := data.users.registry.size;
-      let ud = RBTree.RBTree<Principal, T.StableUserInfoV4>(Principal.compare);
-      ud.unshare(data.users.registry.tree);
-      for ((p, u) in ud.entries()) {
+      for ((p, u) in data.users.registry.entries.values()) {
         let userData : UserInfo = {
           asks = {
             var map = null;
@@ -593,7 +586,7 @@ module {
             var pushNotificationsEnabled = u.userSettings.pushNotificationsEnabled;
           };
         };
-        for ((oid, orderData) in List.toIter(u.asks.map)) {
+        for ((oid, orderData) in PureList.values(u.asks.map)) {
           let order : T.Order = {
             orderData with userInfoRef = userData;
             var volume = orderData.volume;
@@ -601,7 +594,7 @@ module {
           users.putOrder(userData, #ask, oid, order);
           ignore assets.putOrder(assets.getAsset(order.assetId), #ask, oid, order);
         };
-        for ((oid, orderData) in List.toIter(u.bids.map)) {
+        for ((oid, orderData) in PureList.values(u.bids.map)) {
           let order : T.Order = {
             orderData with userInfoRef = userData;
             var volume = orderData.volume;
@@ -609,13 +602,15 @@ module {
           users.putOrder(userData, #bid, oid, order);
           ignore assets.putOrder(assets.getAsset(order.assetId), #bid, oid, order);
         };
-        for ((assetId, data) in List.toIter(u.darkOrderBooks)) {
+        for ((assetId, data) in PureList.values(u.darkOrderBooks)) {
           ignore assets.putDarkOrderBook(assets.getAsset(assetId), p, ?data);
         };
-        users.users.put(p, userData);
+        Map.add(users.users, Principal.compare, p, userData);
       };
 
-      users.participantsArchive.unshare(data.users.participantsArchive.tree);
+      for ((p, entry) in data.users.participantsArchive.entries.values()) {
+        Map.add(users.participantsArchive, Principal.compare, p, entry);
+      };
       users.participantsArchiveSize := data.users.participantsArchive.size;
 
       credits.accountsAmount := data.users.accountsAmount;

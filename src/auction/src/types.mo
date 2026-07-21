@@ -1,7 +1,6 @@
-import AssocList "mo:base/AssocList";
-import RBTree "mo:base/RBTree";
+import AssocList "./assoc_list";
 
-import Vec "mo:vector";
+import Vec "mo:core/List";
 
 import PriorityQueue "./priority_queue";
 
@@ -83,8 +82,8 @@ module {
     var credits : AssocList.AssocList<AssetId, Account>;
     var accountRevision : Nat;
     var loyaltyPoints : Nat;
-    var depositHistory : Vec.Vector<DepositHistoryItem>;
-    var transactionHistory : Vec.Vector<TransactionHistoryItem>;
+    var depositHistory : Vec.List<DepositHistoryItem>;
+    var transactionHistory : Vec.List<TransactionHistoryItem>;
     userSettings : UserSettings;
   };
 
@@ -94,23 +93,23 @@ module {
 
   // stable data types
   public type StableDataV5 = {
-    assets : Vec.Vector<StableAssetInfoV3>;
+    assets : Vec.List<StableAssetInfoV3>;
     orders : { globalCounter : Nat };
     quoteToken : { surplus : Nat };
     sessions : {
       counter : Nat;
       history : {
         immediate : ([var ?PriceHistoryItem], Nat, Nat);
-        delayed : Vec.Vector<PriceHistoryItem>;
+        delayed : Vec.List<PriceHistoryItem>;
       };
     };
     users : {
       registry : {
-        tree : RBTree.Tree<Principal, StableUserInfoV4>;
+        entries : [(Principal, StableUserInfoV4)];
         size : Nat;
       };
       participantsArchive : {
-        tree : RBTree.Tree<Principal, { lastOrderPlacement : Nat64 }>;
+        entries : [(Principal, { lastOrderPlacement : Nat64 })];
         size : Nat;
       };
       accountsAmount : Nat;
@@ -127,8 +126,8 @@ module {
     credits : AssocList.AssocList<AssetId, Account>;
     accountRevision : Nat;
     loyaltyPoints : Nat;
-    depositHistory : Vec.Vector<DepositHistoryItem>;
-    transactionHistory : Vec.Vector<TransactionHistoryItem>;
+    depositHistory : Vec.List<DepositHistoryItem>;
+    transactionHistory : Vec.List<TransactionHistoryItem>;
     userSettings : { pushNotificationsEnabled : Bool };
   };
 

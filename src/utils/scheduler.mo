@@ -1,8 +1,8 @@
-import Nat64 "mo:base/Nat64";
-import Option "mo:base/Option";
+import Nat64 "mo:core/Nat64";
+import Option "mo:core/Option";
 import Prim "mo:prim";
-import Timer "mo:base/Timer";
-import Bool "mo:base/Bool";
+import Timer "mo:core/Timer";
+import Bool "mo:core/Bool";
 
 module Scheduler {
 

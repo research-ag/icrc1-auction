@@ -1,9 +1,9 @@
-import Array "mo:base/Array";
-import AssocList "mo:base/AssocList";
-import Blob "mo:base/Blob";
-import Nat8 "mo:base/Nat8";
-import Option "mo:base/Option";
-import Principal "mo:base/Principal";
+import Array "mo:core/Array";
+import AssocList "mo:core/AssocList";
+import Blob "mo:core/Blob";
+import Nat8 "mo:core/Nat8";
+import Option "mo:core/Option";
+import Principal "mo:core/Principal";
 
 persistent actor class ICRC1Ledger(symbol_ : ?Text, decimals_ : ?Nat8) = self {
   type Account = {
