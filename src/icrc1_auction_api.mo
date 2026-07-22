@@ -50,8 +50,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   // actor won't compile in case of type mismatch here
   transient let _ : ICRC84.ICRC84 = self;
 
-  let trustedLedgerPrincipal : Principal = U.requireMsg(quoteLedger_, "Quote ledger principal not provided");
-  let quoteLedgerPrincipal : Principal = trustedLedgerPrincipal;
+  let quoteLedgerPrincipal : Principal = U.requireMsg(quoteLedger_, "Quote ledger principal not provided");
   var assetsData : List.List<StableAssetInfoV1> = List.empty();
   var auctionData : Auction.StableDataV5 = Auction.defaultStableData();
 
@@ -1176,15 +1175,15 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
 
   public shared ({ caller }) func wipeOrders() : async () {
     await* assertAdminAccess(caller);
-    for (p in Map.keys(auction.users.users)) {
+    for (p in auction.users.users.keys()) {
       ignore auction.manageOrders(p, ?#all(null), [], null);
     };
   };
 
   public shared ({ caller }) func wipeUsers() : async () {
     await* assertAdminAccess(caller);
-    for (p in Map.keys(auction.users.users)) {
-      ignore Map.delete(auction.users.users, Principal.compare, p);
+    for (p in auction.users.users.keys().toArray().values()) {
+      ignore auction.users.users.delete(p);
     };
     for (asset in auction.assets.assets.values()) {
       AssetOrderBook.clear(asset.asks.immediate);

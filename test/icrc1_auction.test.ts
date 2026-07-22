@@ -15,9 +15,9 @@ import { _SERVICE as CService, idlFactory as C_IDL, init as cInit } from '../dec
 import { IDL } from '@dfinity/candid';
 import { resolve } from 'node:path';
 import { Principal } from '@icp-sdk/core/principal';
-import { Identity } from '@icp-sdk/core/identity';
 import { readFileSync } from 'fs';
 import { tmpdir } from 'os';
+import { Identity } from "@icp-sdk/core/agent";
 
 describe('ICRC1 Auction', () => {
   let serverUrl: string;
@@ -170,6 +170,16 @@ describe('ICRC1 Auction', () => {
     auctionPrincipal = f.canisterId;
     auction = f.actor as any;
     auction.setIdentity(admin);
+
+    // wait for ledger to register quote token (by timer)
+    let attemptsLeft = 50;
+    while ((await auction.icrc84_supported_tokens()).length === 0) {
+      attemptsLeft--;
+      if (attemptsLeft === 0) {
+        throw new Error('Timed out waiting for quote token to be registered');
+      }
+      await pic.tick();
+    }
 
     let res = ((await auction.registerAsset(ledger1Principal, 1_000n)) as any).Ok;
     expect(res).toEqual(1n); // 0n is quote asset id
