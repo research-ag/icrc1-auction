@@ -909,31 +909,29 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     let buf = List.empty<(Principal, NotificationDelegate.NotificationBody)>();
     label l while (not Queue.isEmpty(q)) {
       let ?(p, n) = Queue.popFront(q) else break l;
-      buf.add(
-        (
-          p,
-          switch (n) {
-            case (#orderFulfilled { assetId; kind; price; baseVolume; quoteVolume; isPartial }) {
-              let baseDecimals = assets.at(assetId).decimals;
-              let quoteDecimals = assets.at(quoteAssetId).decimals;
-              let priceLog10Multiplier : Int = baseDecimals - quoteDecimals;
-              {
-                title = "Order fulfillment";
-                content = "Your "
-                # (switch (kind) { case (#ask) "ask "; case (#bid) "bid " })
-                # "on " # assets.at(assetId).symbol
-                # " was "
-                # (if (isPartial) { "partially " } else { "" })
-                # "fulfilled. Price: " # TextUtils.floatToSig5(FloatUtils.scaleFloat(price, priceLog10Multiplier))
-                # "; Base volume: " # TextUtils.natWithDecimalsToText(baseVolume, baseDecimals)
-                # "; Quote volume: " # TextUtils.natWithDecimalsToText(quoteVolume, quoteDecimals);
-                url = null;
-                tag = null;
-              };
+      buf.add((
+        p,
+        switch (n) {
+          case (#orderFulfilled { assetId; kind; price; baseVolume; quoteVolume; isPartial }) {
+            let baseDecimals = assets.at(assetId).decimals;
+            let quoteDecimals = assets.at(quoteAssetId).decimals;
+            let priceLog10Multiplier : Int = baseDecimals - quoteDecimals;
+            {
+              title = "Order fulfillment";
+              content = "Your "
+              # (switch (kind) { case (#ask) "ask "; case (#bid) "bid " })
+              # "on " # assets.at(assetId).symbol
+              # " was "
+              # (if (isPartial) { "partially " } else { "" })
+              # "fulfilled. Price: " # TextUtils.floatToSig5(FloatUtils.scaleFloat(price, priceLog10Multiplier))
+              # "; Base volume: " # TextUtils.natWithDecimalsToText(baseVolume, baseDecimals)
+              # "; Quote volume: " # TextUtils.natWithDecimalsToText(quoteVolume, quoteDecimals);
+              url = null;
+              tag = null;
             };
-          },
-        )
-      );
+          };
+        },
+      ));
     };
     let items = buf.toArray();
     if (items.size() > 0) {

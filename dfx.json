@@ -19,12 +19,8 @@
     },
     "frontend": {
       "type": "assets",
-      "dependencies": [
-        "icrc1_auction_development"
-      ],
-      "source": [
-        "dist/"
-      ],
+      "dependencies": ["icrc1_auction_development"],
+      "source": ["dist/"],
       "build": "npm run build:frontend",
       "declarations": {}
     },
@@ -34,10 +30,7 @@
       "type": "motoko",
       "init_arg": "(opt principal \"arufl-lyaaa-aaaao-a3n4a-cai\", opt principal \"2vxsx-fae\", opt principal \"6jrls-gqaaa-aaaao-a4pgq-cai\")",
       "declarations": {
-        "bindings": [
-          "js",
-          "ts"
-        ],
+        "bindings": ["js", "ts"],
         "output": "./declarations/icrc1_auction"
       },
       "optimize": "cycles"
@@ -59,10 +52,7 @@
         }
       ],
       "declarations": {
-        "bindings": [
-          "js",
-          "ts"
-        ],
+        "bindings": ["js", "ts"],
         "output": "./declarations/crypto"
       }
     },
