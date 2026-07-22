@@ -1,6 +1,7 @@
 import List "mo:core/List";
 import Map "mo:core/Map";
 
+import CircularBuffer "./models/circular_buffer";
 import PriorityQueue "./models/priority_queue";
 
 module {
@@ -98,7 +99,7 @@ module {
     sessions : {
       counter : Nat;
       history : {
-        immediate : ([var ?PriceHistoryItem], Nat, Nat);
+        immediate : CircularBuffer.CircularBuffer<PriceHistoryItem>;
         delayed : List.List<PriceHistoryItem>;
       };
     };

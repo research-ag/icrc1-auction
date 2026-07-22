@@ -18,6 +18,7 @@ import Principal "mo:core/Principal";
 import PureList "mo:core/pure/List";
 import R "mo:core/Result";
 
+import CircularBuffer "./models/circular_buffer";
 
 import AssetOrderBook "./asset_order_book";
 import Assets "./assets";
@@ -38,7 +39,7 @@ module {
     sessions = {
       counter = 0;
       history = {
-        immediate = ([var], 0, 0);
+        immediate = CircularBuffer.new(1);
         delayed = List.empty<T.PriceHistoryItem>();
       };
     };
@@ -478,7 +479,7 @@ module {
           totalExecutedVolumeBase = x.totalExecutedVolumeBase;
           totalExecutedVolumeQuote = x.totalExecutedVolumeQuote;
           totalExecutedOrders = x.totalExecutedOrders;
-        },
+        }
       );
       orders = {
         globalCounter = orders.ordersCounter;
@@ -489,7 +490,7 @@ module {
       sessions = {
         counter = sessionsCounter;
         history = {
-          immediate = assets.history.immediate.share();
+          immediate = assets.history.immediate;
           delayed = assets.history.delayed;
         };
       };
@@ -551,7 +552,7 @@ module {
           var totalExecutedVolumeQuote = x.totalExecutedVolumeQuote;
           var totalExecutedOrders = x.totalExecutedOrders;
           var sessionsCounter = data.sessions.counter;
-        },
+        }
       );
 
       orders.ordersCounter := data.orders.globalCounter;
@@ -560,8 +561,8 @@ module {
 
       sessionsCounter := data.sessions.counter;
 
-      if (data.sessions.history.immediate.0.size() == assets.IMMEDIATE_BUFFER_CAPACITY) {
-        assets.history.immediate.unshare(data.sessions.history.immediate);
+      if (data.sessions.history.immediate.capacity == assets.IMMEDIATE_BUFFER_CAPACITY) {
+        assets.history.immediate := data.sessions.history.immediate;
       };
       assets.history.delayed := data.sessions.history.delayed;
 

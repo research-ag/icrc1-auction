@@ -17,7 +17,7 @@ import { resolve } from 'node:path';
 import { Principal } from '@icp-sdk/core/principal';
 import { readFileSync } from 'fs';
 import { tmpdir } from 'os';
-import { Identity } from "@icp-sdk/core/agent";
+import { Identity } from '@icp-sdk/core/agent';
 
 describe('ICRC1 Auction', () => {
   let serverUrl: string;

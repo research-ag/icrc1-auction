@@ -21,10 +21,10 @@ module {
     public var assets : List.List<T.AssetInfo> = List.empty();
     // asset history
     public var history : {
-      immediate : CircularBuffer.CircularBuffer<T.PriceHistoryItem>;
+      var immediate : CircularBuffer.CircularBuffer<T.PriceHistoryItem>;
       var delayed : List.List<T.PriceHistoryItem>;
     } = {
-      immediate = CircularBuffer.CircularBuffer<T.PriceHistoryItem>(IMMEDIATE_BUFFER_CAPACITY);
+      var immediate = CircularBuffer.new<T.PriceHistoryItem>(IMMEDIATE_BUFFER_CAPACITY);
       var delayed = List.empty();
     };
 

@@ -267,7 +267,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   };
 
   transient let assets : List.List<AssetInfo> = assetsData.map<StableAssetInfoV1, AssetInfo>(
-    func(x) = createAssetInfo_(x.ledgerPrincipal, x.minAskVolume, x.decimals, x.symbol, ?x.handler),
+    func(x) = createAssetInfo_(x.ledgerPrincipal, x.minAskVolume, x.decimals, x.symbol, ?x.handler)
   );
   transient let auction : Auction.Auction = Auction.Auction(
     0,
@@ -932,7 +932,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
               };
             };
           },
-        ),
+        )
       );
     };
     let items = buf.toArray();
@@ -1323,7 +1323,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
         handler = x.handler;
         decimals = x.decimals;
         symbol = x.symbol;
-      },
+      }
     );
     auctionData := auction.share();
   };
