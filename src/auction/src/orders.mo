@@ -427,11 +427,11 @@ module {
           cancellationCommitActions,
           func() {
             let ret : List.List<CancellationResult> = List.empty();
-            for (orderId in userOrderBook.map.keys()) {
+            for (orderId in userOrderBook.map.keys().toArray().values()) {
               let ?order = ordersService.cancel(userInfo, orderId) else Prim.trap("Can never happen");
               ret.add((orderId, order.assetId, order.orderBookType, order.volume, order.price));
             };
-            List.toArray(ret);
+            ret.toArray();
           },
         );
       };
@@ -444,16 +444,16 @@ module {
         for ((orderId, order) in userOrderBook.map.entries()) {
           if (isCancel(order.assetId, orderId)) {
             affectNewBalancesWithCancellation(ordersService, order);
-            List.add(orderIds, orderId);
+            orderIds.add(orderId);
           };
         };
         cancellationCommitActions := PureList.pushFront<() -> [CancellationResult]>(
           cancellationCommitActions,
           func() {
             let ret : List.List<CancellationResult> = List.empty();
-            for (orderId in List.values(orderIds)) {
+            for (orderId in orderIds.values()) {
               let ?order = ordersService.cancel(userInfo, orderId) else Prim.trap("Can never happen");
-              List.add(ret, (orderId, order.assetId, order.orderBookType, order.volume, order.price));
+              ret.add((orderId, order.assetId, order.orderBookType, order.volume, order.price));
             };
             List.toArray(ret);
           },
