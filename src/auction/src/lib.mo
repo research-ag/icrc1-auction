@@ -17,6 +17,7 @@ import Prim "mo:prim";
 import Principal "mo:core/Principal";
 import PureList "mo:core/pure/List";
 import R "mo:core/Result";
+import Runtime "mo:core/Runtime";
 
 import CircularBuffer "./models/circular_buffer";
 
@@ -31,6 +32,40 @@ import Processor "./auction_processor";
 import T "./types";
 
 module {
+
+  // stable type
+  public type AuctionNew = {
+    quoteAssetId : AssetId;
+    settings : AuctionSettings;
+
+    users : List.List<T.UserInfo>;
+  };
+
+  public func new(
+    quoteAssetId : AssetId,
+    settings : AuctionSettings,
+  ): AuctionNew = {
+    quoteAssetId;
+    settings;
+    users = List.empty();
+  };
+
+  public type AuctionSettings = {
+    volumeStepLog10 : Nat; // 3 will make volume step 1000 (denominated in quote token)
+    minVolumeSteps : Nat; // == minVolume / volumeStep
+    priceMaxDigits : Nat;
+  };
+
+  // instance of this class should be declared as transient. It does not contain any data that must be stored in stable data
+  public class AuctionNewRuntime(
+    auction : AuctionNew,
+    settings : {
+      minAskVolume : (AssetId, T.AssetInfo) -> Int;
+      performanceCounter : Nat32 -> Nat64;
+    }
+  ) {
+
+  };
 
   public func defaultStableData() : T.StableDataV5 = {
     assets = List.empty();
@@ -501,12 +536,8 @@ module {
             func(p, u) = (
               p,
               {
-                asks = {
-                  var map = u.asks.map.map<T.OrderId, T.Order, T.StableOrderDataV2>(func(oid, o) = { assetId = o.assetId; orderBookType = o.orderBookType; price = o.price; user = o.user; volume = o.volume });
-                };
-                bids = {
-                  var map = u.bids.map.map<T.OrderId, T.Order, T.StableOrderDataV2>(func(oid, o) = { assetId = o.assetId; orderBookType = o.orderBookType; price = o.price; user = o.user; volume = o.volume });
-                };
+                asks = u.asks;
+                bids = u.bids;
                 darkOrderBooks = u.darkOrderBooks;
                 credits = u.credits;
                 accountRevision = u.accountRevision;
@@ -585,19 +616,11 @@ module {
             var pushNotificationsEnabled = u.userSettings.pushNotificationsEnabled;
           };
         };
-        for ((oid, orderData) in u.asks.map.entries()) {
-          let order : T.Order = {
-            orderData with userInfoRef = userData;
-            var volume = orderData.volume;
-          };
+        for ((oid, order) in u.asks.map.entries()) {
           users.putOrder(userData, #ask, oid, order);
           ignore assets.putOrder(assets.getAsset(order.assetId), #ask, oid, order);
         };
-        for ((oid, orderData) in u.bids.map.entries()) {
-          let order : T.Order = {
-            orderData with userInfoRef = userData;
-            var volume = orderData.volume;
-          };
+        for ((oid, order) in u.bids.map.entries()) {
           users.putOrder(userData, #bid, oid, order);
           ignore assets.putOrder(assets.getAsset(order.assetId), #bid, oid, order);
         };

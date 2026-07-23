@@ -20,7 +20,7 @@ module {
 
   public type Order = {
     user : Principal;
-    userInfoRef : UserInfo;
+    userInfoIdx : Nat;
     assetId : AssetId;
     orderBookType : OrderBookType;
     price : Float;
@@ -117,10 +117,10 @@ module {
   };
   public type StableUserInfoV4 = {
     asks : {
-      var map : Map.Map<OrderId, StableOrderDataV2>;
+      var map : Map.Map<OrderId, Order>;
     };
     bids : {
-      var map : Map.Map<OrderId, StableOrderDataV2>;
+      var map : Map.Map<OrderId, Order>;
     };
     darkOrderBooks : Map.Map<AssetId, EncryptedOrderBook>;
     credits : Map.Map<AssetId, Account>;
@@ -139,13 +139,6 @@ module {
     totalExecutedVolumeBase : Nat;
     totalExecutedVolumeQuote : Nat;
     totalExecutedOrders : Nat;
-  };
-  public type StableOrderDataV2 = {
-    user : Principal;
-    assetId : AssetId;
-    orderBookType : OrderBookType;
-    price : Float;
-    volume : Nat;
   };
 
 };

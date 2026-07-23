@@ -269,6 +269,23 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   transient let assets : List.List<AssetInfo> = assetsData.map<StableAssetInfoV1, AssetInfo>(
     func(x) = createAssetInfo_(x.ledgerPrincipal, x.minAskVolume, x.decimals, x.symbol, ?x.handler)
   );
+
+  let auctionNew : Auction.AuctionNew = Auction.new(
+    0,
+    {
+      volumeStepLog10 = 3; // minimum quote volume step 1_000
+      minVolumeSteps = 5; // minimum quote volume is 5_000
+      priceMaxDigits = 5;
+    },     
+  );
+  transient let auctionNewRuntime: Auction.AuctionNewRuntime = Auction.AuctionNewRuntime(
+    auctionNew,
+    {
+      minAskVolume = func(assetId, _) = assets.at(assetId).minAskVolume;
+      performanceCounter = Prim.performanceCounter;
+    },
+  );
+
   transient let auction : Auction.Auction = Auction.Auction(
     0,
     {

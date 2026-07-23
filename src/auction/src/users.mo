@@ -1,11 +1,11 @@
 import Nat "mo:core/Nat";
 import Prim "mo:prim";
 import Principal "mo:core/Principal";
-
 import List "mo:core/List";
 import Map "mo:core/Map";
 import PureList "mo:core/pure/List";
 import Queue "mo:core/Queue";
+import Runtime "mo:core/Runtime";
 
 import T "./types";
 
@@ -81,6 +81,10 @@ module {
         participantsArchiveSize += 1;
         data;
       };
+    };
+
+    public func getUserByIndex(idx : Nat) : T.UserInfo {
+      Runtime.trap("users.getUserByIndex is not implemented");
     };
 
     public func getOrderBook(user : T.UserInfo, kind : { #ask; #bid }) : T.UserOrderBook = switch (kind) {
