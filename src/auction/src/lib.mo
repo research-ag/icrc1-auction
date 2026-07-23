@@ -1,6 +1,6 @@
 /// A module which implements auction functionality for various trading pairs against quote fungible token
 ///
-/// Copyright: 2023-2024 MR Research AG
+/// Copyright: 2023-2026 MR Research AG
 /// Main author: Andy Gura
 /// Contributors: Timo Hanke
 
@@ -27,7 +27,8 @@ import C "./constants";
 import Credits "./credits";
 import E "./encryption";
 import Orders "./orders";
-import Users "./users";
+import User "./user";
+import UsersStorage "./users_storage";
 import Processor "./auction_processor";
 import T "./types";
 
@@ -56,17 +57,8 @@ module {
         delayed = List.empty<T.PriceHistoryItem>();
       };
     };
-    users = {
-      registry = {
-        list = List.empty();
-        lookup = Map.empty();
-      };
-      participantsArchive = {
-        entries = [];
-        size = 0;
-      };
-      accountsAmount = 0;
-    };
+    users = UsersStorage.empty();
+    accountsAmount = 0;
   };
   public type StableDataV5 = T.StableDataV5;
 
@@ -76,7 +68,7 @@ module {
   public type Order = T.Order;
   public type EncryptedOrderBook = T.EncryptedOrderBook;
   public type CreditInfo = Credits.CreditInfo;
-  public type UserInfo = T.UserInfo;
+  public type User = T.User;
   public type UserSettings = T.UserSettings;
   public type DepositHistoryItem = T.DepositHistoryItem;
   public type TransactionHistoryItem = T.TransactionHistoryItem;
@@ -138,7 +130,7 @@ module {
     // a counter of conducted auction sessions
     public var sessionsCounter = 0;
 
-    public let users = Users.Users();
+    public let users = UsersStorage.empty();
     public let credits = Credits.Credits();
     public let assets = Assets.Assets();
     public let orders = Orders.Orders(
@@ -341,13 +333,13 @@ module {
     // ============= orders interface =============
     public func getOrder(p : Principal, kind : { #ask; #bid }, orderId : OrderId) : ?T.Order = switch (users.get(p)) {
       case (null) null;
-      case (?ui) users.findOrder(ui, kind, orderId);
+      case (?ui) ui.findOrder(kind, orderId);
     };
 
     public func getOrders(p : Principal, kind : { #ask; #bid }, assetId : ?AssetId) : [(OrderId, T.Order)] = switch (users.get(p)) {
       case (null) [];
       case (?ui) {
-        var list = users.getOrderBook(ui, kind).map.entries();
+        var list = ui.getOrderBook(kind).map.entries();
         switch (assetId) {
           case (?aid) list := list.filter(func(_, o) = o.assetId == aid);
           case (_) {};
@@ -508,20 +500,17 @@ module {
           delayed = assets.history.delayed;
         };
       };
-      users = {
-        registry = {
-          list = users.usersList;
-          lookup = users.usersLookup;
-        };
-        participantsArchive = {
-          entries = Map.entries(users.participantsArchive) |> Iter.toArray(_);
-          size = users.participantsArchiveSize;
-        };
-        accountsAmount = credits.accountsAmount;
-      };
+      users = users;
+      accountsAmount = credits.accountsAmount;
     };
 
     public func unshare(data : T.StableDataV5) {
+      // we can't overwrite users completely, as this reference is shared to other places. Instead, monkey-patch it for now
+      users.usersList := data.users.usersList;
+      users.usersLookup := data.users.usersLookup;
+      users.participantsArchive := data.users.participantsArchive;
+      users.participantsArchiveSize := data.users.participantsArchiveSize;
+
       assets.assets := data.assets.map<T.StableAssetInfoV3, T.AssetInfo>(
         func(x) = {
           asks = {
@@ -558,48 +547,19 @@ module {
       };
       assets.history.delayed := data.sessions.history.delayed;
 
-      for ((p, idx) in data.users.registry.lookup.entries()) {
-        let u = data.users.registry.list.at(idx);
-        let userData : UserInfo = {
-          asks = {
-            var map = Map.empty();
-          };
-          bids = {
-            var map = Map.empty();
-          };
-          var darkOrderBooks = u.darkOrderBooks;
-          var credits = u.credits;
-          var accountRevision = u.accountRevision;
-          var loyaltyPoints = u.loyaltyPoints;
-          var depositHistory = u.depositHistory;
-          var transactionHistory = u.transactionHistory;
-          userSettings = {
-            var pushNotificationsEnabled = u.userSettings.pushNotificationsEnabled;
-          };
-        };
+      for ((p, idx) in users.usersLookup.entries()) {
+        let u = users.atIndex(idx);
         for ((oid, order) in u.asks.map.entries()) {
-          users.putOrder(userData, #ask, oid, order);
           ignore assets.putOrder(assets.getAsset(order.assetId), #ask, oid, order);
         };
         for ((oid, order) in u.bids.map.entries()) {
-          users.putOrder(userData, #bid, oid, order);
           ignore assets.putOrder(assets.getAsset(order.assetId), #bid, oid, order);
         };
         for ((assetId, data) in u.darkOrderBooks.entries()) {
           ignore assets.putDarkOrderBook(assets.getAsset(assetId), p, ?data);
         };
-        let index = users.usersList.size();
-        users.usersList.add(userData);
-        users.usersLookup.add(p, index);
       };
-
-      for ((p, entry) in data.users.participantsArchive.entries.values()) {
-        Map.add(users.participantsArchive, Principal.compare, p, entry);
-      };
-      users.participantsArchiveSize := data.users.participantsArchive.size;
-
-      credits.accountsAmount := data.users.accountsAmount;
-
+      credits.accountsAmount := data.accountsAmount;
     };
     // ============= system interface =============
   };

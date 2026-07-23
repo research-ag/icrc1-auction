@@ -47,7 +47,7 @@ persistent actor class ICRC1Ledger(symbol_ : ?Text, decimals_ : ?Nat8) = self {
     case (x) x;
   };
   // Define a map to store accounts
-  transient var accounts : Map.Map<AccountRef, Account> = Map.empty();
+  transient let accounts : Map.Map<AccountRef, Account> = Map.empty();
   transient var fee : Nat = 0;
   transient var txIndex : Nat = 29138;
 

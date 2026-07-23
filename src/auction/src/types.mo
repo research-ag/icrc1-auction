@@ -6,6 +6,7 @@ import PriorityQueue "./models/priority_queue";
 
 module {
 
+  public type UserId = Nat;
   public type AssetId = Nat;
   public type OrderId = Nat;
 
@@ -13,7 +14,7 @@ module {
     quoteAssetId : AssetId;
     settings : AuctionSettings;
 
-    users : List.List<UserInfo>;
+    users : List.List<User>;
   };
 
   public type AuctionSettings = {
@@ -33,7 +34,7 @@ module {
 
   public type Order = {
     user : Principal;
-    userInfoIdx : Nat;
+    userId : UserId;
     assetId : AssetId;
     orderBookType : OrderBookType;
     price : Float;
@@ -88,7 +89,7 @@ module {
     var pushNotificationsEnabled : Bool;
   };
 
-  public type UserInfo = {
+  public type User = {
     asks : UserOrderBook;
     bids : UserOrderBook;
     var darkOrderBooks : Map.Map<AssetId, EncryptedOrderBook>;
@@ -98,6 +99,15 @@ module {
     var depositHistory : List.List<DepositHistoryItem>;
     var transactionHistory : List.List<TransactionHistoryItem>;
     userSettings : UserSettings;
+  };
+
+  public type UsersStorage = {
+    // TODO remove var from list and maps
+    var usersList : List.List<User>;
+    var usersLookup : Map.Map<Principal, Nat>;
+    var participantsArchive : Map.Map<Principal, { lastOrderPlacement : Nat64 }>;
+
+    var participantsArchiveSize : Nat;
   };
 
   public type PriceHistoryItem = (timestamp : Nat64, sessionNumber : Nat, assetId : AssetId, volume : Nat, price : Float);
@@ -127,17 +137,8 @@ module {
         delayed : List.List<PriceHistoryItem>;
       };
     };
-    users : {
-      registry : {
-        list : List.List<UserInfo>;
-        lookup : Map.Map<Principal, Nat>;
-      };
-      participantsArchive : {
-        entries : [(Principal, { lastOrderPlacement : Nat64 })];
-        size : Nat;
-      };
-      accountsAmount : Nat;
-    };
+    users : UsersStorage;
+    accountsAmount : Nat;
   };
 
   public type StableAssetInfoV3 = {

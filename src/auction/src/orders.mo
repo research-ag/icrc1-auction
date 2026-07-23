@@ -17,7 +17,8 @@ import AuctionRuntime "./runtime";
 import Assets "./assets";
 import C "./constants";
 import Credits "./credits";
-import Users "./users";
+import User "./user";
+import UsersStorage "./users_storage";
 
 import T "./types";
 import AssetOrderBook "asset_order_book";
@@ -148,7 +149,7 @@ module {
   class OrdersService(
     assets : Assets.Assets,
     credits : Credits.Credits,
-    users : Users.Users,
+    users : UsersStorage.UsersStorage,
     quoteAssetId : T.AssetId,
     minQuoteVolume : Nat,
     minAskVolume : (T.AssetId, T.AssetInfo) -> Int,
@@ -206,18 +207,18 @@ module {
 
     public func assetOrderBook(assetInfo : T.AssetInfo, orderBookType : T.OrderBookType) : T.AssetOrderBook = assets.getOrderBook(assetInfo, kind, orderBookType);
 
-    public func place(userInfo : T.UserInfo, accountToCharge : T.Account, assetInfo : T.AssetInfo, orderId : T.OrderId, order : T.Order) : Nat {
+    public func place(userInfo : T.User, accountToCharge : T.Account, assetInfo : T.AssetInfo, orderId : T.OrderId, order : T.Order) : Nat {
       // charge user credits
       let (success, _) = credits.lockCredit(accountToCharge, srcVolume(order.volume, order.price));
       assert success;
       // insert into order lists
-      users.putOrder(userInfo, kind, orderId, order);
+      userInfo.putOrder(kind, orderId, order);
       assets.putOrder(assetInfo, kind, orderId, order);
     };
 
-    public func cancel(userInfo : T.UserInfo, orderId : T.OrderId) : ?T.Order {
+    public func cancel(userInfo : T.User, orderId : T.OrderId) : ?T.Order {
       // find and remove from order lists
-      let ?existingOrder = users.deleteOrder(userInfo, kind, orderId) else return null;
+      let ?existingOrder = userInfo.deleteOrder(kind, orderId) else return null;
       assets.getAsset(existingOrder.assetId) |> assets.deleteOrder(_, kind, existingOrder.orderBookType, orderId);
       // return deposit to user
       let ?sourceAcc = credits.getAccount(userInfo, srcAssetId(existingOrder.assetId)) else Prim.trap("Can never happen");
@@ -230,7 +231,7 @@ module {
     // bid: source = quote, dest = base
     // ask: source = base, dest = quote
     public func fulfil(assetInfo : T.AssetInfo, sessionNumber : Nat, orderId : ?T.OrderId, order : T.Order, maxVolume : Nat, price : Float) : (volume : Nat, quoteVol : Nat, isPartial : Bool) {
-      let ?sourceAcc = credits.getAccount(users.atIndex(order.userInfoIdx), srcAssetId(order.assetId)) else Prim.trap("Can never happen");
+      let ?sourceAcc = credits.getAccount(users.atIndex(order.userId), srcAssetId(order.assetId)) else Prim.trap("Can never happen");
 
       switch (orderId) {
         case (?oid) credits.unlockCredit(sourceAcc, srcVolume(order.volume, order.price)) |> (assert _.0);
@@ -254,7 +255,7 @@ module {
             credits.lockCredit(sourceAcc, srcVolume(order.volume - baseVolume, order.price)) |> (assert _.0); // re-lock credit
             assets.deductOrderVolume(assetInfo, kind, order, baseVolume); // shrink order
           } else {
-            users.deleteOrder(users.atIndex(order.userInfoIdx), kind, oid) |> (ignore _); // delete order
+            users.atIndex(order.userId).deleteOrder(kind, oid) |> (ignore _); // delete order
             assets.deleteOrder(assetInfo, kind, order.orderBookType, oid); // delete order
           };
         };
@@ -263,13 +264,13 @@ module {
 
       // debit at source
       credits.deductCredit(sourceAcc, srcVol) |> (assert _.0);
-      ignore credits.deleteIfEmpty(users.atIndex(order.userInfoIdx), srcAssetId(order.assetId));
+      ignore credits.deleteIfEmpty(users.atIndex(order.userId), srcAssetId(order.assetId));
 
       // credit at destination
-      let acc = credits.getOrCreate(users.atIndex(order.userInfoIdx), destAssetId(order.assetId));
+      let acc = credits.getOrCreate(users.atIndex(order.userId), destAssetId(order.assetId));
       ignore credits.appendCredit(acc, destVol);
 
-      List.add(users.atIndex(order.userInfoIdx).transactionHistory, (Prim.time(), sessionNumber, kind, order.assetId, baseVolume, price));
+      List.add(users.atIndex(order.userId).transactionHistory, (Prim.time(), sessionNumber, kind, order.assetId, baseVolume, price));
 
       let quoteVolume = switch (kind) {
         case (#ask) destVol;
@@ -280,7 +281,7 @@ module {
         assetInfo.totalExecutedOrders += 1;
       };
 
-      let userInfo = users.atIndex(order.userInfoIdx);
+      let userInfo = users.atIndex(order.userId);
       userInfo.accountRevision += 1;
       userInfo.loyaltyPoints += C.LOYALTY_REWARD.ORDER_EXECUTION + quoteVolume / C.LOYALTY_REWARD.ORDER_VOLUME_DIVISOR;
       switch (kind) {
@@ -295,7 +296,7 @@ module {
   public class Orders(
     assets : Assets.Assets,
     credits : Credits.Credits,
-    users : Users.Users,
+    users : UsersStorage.UsersStorage,
     quoteAssetId : T.AssetId,
     settings : {
       volumeStepLog10 : Nat; // 3 will make volume step 1000 (denominated in quote token)
@@ -375,7 +376,6 @@ module {
       runtime : AuctionRuntime.AuctionRuntime,
     ) : R.Result<([CancellationResult], [PlaceOrderResult]), OrderManagementError> {
       let userInfo = users.atIndex(userIndex);
-
       switch (expectedAccountRevision) {
         case (?rev) {
           if (rev != userInfo.accountRevision) {
@@ -422,7 +422,7 @@ module {
 
       // prepare cancellation of all orders by type (ask or bid)
       func prepareBulkCancellation(ordersService : OrdersService) {
-        let userOrderBook = users.getOrderBook(userInfo, ordersService.kind);
+        let userOrderBook = userInfo.getOrderBook(ordersService.kind);
         for ((orderId, order) in userOrderBook.map.entries()) {
           affectNewBalancesWithCancellation(ordersService, order);
         };
@@ -442,7 +442,7 @@ module {
       // prepare cancellation of all orders by given filter function by type (ask or bid)
       func prepareBulkCancellationWithFilter(ordersService : OrdersService, isCancel : (assetId : T.AssetId, orderId : T.OrderId) -> Bool) {
         // TODO can be optimized: cancelOrderInternal searches for order by it's id with linear complexity
-        let userOrderBook = users.getOrderBook(userInfo, ordersService.kind);
+        let userOrderBook = userInfo.getOrderBook(ordersService.kind);
         let orderIds : List.List<T.OrderId> = List.empty();
         for ((orderId, order) in userOrderBook.map.entries()) {
           if (isCancel(order.assetId, orderId)) {
@@ -489,7 +489,7 @@ module {
               case (#ask orderId) (asks, orderId, cancelledAsks);
               case (#bid orderId) (bids, orderId, cancelledBids);
             };
-            let ?oldOrder = users.findOrder(userInfo, ordersService.kind, orderId) else return #err(#cancellation({ index = i; error = #UnknownOrder }));
+            let ?oldOrder = userInfo.findOrder(ordersService.kind, orderId) else return #err(#cancellation({ index = i; error = #UnknownOrder }));
             affectNewBalancesWithCancellation(ordersService, oldOrder);
             Map.add(cancelledTree, Nat.compare, orderId, ());
             cancellationCommitActions := PureList.pushFront<() -> [CancellationResult]>(
@@ -537,7 +537,7 @@ module {
         newBalances.add(srcAssetId, (balance - chargeAmount) : Nat);
 
         // build list of placed orders + orders to be placed during this call
-        func buildOrdersList(user : T.UserInfo, kind : { #ask; #bid }, delta : OrdersDelta) : Iter.Iter<(?T.OrderId, T.Order)> = users.getOrderBook(user, kind).map
+        func buildOrdersList(user : T.User, kind : { #ask; #bid }, delta : OrdersDelta) : Iter.Iter<(?T.OrderId, T.Order)> = user.getOrderBook(kind).map
         |> _.entries()
         |> Iter.map<(T.OrderId, T.Order), (?T.OrderId, T.Order)>(_, func(oid, o) = (?oid, o))
         |> Iter.concat<(?T.OrderId, T.Order)>(_, PureList.values(delta.placed));
@@ -575,7 +575,7 @@ module {
 
         let order : T.Order = {
           user = p;
-          userInfoIdx = userIndex;
+          userId = userIndex;
           assetId;
           orderBookType;
           price;
@@ -593,7 +593,7 @@ module {
               if (executionResults.size() > 0) {
                 for ((price, volume, fulfilledOrders) in Array.values(executionResults)) {
                   for ({ order; baseVolume; quoteVolume; isPartial; kind } in PureList.values(fulfilledOrders)) {
-                    if (order.user != p and users.atIndex(order.userInfoIdx).userSettings.pushNotificationsEnabled) {
+                    if (order.user != p and users.atIndex(order.userId).userSettings.pushNotificationsEnabled) {
                       List.add(
                         newPushNotifications,
                         (
@@ -670,7 +670,7 @@ module {
       let ?quoteAccount = credits.getAccount(userInfo, quoteAssetId) else return #err(#NoCredit);
       var newDarkOrderBooksPlaced : Int = 0;
       for ((assetId, newData) in placements.values()) {
-        switch (newData, users.findDarkOrderBook(userInfo, assetId)) {
+        switch (newData, userInfo.findDarkOrderBook(assetId)) {
           case (?_, null) newDarkOrderBooksPlaced += 1;
           case (null, ?_) newDarkOrderBooksPlaced -= 1;
           case (_) {};
@@ -688,7 +688,7 @@ module {
         let (assetId, data) = placements[i];
         let asset = assets.getAsset(assetId);
         ignore assets.putDarkOrderBook(asset, p, data);
-        let oldValue = users.putDarkOrderBook(userInfo, assetId, data);
+        let oldValue = userInfo.putDarkOrderBook(assetId, data);
         ret[i] := oldValue;
       };
       #ok(VarArray.toArray(ret));
@@ -713,7 +713,7 @@ module {
           let ordersService = (switch (kind) { case (#ask) { asks }; case (#bid) { bids } });
           let order : T.Order = {
             user;
-            userInfoIdx = userIndex;
+            userId = userIndex;
             assetId;
             orderBookType = #delayed;
             price;
@@ -751,7 +751,7 @@ module {
             };
           };
         };
-        ignore users.putDarkOrderBook(userInfo, assetId, null);
+        ignore userInfo.putDarkOrderBook(assetId, null);
       };
       asset.darkOrderBooks.encrypted := Map.empty();
       asset.darkOrderBooks.decrypted := null;

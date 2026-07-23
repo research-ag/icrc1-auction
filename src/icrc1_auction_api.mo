@@ -28,6 +28,7 @@ import M "migration_types";
 
 import Auction "./auction/src";
 import AuctionRuntime "./auction/src/runtime";
+import UsersStorage "./auction/src/users_storage";
 import E "./auction/src/encryption";
 import ICRC84Auction "./icrc84_auction";
 

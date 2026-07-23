@@ -22,9 +22,9 @@ module {
 
     public func nAccounts() : Nat = accountsAmount;
 
-    public func getAccount(userInfo : T.UserInfo, assetId : T.AssetId) : ?T.Account = userInfo.credits.get(assetId);
+    public func getAccount(userInfo : T.User, assetId : T.AssetId) : ?T.Account = userInfo.credits.get(assetId);
 
-    public func getOrCreate(userInfo : T.UserInfo, assetId : T.AssetId) : T.Account {
+    public func getOrCreate(userInfo : T.User, assetId : T.AssetId) : T.Account {
       switch (getAccount(userInfo, assetId)) {
         case (?acc) acc;
         case (null) {
@@ -36,7 +36,7 @@ module {
       };
     };
 
-    public func deleteIfEmpty(userInfo : T.UserInfo, assetId : T.AssetId) : Bool {
+    public func deleteIfEmpty(userInfo : T.User, assetId : T.AssetId) : Bool {
       let ?acc = userInfo.credits.get(assetId) else return false;
       if (isAccountEmpty(acc)) {
         accountsAmount -= 1;
@@ -46,17 +46,17 @@ module {
       false;
     };
 
-    public func balance(userInfo : T.UserInfo, assetId : T.AssetId) : Nat = switch (getAccount(userInfo, assetId)) {
+    public func balance(userInfo : T.User, assetId : T.AssetId) : Nat = switch (getAccount(userInfo, assetId)) {
       case (?acc) accountBalance(acc);
       case (null) 0;
     };
 
-    public func info(userInfo : T.UserInfo, assetId : T.AssetId) : CreditInfo = switch (getAccount(userInfo, assetId)) {
+    public func info(userInfo : T.User, assetId : T.AssetId) : CreditInfo = switch (getAccount(userInfo, assetId)) {
       case (?acc) accountInfo(acc);
       case (null) ({ total = 0; locked = 0; available = 0 });
     };
 
-    public func infoAll(userInfo : T.UserInfo) : [(T.AssetId, CreditInfo)] {
+    public func infoAll(userInfo : T.User) : [(T.AssetId, CreditInfo)] {
       userInfo.credits.entries().map(func(aid, ci) = (aid, accountInfo(ci))).toArray();
     };
 
