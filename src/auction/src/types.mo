@@ -105,8 +105,8 @@ module {
     };
     users : {
       registry : {
-        entries : [(Principal, StableUserInfoV4)];
-        size : Nat;
+        list : List.List<UserInfo>;
+        lookup : Map.Map<Principal, Nat>;
       };
       participantsArchive : {
         entries : [(Principal, { lastOrderPlacement : Nat64 })];
@@ -114,21 +114,6 @@ module {
       };
       accountsAmount : Nat;
     };
-  };
-  public type StableUserInfoV4 = {
-    asks : {
-      var map : Map.Map<OrderId, Order>;
-    };
-    bids : {
-      var map : Map.Map<OrderId, Order>;
-    };
-    darkOrderBooks : Map.Map<AssetId, EncryptedOrderBook>;
-    credits : Map.Map<AssetId, Account>;
-    accountRevision : Nat;
-    loyaltyPoints : Nat;
-    depositHistory : List.List<DepositHistoryItem>;
-    transactionHistory : List.List<TransactionHistoryItem>;
-    userSettings : { pushNotificationsEnabled : Bool };
   };
 
   public type StableAssetInfoV3 = {

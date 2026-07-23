@@ -80,8 +80,8 @@ module {
     };
     users = {
       registry = {
-        entries = [];
-        size = 0;
+        list = List.empty();
+        lookup = Map.empty();
       };
       participantsArchive = {
         entries = [];
@@ -312,7 +312,7 @@ module {
 
     public func getTotalLoyaltyPointsSupply() : Nat {
       var res = 0;
-      for (ui in Map.values(users.users)) {
+      for (ui in users.usersList.values()) {
         res += ui.loyaltyPoints;
       };
       res;
@@ -396,13 +396,13 @@ module {
       placements : [Orders.PlaceOrderAction],
       expectedAccountRevision : ?Nat,
     ) : R.Result<([CancellationResult], [PlaceOrderResult]), ManageOrdersError> {
-      let ?userInfo = users.get(p) else return #err(#UnknownPrincipal);
-      orders.manageOrders(p, userInfo, cancellations, placements, expectedAccountRevision);
+      let ?userIdx = users.getIndex(p) else return #err(#UnknownPrincipal);
+      orders.manageOrders(p, userIdx, cancellations, placements, expectedAccountRevision);
     };
 
     public func manageDarkOrderBooks(p : Principal, args : [(T.AssetId, ?T.EncryptedOrderBook)], expectedAccountRevision : ?Nat) : R.Result<[?T.EncryptedOrderBook], { #UnknownPrincipal; #AccountRevisionMismatch; #NoCredit }> {
-      let ?userInfo = users.get(p) else return #err(#UnknownPrincipal);
-      orders.manageDarkOrderBooks(p, userInfo, args, expectedAccountRevision);
+      let ?userIdx = users.getIndex(p) else return #err(#UnknownPrincipal);
+      orders.manageDarkOrderBooks(p, userIdx, args, expectedAccountRevision);
     };
 
     public func placeOrder(p : Principal, kind : { #ask; #bid }, assetId : AssetId, orderBookType : OrderBookType, volume : Nat, price : Float, expectedAccountRevision : ?Nat) : R.Result<PlaceOrderResult, PlaceOrderError> {
@@ -531,26 +531,8 @@ module {
       };
       users = {
         registry = {
-          entries = Iter.map<(Principal, T.UserInfo), (Principal, T.StableUserInfoV4)>(
-            Map.entries(users.users),
-            func(p, u) = (
-              p,
-              {
-                asks = u.asks;
-                bids = u.bids;
-                darkOrderBooks = u.darkOrderBooks;
-                credits = u.credits;
-                accountRevision = u.accountRevision;
-                loyaltyPoints = u.loyaltyPoints;
-                depositHistory = u.depositHistory;
-                transactionHistory = u.transactionHistory;
-                userSettings = {
-                  pushNotificationsEnabled = u.userSettings.pushNotificationsEnabled;
-                };
-              },
-            ),
-          ) |> Iter.toArray(_);
-          size = users.usersAmount;
+          list = users.usersList;
+          lookup = users.usersLookup;
         };
         participantsArchive = {
           entries = Map.entries(users.participantsArchive) |> Iter.toArray(_);
@@ -597,8 +579,8 @@ module {
       };
       assets.history.delayed := data.sessions.history.delayed;
 
-      users.usersAmount := data.users.registry.size;
-      for ((p, u) in data.users.registry.entries.values()) {
+      for ((p, idx) in data.users.registry.lookup.entries()) {
+        let u = data.users.registry.list.at(idx);
         let userData : UserInfo = {
           asks = {
             var map = Map.empty();
@@ -627,7 +609,9 @@ module {
         for ((assetId, data) in u.darkOrderBooks.entries()) {
           ignore assets.putDarkOrderBook(assets.getAsset(assetId), p, ?data);
         };
-        Map.add(users.users, Principal.compare, p, userData);
+        let index = users.usersList.size();
+        users.usersList.add(userData);
+        users.usersLookup.add(p, index);
       };
 
       for ((p, entry) in data.users.participantsArchive.entries.values()) {

@@ -24,13 +24,13 @@ module {
 
   public class Users() {
 
-    public var usersAmount : Nat = 0;
-    public let users : Map.Map<Principal, T.UserInfo> = Map.empty<Principal, T.UserInfo>();
+    public let usersList : List.List<T.UserInfo> = List.empty();
+    public let usersLookup : Map.Map<Principal, Nat> = Map.empty<Principal, Nat>();
 
-    public func nUsers() : Nat = usersAmount;
+    public func nUsers() : Nat = usersList.size();
     public func nUsersWithCredits() : Nat {
       var res : Nat = 0;
-      for (user in Map.values(users)) {
+      for (user in usersList.values()) {
         if (not user.credits.isEmpty()) {
           res += 1;
         };
@@ -39,7 +39,7 @@ module {
     };
     public func nUsersWithActiveOrders() : Nat {
       var res : Nat = 0;
-      for (user in Map.values(users)) {
+      for (user in usersList.values()) {
         if (not user.asks.map.isEmpty() or not user.bids.map.isEmpty()) {
           res += 1;
         };
@@ -53,7 +53,14 @@ module {
     // This field does not survive upgrades, since we (currently) send them straight away
     public var stagedPushNotifications : Queue.Queue<(user : Principal, notification : PushNotification)> = Queue.empty();
 
-    public func get(p : Principal) : ?T.UserInfo = Map.get(users, Principal.compare, p);
+    public func getByIndex(idx : Nat) : ?T.UserInfo = usersList.get(idx);
+    public func atIndex(idx : Nat) : T.UserInfo = usersList.at(idx);
+
+    public func getIndex(p : Principal) : ?Nat = usersLookup.get(p);
+    public func get(p : Principal) : ?T.UserInfo = switch (usersLookup.get(p)) {
+      case (?idx) ?atIndex(idx);
+      case (null) null;
+    };
 
     public func getOrCreate(p : Principal) : T.UserInfo = switch (get(p)) {
       case (?info) info;
@@ -71,20 +78,13 @@ module {
             var pushNotificationsEnabled = false;
           };
         };
-        let oldValue = Map.swap(users, Principal.compare, p, data);
-        switch (oldValue) {
-          case (?_) Prim.trap("Prevented user data overwrite");
-          case (_) {};
-        };
-        usersAmount += 1;
-        Map.add(participantsArchive, Principal.compare, p, { lastOrderPlacement = 0 : Nat64 });
+        let index = usersList.size();
+        usersList.add(data);
+        usersLookup.add(p, index);
+        participantsArchive.add(p, { lastOrderPlacement = 0 : Nat64 });
         participantsArchiveSize += 1;
         data;
       };
-    };
-
-    public func getUserByIndex(idx : Nat) : T.UserInfo {
-      Runtime.trap("users.getUserByIndex is not implemented");
     };
 
     public func getOrderBook(user : T.UserInfo, kind : { #ask; #bid }) : T.UserOrderBook = switch (kind) {

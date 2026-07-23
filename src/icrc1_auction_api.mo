@@ -1190,21 +1190,8 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
 
   public shared ({ caller }) func wipeOrders() : async () {
     await* assertAdminAccess(caller);
-    for (p in auction.users.users.keys()) {
+    for (p in auction.users.usersLookup.keys()) {
       ignore auction.manageOrders(p, ?#all(null), [], null);
-    };
-  };
-
-  public shared ({ caller }) func wipeUsers() : async () {
-    await* assertAdminAccess(caller);
-    for (p in auction.users.users.keys().toArray().values()) {
-      ignore auction.users.users.delete(p);
-    };
-    for (asset in auction.assets.assets.values()) {
-      AssetOrderBook.clear(asset.asks.immediate);
-      AssetOrderBook.clear(asset.asks.delayed);
-      AssetOrderBook.clear(asset.bids.immediate);
-      AssetOrderBook.clear(asset.bids.delayed);
     };
   };
 

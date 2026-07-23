@@ -12,7 +12,6 @@ import R "mo:core/Result";
 import Map "mo:core/Map";
 import VarArray "mo:core/VarArray";
 import List "mo:core/List";
-import Runtime "mo:core/Runtime";
 
 import Assets "./assets";
 import C "./constants";
@@ -230,7 +229,7 @@ module {
     // bid: source = quote, dest = base
     // ask: source = base, dest = quote
     public func fulfil(assetInfo : T.AssetInfo, sessionNumber : Nat, orderId : ?T.OrderId, order : T.Order, maxVolume : Nat, price : Float) : (volume : Nat, quoteVol : Nat, isPartial : Bool) {
-      let ?sourceAcc = credits.getAccount(users.getUserByIndex(order.userInfoIdx), srcAssetId(order.assetId)) else Prim.trap("Can never happen");
+      let ?sourceAcc = credits.getAccount(users.atIndex(order.userInfoIdx), srcAssetId(order.assetId)) else Prim.trap("Can never happen");
 
       switch (orderId) {
         case (?oid) credits.unlockCredit(sourceAcc, srcVolume(order.volume, order.price)) |> (assert _.0);
@@ -254,7 +253,7 @@ module {
             credits.lockCredit(sourceAcc, srcVolume(order.volume - baseVolume, order.price)) |> (assert _.0); // re-lock credit
             assets.deductOrderVolume(assetInfo, kind, order, baseVolume); // shrink order
           } else {
-            users.deleteOrder(users.getUserByIndex(order.userInfoIdx), kind, oid) |> (ignore _); // delete order
+            users.deleteOrder(users.atIndex(order.userInfoIdx), kind, oid) |> (ignore _); // delete order
             assets.deleteOrder(assetInfo, kind, order.orderBookType, oid); // delete order
           };
         };
@@ -263,13 +262,13 @@ module {
 
       // debit at source
       credits.deductCredit(sourceAcc, srcVol) |> (assert _.0);
-      ignore credits.deleteIfEmpty(users.getUserByIndex(order.userInfoIdx), srcAssetId(order.assetId));
+      ignore credits.deleteIfEmpty(users.atIndex(order.userInfoIdx), srcAssetId(order.assetId));
 
       // credit at destination
-      let acc = credits.getOrCreate(users.getUserByIndex(order.userInfoIdx), destAssetId(order.assetId));
+      let acc = credits.getOrCreate(users.atIndex(order.userInfoIdx), destAssetId(order.assetId));
       ignore credits.appendCredit(acc, destVol);
 
-      List.add(users.getUserByIndex(order.userInfoIdx).transactionHistory, (Prim.time(), sessionNumber, kind, order.assetId, baseVolume, price));
+      List.add(users.atIndex(order.userInfoIdx).transactionHistory, (Prim.time(), sessionNumber, kind, order.assetId, baseVolume, price));
 
       let quoteVolume = switch (kind) {
         case (#ask) destVol;
@@ -280,7 +279,7 @@ module {
         assetInfo.totalExecutedOrders += 1;
       };
 
-      let userInfo = users.getUserByIndex(order.userInfoIdx);
+      let userInfo = users.atIndex(order.userInfoIdx);
       userInfo.accountRevision += 1;
       userInfo.loyaltyPoints += C.LOYALTY_REWARD.ORDER_EXECUTION + quoteVolume / C.LOYALTY_REWARD.ORDER_VOLUME_DIVISOR;
       switch (kind) {
@@ -368,11 +367,12 @@ module {
 
     public func manageOrders(
       p : Principal,
-      userInfo : T.UserInfo,
+      userIndex : Nat,
       cancellations : ?CancellationAction,
       placements : [PlaceOrderAction],
       expectedAccountRevision : ?Nat,
     ) : R.Result<([CancellationResult], [PlaceOrderResult]), OrderManagementError> {
+      let userInfo = users.atIndex(userIndex);
 
       switch (expectedAccountRevision) {
         case (?rev) {
@@ -571,10 +571,9 @@ module {
           };
         };
 
-        Runtime.trap("Mocked userInfoIdx");
         let order : T.Order = {
           user = p;
-          userInfoIdx = 123;
+          userInfoIdx = userIndex;
           assetId;
           orderBookType;
           price;
@@ -592,7 +591,7 @@ module {
               if (executionResults.size() > 0) {
                 for ((price, volume, fulfilledOrders) in Array.values(executionResults)) {
                   for ({ order; baseVolume; quoteVolume; isPartial; kind } in PureList.values(fulfilledOrders)) {
-                    if (order.user != p and users.getUserByIndex(order.userInfoIdx).userSettings.pushNotificationsEnabled) {
+                    if (order.user != p and users.atIndex(order.userInfoIdx).userSettings.pushNotificationsEnabled) {
                       List.add(
                         newPushNotifications,
                         (
@@ -652,10 +651,11 @@ module {
 
     public func manageDarkOrderBooks(
       p : Principal,
-      userInfo : T.UserInfo,
+      userIndex : Nat,
       placements : [(assetId : T.AssetId, data : ?T.EncryptedOrderBook)],
       expectedAccountRevision : ?Nat,
     ) : R.Result<[?T.EncryptedOrderBook], { #AccountRevisionMismatch; #NoCredit }> {
+      let userInfo = users.atIndex(userIndex);
       let ret = VarArray.repeat<?T.EncryptedOrderBook>(null, placements.size());
       switch (expectedAccountRevision) {
         case (?rev) {
@@ -698,7 +698,8 @@ module {
       var asksQueue : PureList.List<T.Order> = null;
       var bidsQueue : PureList.List<T.Order> = null;
       label l for ((user, orders) in decryptedOrderBooks.values()) {
-        let ?userInfo = users.get(user) else continue l;
+        let ?userIndex = users.getIndex(user) else continue l;
+        let userInfo = users.atIndex(userIndex);
         let ?quoteAccount = credits.getAccount(userInfo, quoteAssetId) else Prim.trap("Can never happen");
         ignore credits.unlockCredit(quoteAccount, C.DARK_ORDER_BOOK_LOCK_AMOUNT);
         // we do not acutally lock funds for encrypted orders, because we should then unlock them for all the encrypted orders, even not fulfilled
@@ -708,10 +709,9 @@ module {
         var baseToLock = 0;
         label il for ({ kind; price; volume } in orders.values()) {
           let ordersService = (switch (kind) { case (#ask) { asks }; case (#bid) { bids } });
-          Runtime.trap("Mocked userInfoIdx at processDarkOrderBooks");
           let order : T.Order = {
             user;
-            userInfoIdx = 123;
+            userInfoIdx = userIndex;
             assetId;
             orderBookType = #delayed;
             price;
