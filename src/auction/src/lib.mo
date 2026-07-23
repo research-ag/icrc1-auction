@@ -17,10 +17,10 @@ import Prim "mo:prim";
 import Principal "mo:core/Principal";
 import PureList "mo:core/pure/List";
 import R "mo:core/Result";
-import Runtime "mo:core/Runtime";
 
 import CircularBuffer "./models/circular_buffer";
 
+import AuctionRuntime "./runtime";
 import AssetOrderBook "./asset_order_book";
 import Assets "./assets";
 import C "./constants";
@@ -34,37 +34,15 @@ import T "./types";
 module {
 
   // stable type
-  public type AuctionNew = {
-    quoteAssetId : AssetId;
-    settings : AuctionSettings;
-
-    users : List.List<T.UserInfo>;
-  };
+  public type AuctionNew = T.AuctionNew;
 
   public func new(
     quoteAssetId : AssetId,
-    settings : AuctionSettings,
-  ): AuctionNew = {
+    settings : T.AuctionSettings,
+  ) : AuctionNew = {
     quoteAssetId;
     settings;
     users = List.empty();
-  };
-
-  public type AuctionSettings = {
-    volumeStepLog10 : Nat; // 3 will make volume step 1000 (denominated in quote token)
-    minVolumeSteps : Nat; // == minVolume / volumeStep
-    priceMaxDigits : Nat;
-  };
-
-  // instance of this class should be declared as transient. It does not contain any data that must be stored in stable data
-  public class AuctionNewRuntime(
-    auction : AuctionNew,
-    settings : {
-      minAskVolume : (AssetId, T.AssetInfo) -> Int;
-      performanceCounter : Nat32 -> Nat64;
-    }
-  ) {
-
   };
 
   public func defaultStableData() : T.StableDataV5 = {
@@ -110,7 +88,7 @@ module {
   public type CancellationResult = Orders.CancellationResult;
   public type PlaceOrderResult = Orders.PlaceOrderResult;
 
-  public type PushNotification = Users.PushNotification;
+  public type PushNotification = T.PushNotification;
 
   public type OrderBookInfo = {
     clearing : {
@@ -395,9 +373,10 @@ module {
       cancellations : ?Orders.CancellationAction,
       placements : [Orders.PlaceOrderAction],
       expectedAccountRevision : ?Nat,
+      runtime : AuctionRuntime.AuctionRuntime,
     ) : R.Result<([CancellationResult], [PlaceOrderResult]), ManageOrdersError> {
       let ?userIdx = users.getIndex(p) else return #err(#UnknownPrincipal);
-      orders.manageOrders(p, userIdx, cancellations, placements, expectedAccountRevision);
+      orders.manageOrders(p, userIdx, cancellations, placements, expectedAccountRevision, runtime);
     };
 
     public func manageDarkOrderBooks(p : Principal, args : [(T.AssetId, ?T.EncryptedOrderBook)], expectedAccountRevision : ?Nat) : R.Result<[?T.EncryptedOrderBook], { #UnknownPrincipal; #AccountRevisionMismatch; #NoCredit }> {
@@ -405,12 +384,12 @@ module {
       orders.manageDarkOrderBooks(p, userIdx, args, expectedAccountRevision);
     };
 
-    public func placeOrder(p : Principal, kind : { #ask; #bid }, assetId : AssetId, orderBookType : OrderBookType, volume : Nat, price : Float, expectedAccountRevision : ?Nat) : R.Result<PlaceOrderResult, PlaceOrderError> {
+    public func placeOrder(p : Principal, kind : { #ask; #bid }, assetId : AssetId, orderBookType : OrderBookType, volume : Nat, price : Float, expectedAccountRevision : ?Nat, runtime : AuctionRuntime.AuctionRuntime) : R.Result<PlaceOrderResult, PlaceOrderError> {
       let placement = switch (kind) {
         case (#ask) #ask(assetId, orderBookType, volume, price);
         case (#bid) #bid(assetId, orderBookType, volume, price);
       };
-      switch (manageOrders(p, null, [placement], expectedAccountRevision)) {
+      switch (manageOrders(p, null, [placement], expectedAccountRevision, runtime)) {
         case (#ok(_, x)) #ok(x[0]);
         case (#err(#AccountRevisionMismatch)) #err(#AccountRevisionMismatch);
         case (#err(#UnknownPrincipal)) #err(#UnknownPrincipal);
@@ -419,7 +398,7 @@ module {
       };
     };
 
-    public func replaceOrder(p : Principal, kind : { #ask; #bid }, orderId : OrderId, volume : Nat, price : Float, expectedAccountRevision : ?Nat) : R.Result<PlaceOrderResult, ReplaceOrderError> {
+    public func replaceOrder(p : Principal, kind : { #ask; #bid }, orderId : OrderId, volume : Nat, price : Float, expectedAccountRevision : ?Nat, runtime : AuctionRuntime.AuctionRuntime) : R.Result<PlaceOrderResult, ReplaceOrderError> {
       let (assetId, orderBookType) = switch (getOrder(p, kind, orderId)) {
         case (?o) (o.assetId, o.orderBookType);
         case (null) return #err(#UnknownOrder);
@@ -428,7 +407,7 @@ module {
         case (#ask) (#ask(orderId), #ask(assetId, orderBookType, volume, price));
         case (#bid) (#bid(orderId), #bid(assetId, orderBookType, volume, price));
       };
-      switch (manageOrders(p, ?#orders([cancellation]), [placement], expectedAccountRevision)) {
+      switch (manageOrders(p, ?#orders([cancellation]), [placement], expectedAccountRevision, runtime)) {
         case (#ok(_, x)) #ok(x[0]);
         case (#err(#AccountRevisionMismatch)) #err(#AccountRevisionMismatch);
         case (#err(#UnknownPrincipal)) #err(#UnknownPrincipal);
@@ -437,12 +416,12 @@ module {
       };
     };
 
-    public func cancelOrder(p : Principal, kind : { #ask; #bid }, orderId : OrderId, expectedAccountRevision : ?Nat) : R.Result<CancellationResult, CancelOrderError> {
+    public func cancelOrder(p : Principal, kind : { #ask; #bid }, orderId : OrderId, expectedAccountRevision : ?Nat, runtime : AuctionRuntime.AuctionRuntime) : R.Result<CancellationResult, CancelOrderError> {
       let cancellation = switch (kind) {
         case (#ask) #ask(orderId);
         case (#bid) #bid(orderId);
       };
-      switch (manageOrders(p, ?#orders([cancellation]), [], expectedAccountRevision)) {
+      switch (manageOrders(p, ?#orders([cancellation]), [], expectedAccountRevision, runtime)) {
         case (#ok(x, _)) #ok(x[0]);
         case (#err(#AccountRevisionMismatch)) #err(#AccountRevisionMismatch);
         case (#err(#UnknownPrincipal)) #err(#UnknownPrincipal);

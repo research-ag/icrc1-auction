@@ -13,6 +13,7 @@ import Map "mo:core/Map";
 import VarArray "mo:core/VarArray";
 import List "mo:core/List";
 
+import AuctionRuntime "./runtime";
 import Assets "./assets";
 import C "./constants";
 import Credits "./credits";
@@ -371,6 +372,7 @@ module {
       cancellations : ?CancellationAction,
       placements : [PlaceOrderAction],
       expectedAccountRevision : ?Nat,
+      runtime : AuctionRuntime.AuctionRuntime,
     ) : R.Result<([CancellationResult], [PlaceOrderResult]), OrderManagementError> {
       let userInfo = users.atIndex(userIndex);
 
@@ -384,17 +386,17 @@ module {
       };
 
       // temporary list of new balances for all affected user credit accounts
-      var newBalances : Map.Map<T.AssetId, Nat> = Map.empty();
+      let newBalances : Map.Map<T.AssetId, Nat> = Map.empty();
       // temporary lists of newly placed/cancelled orders
       type OrdersDelta = {
         var placed : PureList.List<(?T.OrderId, T.Order)>;
         var isOrderCancelled : (assetId : T.AssetId, orderId : T.OrderId) -> Bool;
       };
-      var asksDelta : OrdersDelta = {
+      let asksDelta : OrdersDelta = {
         var placed = null;
         var isOrderCancelled = func(_, _) = false;
       };
-      var bidsDelta : OrdersDelta = {
+      let bidsDelta : OrdersDelta = {
         var placed = null;
         var isOrderCancelled = func(_, _) = false;
       };
@@ -403,7 +405,7 @@ module {
       var cancellationCommitActions : PureList.List<() -> [CancellationResult]> = null;
       let placementCommitActions = VarArray.repeat<() -> PlaceOrderResult>(func() = (0, #placed), placements.size());
 
-      let newPushNotifications : List.List<(Principal, Users.PushNotification)> = List.empty();
+      let newPushNotifications : List.List<(Principal, T.PushNotification)> = List.empty();
 
       // update temporary balances: add unlocked credits for each cancelled order
       func affectNewBalancesWithCancellation(ordersService : OrdersService, order : T.Order) {
@@ -481,7 +483,7 @@ module {
           asksDelta.isOrderCancelled := func(_, orderId) = Map.get(cancelledAsks, Nat.compare, orderId) |> not Option.isNull(_);
           bidsDelta.isOrderCancelled := func(_, orderId) = Map.get(cancelledBids, Nat.compare, orderId) |> not Option.isNull(_);
 
-          var assetIdSet : Map.Map<T.AssetId, Nat> = Map.empty();
+          let assetIdSet : Map.Map<T.AssetId, Nat> = Map.empty();
           for (i in orders.keys()) {
             let (ordersService, orderId, cancelledTree) = switch (orders[i]) {
               case (#ask orderId) (asks, orderId, cancelledAsks);
@@ -503,7 +505,7 @@ module {
       };
 
       // validate and prepare placements
-      var assetIdSet : Map.Map<T.AssetId, Nat> = Map.empty();
+      let assetIdSet : Map.Map<T.AssetId, Nat> = Map.empty();
       for (i in placements.keys()) {
         let (ordersService, (assetId, orderBookType, volume, rawPrice), ordersDelta, oppositeOrdersDelta) = switch (placements[i]) {
           case (#ask(args)) (asks, args, asksDelta, bidsDelta);
@@ -643,7 +645,7 @@ module {
       };
 
       for (n in List.values(newPushNotifications)) {
-        Queue.pushBack(users.stagedPushNotifications, n);
+        runtime.stagePushNotification(n);
       };
 
       #ok(List.toArray(retCancellations), retPlacements);

@@ -3,10 +3,11 @@ import Nat8 "mo:core/Nat8";
 import Principal "mo:core/Principal";
 
 import Auction "../src/lib";
+import AuctionRuntime "../src/runtime";
 
 module {
 
-  public func init(quoteAssetId : Nat, volumeStepLog10 : Nat, minVolumeSteps : Nat) : (Auction.Auction, Principal) {
+  public func init(quoteAssetId : Nat, volumeStepLog10 : Nat, minVolumeSteps : Nat) : (Auction.Auction, AuctionRuntime.AuctionRuntime, Principal) {
     let auction = Auction.Auction(
       quoteAssetId,
       {
@@ -17,9 +18,24 @@ module {
         performanceCounter = func(_) = 0;
       },
     );
+    let auctionNew = Auction.new(
+      quoteAssetId,
+      {
+        volumeStepLog10;
+        minVolumeSteps;
+        priceMaxDigits = 5;
+      },
+    );
+    let runtime = AuctionRuntime.AuctionRuntime(
+      auctionNew,
+      {
+        minAskVolume = func(_, _) = 20;
+        performanceCounter = func(_) = 0;
+      },
+    );
     auction.registerAssets(quoteAssetId + 1);
     let user = Principal.fromText("rl3fy-hyflm-6r3qg-7nid5-lr6cp-ysfwh-xiqme-stgsq-bcga5-vnztf-mqe");
-    (auction, user);
+    (auction, runtime, user);
   };
 
   public func createFt(auction : Auction.Auction) : Nat {

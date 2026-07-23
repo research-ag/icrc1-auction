@@ -5,27 +5,17 @@ import List "mo:core/List";
 import Map "mo:core/Map";
 import PureList "mo:core/pure/List";
 import Queue "mo:core/Queue";
-import Runtime "mo:core/Runtime";
 
 import T "./types";
 
 module {
 
-  public type PushNotification = {
-    #orderFulfilled : {
-      assetId : T.AssetId;
-      kind : { #ask; #bid };
-      price : Float;
-      baseVolume : Nat;
-      quoteVolume : Nat;
-      isPartial : Bool;
-    };
-  };
-
   public class Users() {
 
     public let usersList : List.List<T.UserInfo> = List.empty();
     public let usersLookup : Map.Map<Principal, Nat> = Map.empty<Principal, Nat>();
+    public var participantsArchiveSize : Nat = 0;
+    public let participantsArchive : Map.Map<Principal, { lastOrderPlacement : Nat64 }> = Map.empty<Principal, { lastOrderPlacement : Nat64 }>();
 
     public func nUsers() : Nat = usersList.size();
     public func nUsersWithCredits() : Nat {
@@ -46,12 +36,6 @@ module {
       };
       res;
     };
-
-    public var participantsArchiveSize : Nat = 0;
-    public let participantsArchive : Map.Map<Principal, { lastOrderPlacement : Nat64 }> = Map.empty<Principal, { lastOrderPlacement : Nat64 }>();
-
-    // This field does not survive upgrades, since we (currently) send them straight away
-    public var stagedPushNotifications : Queue.Queue<(user : Principal, notification : PushNotification)> = Queue.empty();
 
     public func getByIndex(idx : Nat) : ?T.UserInfo = usersList.get(idx);
     public func atIndex(idx : Nat) : T.UserInfo = usersList.at(idx);

@@ -5,16 +5,16 @@ import { init; createFt; generateUsers } "./test.util";
 
 do {
   Prim.debugPrint("should be able to place both bid and ask on the same asset...");
-  let (auction, user) = init(0, 3, 5);
+  let (auction, runtime, user) = init(0, 3, 5);
   let ft = createFt(auction);
   auction.processAsset(ft);
   ignore auction.appendCredit(user, 0, 500_000_000);
   ignore auction.appendCredit(user, ft, 500_000_000);
-  switch (auction.placeOrder(user, #bid, ft, #delayed, 2_000, 250, null)) {
+  switch (auction.placeOrder(user, #bid, ft, #delayed, 2_000, 250, null, runtime)) {
     case (#ok _) ();
     case (_) assert false;
   };
-  switch (auction.placeOrder(user, #ask, ft, #delayed, 2_000_000, 300, null)) {
+  switch (auction.placeOrder(user, #ask, ft, #delayed, 2_000_000, 300, null, runtime)) {
     case (#ok _) ();
     case (_) assert false;
   };
@@ -24,16 +24,16 @@ do {
 
 do {
   Prim.debugPrint("should return error when placing ask with lower price than own bid price for the same asset...");
-  let (auction, user) = init(0, 3, 5);
+  let (auction, runtime, user) = init(0, 3, 5);
   let ft = createFt(auction);
   auction.processAsset(ft);
   ignore auction.appendCredit(user, 0, 500_000_000);
   ignore auction.appendCredit(user, ft, 500_000_000);
-  let orderId = switch (auction.placeOrder(user, #bid, ft, #delayed, 2_000, 250, null)) {
+  let orderId = switch (auction.placeOrder(user, #bid, ft, #delayed, 2_000, 250, null, runtime)) {
     case (#ok(id, _)) id;
     case (_) { assert false; 0 };
   };
-  switch (auction.placeOrder(user, #ask, ft, #delayed, 2_000_000, 200, null)) {
+  switch (auction.placeOrder(user, #ask, ft, #delayed, 2_000_000, 200, null, runtime)) {
     case (#err(#ConflictingOrder(#bid, oid))) assert oid == ?orderId;
     case (_) assert false;
   };
@@ -43,16 +43,16 @@ do {
 
 do {
   Prim.debugPrint("should return error when placing bid with higher price than own ask price for the same asset...");
-  let (auction, user) = init(0, 3, 5);
+  let (auction, runtime, user) = init(0, 3, 5);
   let ft = createFt(auction);
   auction.processAsset(ft);
   ignore auction.appendCredit(user, 0, 500_000_000);
   ignore auction.appendCredit(user, ft, 500_000_000);
-  let orderId = switch (auction.placeOrder(user, #ask, ft, #delayed, 2_000_000, 200, null)) {
+  let orderId = switch (auction.placeOrder(user, #ask, ft, #delayed, 2_000_000, 200, null, runtime)) {
     case (#ok(id, _)) id;
     case (_) { assert false; 0 };
   };
-  switch (auction.placeOrder(user, #bid, ft, #delayed, 2_000, 250, null)) {
+  switch (auction.placeOrder(user, #bid, ft, #delayed, 2_000, 250, null, runtime)) {
     case (#err(#ConflictingOrder(#ask, oid))) assert oid == ?orderId;
     case (_) assert false;
   };
@@ -62,7 +62,7 @@ do {
 
 do {
   Prim.debugPrint("should return conflict error when placing both conflicting orders in one call");
-  let (auction, user) = init(0, 3, 5);
+  let (auction, runtime, user) = init(0, 3, 5);
   let ft = createFt(auction);
   auction.processAsset(ft);
   ignore auction.appendCredit(user, 0, 500_000_000);
@@ -76,6 +76,7 @@ do {
         #bid(ft, #delayed, 2_000, 250),
       ],
       null,
+      runtime,
     )
   ) {
     case (#err(#placement({ index = 1; error = #ConflictingOrder(#ask, null) }))) ();
@@ -87,12 +88,12 @@ do {
 
 do {
   Prim.debugPrint("should place conflicting order if cancel old one in the same call");
-  let (auction, user) = init(0, 3, 5);
+  let (auction, runtime, user) = init(0, 3, 5);
   let ft = createFt(auction);
   auction.processAsset(ft);
   ignore auction.appendCredit(user, 0, 500_000_000);
   ignore auction.appendCredit(user, ft, 500_000_000);
-  let orderId = switch (auction.placeOrder(user, #ask, ft, #delayed, 2_000_000, 200, null)) {
+  let orderId = switch (auction.placeOrder(user, #ask, ft, #delayed, 2_000_000, 200, null, runtime)) {
     case (#ok(id, _)) id;
     case (_) { assert false; 0 };
   };
@@ -102,6 +103,7 @@ do {
       ?#orders([#ask(orderId)]),
       [#bid(ft, #delayed, 2_000, 250)],
       null,
+      runtime,
     )
   ) {
     case (#ok(_)) ();
@@ -113,7 +115,7 @@ do {
 
 do {
   Prim.debugPrint("should be able to place various orders at once...");
-  let (auction, user) = init(0, 3, 5);
+  let (auction, runtime, user) = init(0, 3, 5);
   let ft1 = createFt(auction);
   let ft2 = createFt(auction);
   ignore auction.appendCredit(user, 0, 500_000_000);
@@ -134,6 +136,7 @@ do {
         #ask(ft2, #delayed, 2_000_000, 400),
       ],
       null,
+      runtime,
     )
   ) {
     case (#ok _) ();
@@ -150,7 +153,7 @@ do {
 
 do {
   Prim.debugPrint("should be able to cancel all orders at once...");
-  let (auction, user) = init(0, 3, 5);
+  let (auction, runtime, user) = init(0, 3, 5);
   let ft1 = createFt(auction);
   let ft2 = createFt(auction);
   ignore auction.appendCredit(user, 0, 500_000_000);
@@ -171,12 +174,13 @@ do {
         #ask(ft2, #delayed, 2_000_000, 400),
       ],
       null,
+      runtime,
     )
   ) {
     case (#ok _) ();
     case (_) assert false;
   };
-  switch (auction.manageOrders(user, ?#all(null), [], null)) {
+  switch (auction.manageOrders(user, ?#all(null), [], null, runtime)) {
     case (#ok _) ();
     case (_) assert false;
   };
@@ -191,7 +195,7 @@ do {
 
 do {
   Prim.debugPrint("should be able to cancel all orders for for single asset at once...");
-  let (auction, user) = init(0, 3, 5);
+  let (auction, runtime, user) = init(0, 3, 5);
   let ft1 = createFt(auction);
   let ft2 = createFt(auction);
   ignore auction.appendCredit(user, 0, 500_000_000);
@@ -212,12 +216,13 @@ do {
         #ask(ft2, #delayed, 2_000_000, 400),
       ],
       null,
+      runtime,
     )
   ) {
     case (#ok _) ();
     case (_) assert false;
   };
-  switch (auction.manageOrders(user, ?#all(?[ft1]), [], null)) {
+  switch (auction.manageOrders(user, ?#all(?[ft1]), [], null, runtime)) {
     case (#ok _) ();
     case (_) assert false;
   };
@@ -232,7 +237,7 @@ do {
 
 do {
   Prim.debugPrint("should be able to cancel orders by enumerating id-s...");
-  let (auction, user) = init(0, 3, 5);
+  let (auction, runtime, user) = init(0, 3, 5);
   let ft1 = createFt(auction);
   let ft2 = createFt(auction);
   ignore auction.appendCredit(user, 0, 500_000_000);
@@ -253,6 +258,7 @@ do {
         #ask(ft2, #delayed, 2_000_000, 400),
       ],
       null,
+      runtime,
     )
   ) {
     case (#ok(_, x)) x;
@@ -261,7 +267,7 @@ do {
       [];
     };
   };
-  switch (auction.manageOrders(user, ?#orders([#bid(placementResults[1].0), #ask(placementResults[4].0), #ask(placementResults[5].0)]), [], null)) {
+  switch (auction.manageOrders(user, ?#orders([#bid(placementResults[1].0), #ask(placementResults[4].0), #ask(placementResults[5].0)]), [], null, runtime)) {
     case (#ok _) ();
     case (_) assert false;
   };
@@ -276,7 +282,7 @@ do {
 
 do {
   Prim.debugPrint("should be able to cancel immediate orders by id...");
-  let (auction, user) = init(0, 3, 5);
+  let (auction, runtime, user) = init(0, 3, 5);
   let ft = createFt(auction);
   ignore auction.appendCredit(user, 0, 500_000_000);
   let placementResults = switch (
@@ -285,6 +291,7 @@ do {
       null,
       [#bid(ft, #immediate, 2_000, 250)],
       null,
+      runtime,
     )
   ) {
     case (#ok(_, x)) x;
@@ -294,7 +301,7 @@ do {
     };
   };
   assert auction.getOrders(user, #bid, ?ft).size() == 1;
-  switch (auction.manageOrders(user, ?#orders([#bid(placementResults[0].0)]), [], null)) {
+  switch (auction.manageOrders(user, ?#orders([#bid(placementResults[0].0)]), [], null, runtime)) {
     case (#ok _) ();
     case (_) assert false;
   };

@@ -27,7 +27,7 @@ do {
   Prim.debugPrint("surplus issue test 22.07.2026 ...");
   Prim.debugPrint("Test skipped");
   if (false) {
-    let (auction, user) = init(0, 3, 5);
+    let (auction, runtime, user) = init(0, 3, 5);
     let ft = createFt(auction);
 
     let users : [Principal] = generateUsers(4);
@@ -37,11 +37,11 @@ do {
       ignore auction.appendCredit(user, 1, 5_000_000_000_000_000_000_000_000_000);
     };
 
-    ignore auction.placeOrder(users[0], #bid, 1, #delayed, 1_666_666_666_666_666_666, 1_000_000.0, null);
-    ignore auction.placeOrder(users[1], #bid, 1, #delayed, 1_666_666_666_666_666_666, 1_000_000.0, null);
-    ignore auction.placeOrder(users[2], #bid, 1, #delayed, 1_666_666_666_666_666_666, 1_000_000.0, null);
+    ignore auction.placeOrder(users[0], #bid, 1, #delayed, 1_666_666_666_666_666_666, 1_000_000.0, null, runtime);
+    ignore auction.placeOrder(users[1], #bid, 1, #delayed, 1_666_666_666_666_666_666, 1_000_000.0, null, runtime);
+    ignore auction.placeOrder(users[2], #bid, 1, #delayed, 1_666_666_666_666_666_666, 1_000_000.0, null, runtime);
 
-    ignore auction.placeOrder(users[3], #ask, 1, #delayed, 5_000_000_000_000_000_000, 1_000_000.0, null);
+    ignore auction.placeOrder(users[3], #ask, 1, #delayed, 5_000_000_000_000_000_000, 1_000_000.0, null, runtime);
 
     auction.processAsset(1);
 

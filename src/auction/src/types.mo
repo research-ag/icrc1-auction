@@ -9,6 +9,19 @@ module {
   public type AssetId = Nat;
   public type OrderId = Nat;
 
+  public type AuctionNew = {
+    quoteAssetId : AssetId;
+    settings : AuctionSettings;
+
+    users : List.List<UserInfo>;
+  };
+
+  public type AuctionSettings = {
+    volumeStepLog10 : Nat; // 3 will make volume step 1000 (denominated in quote token)
+    minVolumeSteps : Nat; // == minVolume / volumeStep
+    priceMaxDigits : Nat;
+  };
+
   public type Account = {
     // balance of user account
     var credit : Nat;
@@ -90,6 +103,17 @@ module {
   public type PriceHistoryItem = (timestamp : Nat64, sessionNumber : Nat, assetId : AssetId, volume : Nat, price : Float);
   public type DepositHistoryItem = (timestamp : Nat64, kind : { #deposit; #withdrawal }, assetId : AssetId, volume : Nat);
   public type TransactionHistoryItem = (timestamp : Nat64, sessionNumber : Nat, kind : { #ask; #bid }, assetId : AssetId, volume : Nat, price : Float);
+
+  public type PushNotification = {
+    #orderFulfilled : {
+      assetId : AssetId;
+      kind : { #ask; #bid };
+      price : Float;
+      baseVolume : Nat;
+      quoteVolume : Nat;
+      isPartial : Bool;
+    };
+  };
 
   // stable data types
   public type StableDataV5 = {
