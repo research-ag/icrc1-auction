@@ -1,11 +1,12 @@
+import List "mo:core/List";
+import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Prim "mo:prim";
 import Principal "mo:core/Principal";
-import List "mo:core/List";
-import Map "mo:core/Map";
 import PureList "mo:core/pure/List";
 import Queue "mo:core/Queue";
 
+import Account "./account";
 import User "./user";
 import T "./types";
 
@@ -18,6 +19,8 @@ module {
     var usersLookup = Map.empty();
     var participantsArchive = Map.empty();
     var participantsArchiveSize = 0;
+
+    var quoteSurplus = 0;
   };
 
   public func nUsers(self : UsersStorage) : Nat = self.usersList.size();
@@ -38,6 +41,14 @@ module {
       if (not user.asks.map.isEmpty() or not user.bids.map.isEmpty()) {
         res += 1;
       };
+    };
+    res;
+  };
+
+  public func nAccounts(self : UsersStorage) : Nat {
+    var res : Nat = 0;
+    for (user in self.usersList.values()) {
+      res += user.credits.size();
     };
     res;
   };

@@ -128,7 +128,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     volume : Nat;
   };
   func mapUserOrder(order : Auction.Order) : UserOrder = ({
-    user = order.user;
+    user = order.userPrincipal;
     price = order.price;
     volume = order.volume;
   });
@@ -344,8 +344,8 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
         PT.newValue("assets_count", [], func() = auction.assets.nAssets()),
         PT.newValue("users_count", [], func() = auction.users.nUsers()),
         PT.newValue("users_with_credits_count", [], func() = auction.users.nUsersWithCredits()),
-        PT.newValue("accounts_count", [], func() = auction.credits.nAccounts()),
-        PT.newValue("quote_surplus", [], func() = auction.credits.quoteSurplus),
+        PT.newValue("accounts_count", [], func() = auction.users.nAccounts()),
+        PT.newValue("quote_surplus", [], func() = auction.users.quoteSurplus),
         PT.newValue("next_session_timestamp", [], func() = nextAuctionTickTimestamp),
         PT.newValue("total_unique_participants", [], func() = auction.users.participantsArchiveSize),
         PT.newValue("active_unique_participants", [], func() = auction.users.nUsersWithActiveOrders()),
@@ -752,7 +752,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
       (v.toArray(), vBase.toArray());
     };
 
-    let userInfo = auction.users.get(p);
+    let user = auction.users.get(p);
     let historyListOrder = switch (selection.reversed_history) {
       case (?true) #desc;
       case (_) #asc;
@@ -791,7 +791,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     let bids = retrieveElements<(Auction.OrderId, Auction.Order)>(selection.bids, func(assetId) = auction.getOrders(p, #bid, assetId));
     let darkOrderBooks = retrieveElements<(Auction.AssetId, Auction.EncryptedOrderBook)>(
       selection.dark_order_books,
-      func(assetId) = switch (assetId, userInfo) {
+      func(assetId) = switch (assetId, user) {
         case (null, ?ui) ui.darkOrderBooks.entries().toArray();
         case (?aid, ?ui) ui.darkOrderBooks.get(aid) |> (
           switch (_) {

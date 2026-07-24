@@ -20,11 +20,11 @@ import R "mo:core/Result";
 
 import CircularBuffer "./models/circular_buffer";
 
+import Account "./account";
 import AuctionRuntime "./runtime";
 import AssetOrderBook "./asset_order_book";
 import Assets "./assets";
 import C "./constants";
-import Credits "./credits";
 import E "./encryption";
 import Orders "./orders";
 import User "./user";
@@ -49,7 +49,6 @@ module {
   public func defaultStableData() : T.StableDataV5 = {
     assets = List.empty();
     orders = { globalCounter = 0 };
-    quoteToken = { surplus = 0 };
     sessions = {
       counter = 0;
       history = {
@@ -58,7 +57,6 @@ module {
       };
     };
     users = UsersStorage.empty();
-    accountsAmount = 0;
   };
   public type StableDataV5 = T.StableDataV5;
 
@@ -67,7 +65,7 @@ module {
   public type OrderBookType = T.OrderBookType;
   public type Order = T.Order;
   public type EncryptedOrderBook = T.EncryptedOrderBook;
-  public type CreditInfo = Credits.CreditInfo;
+  public type CreditInfo = T.CreditInfo;
   public type User = T.User;
   public type UserSettings = T.UserSettings;
   public type DepositHistoryItem = T.DepositHistoryItem;
@@ -131,11 +129,9 @@ module {
     public var sessionsCounter = 0;
 
     public let users = UsersStorage.empty();
-    public let credits = Credits.Credits();
     public let assets = Assets.Assets();
     public let orders = Orders.Orders(
       assets,
-      credits,
       users,
       quoteAssetId,
       settings,
@@ -158,7 +154,7 @@ module {
           } else Prim.trap("Can never happen");
           let { quoteSurplus; fulfilledOrders } = Processor.processAuction(0, asks, bids, price, volume);
           if (quoteSurplus > 0) {
-            credits.quoteSurplus += quoteSurplus;
+            users.quoteSurplus += quoteSurplus;
           };
           ret.add((price, volume, fulfilledOrders));
           let executionsCounter = assetInfo.immediateExecutionsCounter;
@@ -219,7 +215,7 @@ module {
       if (volume > 0) {
         let { quoteSurplus } = Processor.processAuction(sessionsCounter, asks, bids, price, volume);
         if (quoteSurplus > 0) {
-          credits.quoteSurplus += quoteSurplus;
+          users.quoteSurplus += quoteSurplus;
         };
         assetInfo.lastRate := price;
       };
@@ -262,12 +258,12 @@ module {
     // ============= credits interface ============
     public func getCredit(p : Principal, assetId : AssetId) : CreditInfo = switch (users.get(p)) {
       case (null) ({ total = 0; locked = 0; available = 0 });
-      case (?ui) credits.info(ui, assetId);
+      case (?u) u.creditInfo(assetId);
     };
 
     public func getCredits(p : Principal) : [(AssetId, CreditInfo)] = switch (users.get(p)) {
       case (null) [];
-      case (?ui) credits.infoAll(ui);
+      case (?u) u.creditInfoAll();
     };
 
     public func getAccountRevision(p : Principal) : Nat = switch (users.get(p)) {
@@ -289,29 +285,29 @@ module {
     };
 
     public func appendCredit(p : Principal, assetId : AssetId, amount : Nat) : Nat {
-      let userInfo = users.getOrCreate(p);
-      let acc = credits.getOrCreate(userInfo, assetId);
-      userInfo.depositHistory.add((Prim.time(), #deposit, assetId, amount));
-      userInfo.accountRevision += 1;
-      credits.appendCredit(acc, amount);
+      let user = users.getOrCreate(p);
+      let acc = user.getOrCreateAccount(assetId);
+      user.depositHistory.add((Prim.time(), #deposit, assetId, amount));
+      user.accountRevision += 1;
+      acc.appendCredit(amount);
     };
 
     public func deductCredit(p : Principal, assetId : AssetId, amount : Nat) : R.Result<(Nat, rollback : () -> (), doneCallback : () -> ()), { #NoCredit }> {
       let ?user = users.get(p) else return #err(#NoCredit);
-      let ?creditAcc = credits.getAccount(user, assetId) else return #err(#NoCredit);
-      switch (credits.deductCredit(creditAcc, amount)) {
+      let ?creditAcc = user.getAccount(assetId) else return #err(#NoCredit);
+      switch (creditAcc.deductCredit(amount)) {
         case (true, balance) {
           user.accountRevision += 1;
-          if (balance == 0 and credits.deleteIfEmpty(user, assetId)) {
+          if (balance == 0 and user.deleteAccountIfEmpty(assetId)) {
             #ok(
               0,
-              func() = ignore credits.getOrCreate(user, assetId) |> credits.appendCredit(_, amount),
+              func() = ignore user.getOrCreateAccount(assetId).appendCredit(amount),
               func() = user.depositHistory.add((Prim.time(), #withdrawal, assetId, amount)),
             );
           } else {
             #ok(
               balance,
-              func() = ignore credits.appendCredit(creditAcc, amount),
+              func() = ignore creditAcc.appendCredit(amount),
               func() = user.depositHistory.add((Prim.time(), #withdrawal, assetId, amount)),
             );
           };
@@ -324,8 +320,8 @@ module {
       let amount = switch (kind) {
         case (#wallet) C.LOYALTY_REWARD.WALLET_OPERATION;
       };
-      let ?userInfo = users.get(p) else return false;
-      userInfo.loyaltyPoints += amount;
+      let ?user = users.get(p) else return false;
+      user.loyaltyPoints += amount;
       true;
     };
     // ============= credits interface ============
@@ -425,8 +421,8 @@ module {
 
     // ============ history interface =============
     public func getDepositHistory(p : Principal, assetIds : [AssetId], order : { #asc; #desc }) : Iter.Iter<T.DepositHistoryItem> {
-      let ?userInfo = users.get(p) else return { next = func() = null };
-      var iter = userInfo.depositHistory
+      let ?user = users.get(p) else return { next = func() = null };
+      var iter = user.depositHistory
       |> (
         switch (order) {
           case (#asc) List.values(_);
@@ -440,8 +436,8 @@ module {
     };
 
     public func getTransactionHistory(p : Principal, assetIds : [AssetId], order : { #asc; #desc }) : Iter.Iter<T.TransactionHistoryItem> {
-      let ?userInfo = users.get(p) else return { next = func() = null };
-      var iter = userInfo.transactionHistory
+      let ?user = users.get(p) else return { next = func() = null };
+      var iter = user.transactionHistory
       |> (
         switch (order) {
           case (#asc) List.values(_);
@@ -490,9 +486,6 @@ module {
       orders = {
         globalCounter = orders.ordersCounter;
       };
-      quoteToken = {
-        surplus = credits.quoteSurplus;
-      };
       sessions = {
         counter = sessionsCounter;
         history = {
@@ -501,7 +494,6 @@ module {
         };
       };
       users = users;
-      accountsAmount = credits.accountsAmount;
     };
 
     public func unshare(data : T.StableDataV5) {
@@ -510,6 +502,7 @@ module {
       users.usersLookup := data.users.usersLookup;
       users.participantsArchive := data.users.participantsArchive;
       users.participantsArchiveSize := data.users.participantsArchiveSize;
+      users.quoteSurplus := data.users.quoteSurplus;
 
       assets.assets := data.assets.map<T.StableAssetInfoV3, T.AssetInfo>(
         func(x) = {
@@ -538,8 +531,6 @@ module {
 
       orders.ordersCounter := data.orders.globalCounter;
 
-      credits.quoteSurplus := data.quoteToken.surplus;
-
       sessionsCounter := data.sessions.counter;
 
       if (data.sessions.history.immediate.capacity == assets.IMMEDIATE_BUFFER_CAPACITY) {
@@ -559,7 +550,6 @@ module {
           ignore assets.putDarkOrderBook(assets.getAsset(assetId), p, ?data);
         };
       };
-      credits.accountsAmount := data.accountsAmount;
     };
     // ============= system interface =============
   };

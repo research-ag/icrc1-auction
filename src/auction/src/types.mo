@@ -33,7 +33,7 @@ module {
   public type OrderBookType = { #delayed; #immediate };
 
   public type Order = {
-    user : Principal;
+    userPrincipal : Principal;
     userId : UserId;
     assetId : AssetId;
     orderBookType : OrderBookType;
@@ -85,6 +85,12 @@ module {
     var sessionsCounter : Nat;
   };
 
+  public type CreditInfo = {
+    total : Nat;
+    available : Nat;
+    locked : Nat;
+  };
+
   public type UserSettings = {
     var pushNotificationsEnabled : Bool;
   };
@@ -108,6 +114,9 @@ module {
     var participantsArchive : Map.Map<Principal, { lastOrderPlacement : Nat64 }>;
 
     var participantsArchiveSize : Nat;
+    
+    // TODO move this to a different place
+    var quoteSurplus : Nat;
   };
 
   public type PriceHistoryItem = (timestamp : Nat64, sessionNumber : Nat, assetId : AssetId, volume : Nat, price : Float);
@@ -129,7 +138,6 @@ module {
   public type StableDataV5 = {
     assets : List.List<StableAssetInfoV3>;
     orders : { globalCounter : Nat };
-    quoteToken : { surplus : Nat };
     sessions : {
       counter : Nat;
       history : {
@@ -138,7 +146,6 @@ module {
       };
     };
     users : UsersStorage;
-    accountsAmount : Nat;
   };
 
   public type StableAssetInfoV3 = {
