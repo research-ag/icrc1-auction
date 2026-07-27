@@ -9,17 +9,7 @@ import AuctionRuntime "../src/runtime";
 module {
 
   public func init(quoteAssetId : Nat, volumeStepLog10 : Nat, minVolumeSteps : Nat) : (Auction.Auction, AuctionRuntime.AuctionRuntime, Principal) {
-    let auction = Auction.Auction(
-      quoteAssetId,
-      {
-        volumeStepLog10;
-        minVolumeSteps;
-        priceMaxDigits = 5;
-        minAskVolume = func(_, _) = 20;
-        performanceCounter = func(_) = 0;
-      },
-    );
-    let auctionNew = Auction.new(
+    let auction = Auction.new(
       quoteAssetId,
       {
         volumeStepLog10;
@@ -28,7 +18,7 @@ module {
       },
     );
     let runtime = AuctionRuntime.AuctionRuntime(
-      auctionNew,
+      auction,
       {
         minAskVolume = func(_, _) = 20;
         performanceCounter = func(_) = 0;

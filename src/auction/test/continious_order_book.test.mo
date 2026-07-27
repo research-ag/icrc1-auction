@@ -2,6 +2,8 @@ import Iter "mo:core/Iter";
 import Prim "mo:prim";
 import Principal "mo:core/Principal";
 
+import Auction "../src/lib";
+
 import U "../../utils";
 import { init; createFt } "./test.util";
 
@@ -143,7 +145,7 @@ do {
 
   assert auction.getOrders(buyer, #bid, ?ft).size() == 1;
   assert auction.getOrders(seller, #ask, ?ft).size() == 1;
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
   assert auction.getOrders(buyer, #bid, ?ft).size() == 0;
   assert auction.getOrders(seller, #ask, ?ft).size() == 0;
 };
@@ -163,7 +165,7 @@ do {
   ignore auction.appendCredit(seller0, ft, 500_000_000);
   ignore U.requireOk(auction.placeOrder(seller0, #ask, ft, #delayed, 1_500, 13_000, null, runtime));
 
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
   // sold with price 13_000 by seller1 (delayed ask)
   assert auction.getOrders(seller0, #ask, ?ft).size() == 1;
   assert auction.getOrders(seller1, #ask, ?ft).size() == 0;
@@ -184,7 +186,7 @@ do {
   ignore auction.appendCredit(seller0, ft, 500_000_000);
   ignore U.requireOk(auction.placeOrder(seller0, #ask, ft, #immediate, 1_500, 13_000, null, runtime));
 
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
   // sold with price 13_000 by seller1 (immediate ask)
   assert auction.getOrders(seller0, #ask, ?ft).size() == 1;
   assert auction.getOrders(seller1, #ask, ?ft).size() == 0;

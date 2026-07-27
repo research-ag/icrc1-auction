@@ -1,6 +1,7 @@
 import Prim "mo:prim";
 import Principal "mo:core/Principal";
 
+import Auction "../src/lib";
 import AssetsStorage "../src/assets_storage";
 
 import { init; createFt } "./test.util";
@@ -89,7 +90,7 @@ do {
   let seller = Principal.fromText("ocqy6-3dphi-xgf54-vkr2e-lk4oz-3exc6-446gr-5e72g-bsdfo-4nzrm-hqe");
   ignore auction.appendCredit(seller, ft, 500_000_000);
   ignore auction.placeOrder(seller, #ask, ft, #delayed, 200_000_000, 15_000, null, runtime);
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
 
   assert auction.getOrders(user, #bid, ?ft).size() == 0;
   assert auction.assets.getAsset(ft).bids.delayed.size == 0;
@@ -219,7 +220,7 @@ do {
   ignore auction.appendCredit(seller, ft, 500_000_000);
   ignore auction.placeOrder(seller, #ask, ft, #delayed, 200_000_000, 15_000, null, runtime);
 
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
 
   // test that bid disappeared
   assert auction.getOrders(user, #bid, ?ft).size() == 0;
@@ -261,8 +262,8 @@ do {
   assert auction.getOrders(user2, #bid, ?ft1).size() == 1;
   assert auction.getOrders(user2, #bid, ?ft2).size() == 1;
 
-  auction.processAsset(ft1);
-  auction.processAsset(ft2);
+  auction.processAsset(ft1, runtime);
+  auction.processAsset(ft2, runtime);
 
   assert auction.getOrders(user, #bid, ?ft1).size() == 0;
   assert auction.getOrders(user, #bid, ?ft2).size() == 0;
@@ -294,7 +295,7 @@ do {
   ignore auction.placeOrder(user3, #bid, ft, #delayed, 1_000, 100_000, null, runtime);
   assert auction.getOrders(user3, #bid, ?ft).size() == 1;
 
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
   assert auction.getOrders(user, #bid, ?ft).size() == 0;
   assert auction.getOrders(user2, #bid, ?ft).size() == 0;
 
@@ -332,7 +333,7 @@ do {
   ignore auction.placeOrder(user4, #bid, ft, #delayed, 1_500, 50_000, null, runtime);
   assert auction.getOrders(user4, #bid, ?ft).size() == 1;
 
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
 
   // check that price was 100 (lowest partially fulfilled bid). Queried deposit grew for high bidders
   assert auction.getCredit(user, ft).available == 1_500;
@@ -369,7 +370,7 @@ do {
   ignore auction.placeOrder(seller, #ask, ft, #delayed, 1_000, 100_000, null, runtime);
   assert auction.getOrders(seller, #ask, ?ft).size() == 1;
 
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
 
   // bid is still there
   assert auction.getOrders(user, #bid, ?ft).size() == 1;
@@ -380,7 +381,7 @@ do {
   ignore auction.placeOrder(seller, #ask, ft, #delayed, 1_000, 100_000, null, runtime);
   assert auction.getOrders(seller, #ask, ?ft).size() == 1;
 
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
 
   // bid should be fully fulfilled now
   assert auction.getOrders(user, #bid, ?ft).size() == 0;
@@ -410,14 +411,14 @@ do {
 
   // allow one additional bid next session
   ignore auction.placeOrder(seller, #ask, ft, #delayed, 1_500, 1_000, null, runtime);
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
   assert auction.getOrders(highBidder, #bid, ?ft).size() == 0;
   assert auction.getOrders(mediumBidder, #bid, ?ft).size() == 1;
   assert auction.getOrders(lowBidder, #bid, ?ft).size() == 1;
 
   // allow one additional bid next session
   ignore auction.placeOrder(seller, #ask, ft, #delayed, 1_500, 1_000, null, runtime);
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
   assert auction.getOrders(mediumBidder, #bid, ?ft).size() == 0;
   assert auction.getOrders(lowBidder, #bid, ?ft).size() == 1;
 
@@ -428,13 +429,13 @@ do {
 
   // allow one additional bid next session
   ignore auction.placeOrder(seller, #ask, ft, #delayed, 1_500, 1_000, null, runtime);
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
   // new bidder joined later, but should be fulfilled since priority greater than priority of low bid
   assert auction.getOrders(newBidder, #bid, ?ft).size() == 0;
   assert auction.getOrders(lowBidder, #bid, ?ft).size() == 1;
 
   ignore auction.placeOrder(seller, #ask, ft, #delayed, 1_500, 1_000, null, runtime);
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
   // finally low bid will be fulfilled
   assert auction.getOrders(lowBidder, #bid, ?ft).size() == 0;
 };
@@ -452,7 +453,7 @@ do {
   ignore auction.placeOrder(user, #bid, ft, #delayed, 1_000, 100_000, null, runtime);
   assert auction.getOrders(user, #bid, ?ft).size() == 1;
 
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
 
   assert auction.getOrders(seller, #ask, ?ft).size() == 0;
   assert auction.getOrders(user, #bid, ?ft).size() == 0;
@@ -462,7 +463,7 @@ do {
   ignore auction.placeOrder(user, #bid, ft, #delayed, 1_000, 100_000, null, runtime);
   assert auction.getOrders(user, #bid, ?ft).size() == 1;
 
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
 
   assert auction.getOrders(seller, #ask, ?ft).size() == 0;
   assert auction.getOrders(user, #bid, ?ft).size() == 0;

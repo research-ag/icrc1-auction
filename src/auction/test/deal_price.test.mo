@@ -3,13 +3,15 @@ import Prim "mo:prim";
 import Principal "mo:core/Principal";
 import VarArray "mo:core/VarArray";
 
+import Auction "../src/lib";
+
 import { init; createFt } "./test.util";
 
 do {
   Prim.debugPrint("should use correct price when orders are completely fulfilled and there are other unfulfilled orders...");
   let (auction, runtime, user) = init(0, 3, 5);
   let ft = createFt(auction);
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
 
   ignore auction.appendCredit(user, 0, 500_000_000);
 
@@ -38,7 +40,7 @@ do {
     case (_) assert false;
   };
 
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
 
   let ?priceHistoryItem = auction.getPriceHistory([ft], #desc, false).next() else Prim.trap("");
   assert priceHistoryItem.3 == 5_000_000; // volume
@@ -49,7 +51,7 @@ do {
   Prim.debugPrint("should use correct price when ask completely fulfilled and there are other unfulfilled orders...");
   let (auction, runtime, user) = init(0, 3, 5);
   let ft = createFt(auction);
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
 
   ignore auction.appendCredit(user, 0, 500_000_000);
   // should be fulfilled partially
@@ -76,7 +78,7 @@ do {
     case (_) assert false;
   };
 
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
 
   let ?priceHistoryItem = auction.getPriceHistory([ft], #desc, false).next() else Prim.trap("");
   assert priceHistoryItem.3 == 5_000_000; // volume
@@ -87,7 +89,7 @@ do {
   Prim.debugPrint("should use correct price when bid completely fulfilled and there are other unfulfilled orders...");
   let (auction, runtime, user) = init(0, 3, 5);
   let ft = createFt(auction);
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
 
   ignore auction.appendCredit(user, 0, 500_000_000);
   // should be fulfilled partially
@@ -114,7 +116,7 @@ do {
     case (_) assert false;
   };
 
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
 
   let ?priceHistoryItem = auction.getPriceHistory([ft], #desc, false).next() else Prim.trap("");
   assert priceHistoryItem.3 == 5_010_000; // volume
@@ -125,7 +127,7 @@ do {
   Prim.debugPrint("should have correct credits flow...");
   let (auction, runtime, user) = init(0, 3, 5);
   let ft = createFt(auction);
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
 
   let userExpectedCredits : [var Nat] = VarArray.repeat<Nat>(0, 2);
   let user2ExpectedCredits : [var Nat] = VarArray.repeat<Nat>(0, 2);
@@ -139,7 +141,7 @@ do {
       assert cr[1].1.available == expectedCredits[0];
     };
   };
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
 
   ignore auction.appendCredit(user, 0, 500_000_000);
   userExpectedCredits[0] += 500_000_000;
@@ -175,7 +177,7 @@ do {
   assertBalances(user, userExpectedCredits);
   assertBalances(user2, user2ExpectedCredits);
 
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
 
   // note: user ask was not fulfilled because has too high price
   userExpectedCredits[0] += 98_000; // bid fulfilled part funds unlocked

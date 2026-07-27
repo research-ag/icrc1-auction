@@ -7,7 +7,7 @@ import Prim "mo:prim";
 
 import { clear } "mo:auction";
 
-import Orders "./orders";
+import OrderServices "./order_services";
 import T "./types";
 
 module {
@@ -25,14 +25,14 @@ module {
     fulfilledOrders : PureList.List<FulfilledOrder>;
   };
 
-  public func clearAuction(asks : Orders.OrderBookExecutionService, bids : Orders.OrderBookExecutionService) : (price : Float, volume : Nat) {
+  public func clearAuction(asks : OrderServices.OrderBookExecutionService, bids : OrderServices.OrderBookExecutionService) : (price : Float, volume : Nat) {
     let mapOrders = func(orders : Iter.Iter<(?T.OrderId, T.Order)>) : Iter.Iter<(Float, Nat)> {
       Iter.map<(?T.OrderId, T.Order), (Float, Nat)>(orders, func(_, order) = (order.price, order.volume));
     };
     clear(mapOrders(asks.toIter()), mapOrders(bids.toIter()), Float.less) |> Option.get(_, (0.0, 0));
   };
 
-  public func processAuction(sessionNumber : Nat, asks : Orders.OrderBookExecutionService, bids : Orders.OrderBookExecutionService, price : Float, dealVolume : Nat) : AuctionProcessingResult {
+  public func processAuction(sessionNumber : Nat, asks : OrderServices.OrderBookExecutionService, bids : OrderServices.OrderBookExecutionService, price : Float, dealVolume : Nat) : AuctionProcessingResult {
     var quoteSurplus : Int = 0;
     var dealVolumeLeft = dealVolume;
     var fulfilledOrders : PureList.List<FulfilledOrder> = null;

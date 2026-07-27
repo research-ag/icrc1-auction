@@ -53,7 +53,6 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
 
   let quoteLedgerPrincipal : Principal = U.requireMsg(quoteLedger_, "Quote ledger principal not provided");
   var assetsData : List.List<StableAssetInfoV1> = List.empty();
-  var auctionData : Auction.StableDataV5 = Auction.defaultStableData();
 
   let tokenHandlersJournal : List.List<(ledger : Principal, p : Principal, logEvent : TokenHandler.LogEvent)> = List.empty();
   var consolidationTimerEnabled : Bool = true;
@@ -229,8 +228,6 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     } or CyclesLedgerWithdrawError;
   };
 
-  transient let quoteAssetId : Auction.AssetId = 0;
-
   type TokenHandlerContext = {
     api : TokenHandler.LedgerAPI;
     ownPrincipal : Principal;
@@ -271,7 +268,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     func(x) = createAssetInfo_(x.ledgerPrincipal, x.minAskVolume, x.decimals, x.symbol, ?x.handler)
   );
 
-  let auctionNew : Auction.AuctionNew = Auction.new(
+  let auction : Auction.Auction = Auction.new(
     0,
     {
       volumeStepLog10 = 3; // minimum quote volume step 1_000
@@ -279,25 +276,13 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
       priceMaxDigits = 5;
     },
   );
-  transient let auctionNewRuntime : AuctionRuntime.AuctionRuntime = AuctionRuntime.AuctionRuntime(
-    auctionNew,
+  transient let auctionRuntime : AuctionRuntime.AuctionRuntime = AuctionRuntime.AuctionRuntime(
+    auction,
     {
       minAskVolume = func(assetId, _) = assets.at(assetId).minAskVolume;
       performanceCounter = Prim.performanceCounter;
     },
   );
-
-  transient let auction : Auction.Auction = Auction.Auction(
-    0,
-    {
-      volumeStepLog10 = 3; // minimum quote volume step 1_000
-      minVolumeSteps = 5; // minimum quote volume is 5_000
-      priceMaxDigits = 5;
-      minAskVolume = func(assetId, _) = assets.at(assetId).minAskVolume;
-      performanceCounter = Prim.performanceCounter;
-    },
-  );
-  auction.unshare(auctionData);
 
   // will be set in startAuctionTimer_
   // this timestamp is set right before starting auction execution
@@ -364,7 +349,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
             amount;
           },
         ),
-        PT.newValue("total_orders", [], func() = auction.orders.ordersCounter),
+        PT.newValue("total_orders", [], func() = auction.ordersCounter),
         PT.newValue("auctions_run_count", [], func() = auction.assets.historyLength(#delayed)),
         PT.newValue("trading_pairs_count", [], func() = auction.assets.nAssets() - 1),
       ],
@@ -385,7 +370,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   private func registerAssetMetrics_(assetId : Auction.AssetId) {
     let tokenHandler = assets.at(assetId).handler;
 
-    if (assetId != quoteAssetId) {
+    if (assetId != auction.quoteAssetId) {
       let asset = auction.assets.getAsset(assetId);
 
       let priceMultiplier = 10 ** Int.toFloat(assets.at(assetId).decimals);
@@ -419,14 +404,14 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
             PT.newValue(
               "clearing_price",
               [],
-              func() = auction.orderBookInfo(assetId)
+              func() = auction.orderBookInfo(assetId, auctionRuntime)
               |> (switch (_.clearing) { case (#match x) { x.price }; case (_) { 0.0 } })
               |> renderPrice(_),
             ),
             PT.newValue(
               "clearing_volume",
               [],
-              func() = auction.orderBookInfo(assetId)
+              func() = auction.orderBookInfo(assetId, auctionRuntime)
               |> (switch (_.clearing) { case (#match x) { x.volume }; case (_) { 0 } }),
             ),
             PT.newValue(
@@ -708,16 +693,16 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     orderPriceDigitsLimit : Nat;
   } {
     {
-      orderQuoteVolumeMinimum = auction.orders.minQuoteVolume;
-      orderQuoteVolumeStep = auction.orders.quoteVolumeStep;
-      orderPriceDigitsLimit = auction.orders.priceMaxDigits;
+      orderQuoteVolumeMinimum = auctionRuntime.minQuoteVolume;
+      orderQuoteVolumeStep = auctionRuntime.quoteVolumeStep;
+      orderPriceDigitsLimit = auctionRuntime.priceMaxDigits;
     };
   };
 
   public shared query func indicativeStats(icrc1Ledger : Principal) : async Auction.OrderBookInfo {
     if (icrc1Ledger == quoteLedgerPrincipal) throw Error.reject("Unknown asset");
     let ?assetId = getAssetId(icrc1Ledger) else throw Error.reject("Unknown asset");
-    auction.orderBookInfo(assetId);
+    auction.orderBookInfo(assetId, auctionRuntime);
   };
 
   public shared query func totalPointsSupply() : async Nat = async auction.getTotalLoyaltyPointsSupply();
@@ -735,7 +720,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   private func _auction_query(p : Principal, tokens : [Principal], selection : AuctionQuerySelection) : R.Result<AuctionQueryResponse, Principal> {
     let allAssetsMode = tokens.size() == 0;
     let (assetIds, baseAssetIds) : ([Auction.AssetId], [Auction.AssetId]) = if (allAssetsMode) {
-      assert quoteAssetId == 0;
+      assert auction.quoteAssetId == 0;
       (
         Array.tabulate<Auction.AssetId>(auction.assets.nAssets(), func(i) = i),
         Array.tabulate<Auction.AssetId>(auction.assets.nAssets() - 1, func(i) = i + 1),
@@ -746,7 +731,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
       for (p in tokens.values()) {
         let ?aid = getAssetId(p) else return #err(p);
         v.add(aid);
-        if (aid != quoteAssetId) {
+        if (aid != auction.quoteAssetId) {
           vBase.add(aid);
         };
       };
@@ -899,14 +884,14 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
       order_book_info = switch (selection.order_book_info) {
         case (?true) baseAssetIds |> Array.map<Auction.AssetId, (Principal, Auction.OrderBookInfo)>(
           _,
-          func(aid) = (assets.at(aid).ledgerPrincipal, auction.orderBookInfo(aid)),
+          func(aid) = (assets.at(aid).ledgerPrincipal, auction.orderBookInfo(aid, auctionRuntime)),
         );
         case (_) [];
       };
       immediate_order_book_info = switch (selection.immediate_order_book_info) {
         case (?true) baseAssetIds |> Array.map<Auction.AssetId, (Principal, Auction.ImmediateOrderBookInfo)>(
           _,
-          func(aid) = (assets.at(aid).ledgerPrincipal, auction.immediateOrderBookInfo(aid)),
+          func(aid) = (assets.at(aid).ledgerPrincipal, auction.immediateOrderBookInfo(aid, auctionRuntime)),
         );
         case (_) [];
       };
@@ -923,7 +908,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   };
 
   private func drainPushNotifications() : async* () {
-    let q = auctionNewRuntime.stagedPushNotifications;
+    let q = auctionRuntime.stagedPushNotifications;
     let buf = List.empty<(Principal, NotificationDelegate.NotificationBody)>();
     label l while (not Queue.isEmpty(q)) {
       let ?(p, n) = Queue.popFront(q) else break l;
@@ -932,7 +917,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
         switch (n) {
           case (#orderFulfilled { assetId; kind; price; baseVolume; quoteVolume; isPartial }) {
             let baseDecimals = assets.at(assetId).decimals;
-            let quoteDecimals = assets.at(quoteAssetId).decimals;
+            let quoteDecimals = assets.at(auction.quoteAssetId).decimals;
             let priceLog10Multiplier : Int = baseDecimals - quoteDecimals;
             {
               title = "Order fulfillment";
@@ -996,7 +981,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
         case (#bid(_, orderBookType, volume, price)) #bid(aid, orderBookType, volume, price);
       };
     };
-    let ret = auction.manageOrders(caller, cancellationArg, VarArray.toArray(placementArg), expectedAccountRevision, auctionNewRuntime)
+    let ret = auction.manageOrders(caller, cancellationArg, VarArray.toArray(placementArg), expectedAccountRevision, auctionRuntime)
     |> ICRC84Auction.mapManageOrdersResult(_, getIcrc1Ledger);
     await* drainPushNotifications();
     ret;
@@ -1009,7 +994,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
       let ?assetId = getAssetId(args[i].0) else return #Err(#UnknownAsset(args[i].0));
       pureArgs[i] := (assetId, args[i].1);
     };
-    auction.manageDarkOrderBooks(caller, VarArray.toArray(pureArgs), expectedAccountRevision) |> R.toUpper(_);
+    auction.manageDarkOrderBooks(caller, VarArray.toArray(pureArgs), expectedAccountRevision, auctionRuntime) |> R.toUpper(_);
   };
 
   public shared ({ caller }) func placeBids(arg : [(ledger : Principal, orderBookType : Auction.OrderBookType, volume : Nat, price : Float)], expectedAccountRevision : ?Nat) : async [UpperResult<Auction.PlaceOrderResult, ICRC84Auction.PlaceOrderError>] {
@@ -1018,7 +1003,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
       arg.size(),
       func(i) {
         let ?assetId = getAssetId(arg[i].0) else return #Err(#UnknownAsset);
-        auction.placeOrder(caller, #bid, assetId, arg[i].1, arg[i].2, arg[i].3, expectedAccountRevision, auctionNewRuntime)
+        auction.placeOrder(caller, #bid, assetId, arg[i].1, arg[i].2, arg[i].3, expectedAccountRevision, auctionRuntime)
         |> R.toUpper(_);
       },
     );
@@ -1028,7 +1013,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
 
   public shared ({ caller }) func replaceBid(orderId : Auction.OrderId, volume : Nat, price : Float, expectedAccountRevision : ?Nat) : async UpperResult<Auction.PlaceOrderResult, ICRC84Auction.ReplaceOrderError> {
     orderReplacementCounter.add(1);
-    let ret = auction.replaceOrder(caller, #bid, orderId, volume : Nat, price : Float, expectedAccountRevision, auctionNewRuntime)
+    let ret = auction.replaceOrder(caller, #bid, orderId, volume : Nat, price : Float, expectedAccountRevision, auctionRuntime)
     |> R.toUpper(_);
     await* drainPushNotifications();
     ret;
@@ -1038,7 +1023,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     orderCancellationCounter.add(1);
     Array.tabulate<UpperResult<ICRC84Auction.CancellationResult, ICRC84Auction.CancelOrderError>>(
       orderIds.size(),
-      func(i) = auction.cancelOrder(caller, #bid, orderIds[i], expectedAccountRevision, auctionNewRuntime) |> ICRC84Auction.mapCancelOrderResult(_, getIcrc1Ledger),
+      func(i) = auction.cancelOrder(caller, #bid, orderIds[i], expectedAccountRevision, auctionRuntime) |> ICRC84Auction.mapCancelOrderResult(_, getIcrc1Ledger),
     );
   };
 
@@ -1048,7 +1033,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
       arg.size(),
       func(i) {
         let ?assetId = getAssetId(arg[i].0) else return #Err(#UnknownAsset);
-        auction.placeOrder(caller, #ask, assetId, arg[i].1, arg[i].2, arg[i].3, expectedAccountRevision, auctionNewRuntime)
+        auction.placeOrder(caller, #ask, assetId, arg[i].1, arg[i].2, arg[i].3, expectedAccountRevision, auctionRuntime)
         |> R.toUpper(_);
       },
     );
@@ -1058,7 +1043,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
 
   public shared ({ caller }) func replaceAsk(orderId : Auction.OrderId, volume : Nat, price : Float, expectedAccountRevision : ?Nat) : async UpperResult<Auction.PlaceOrderResult, ICRC84Auction.ReplaceOrderError> {
     orderReplacementCounter.add(1);
-    let ret = auction.replaceOrder(caller, #ask, orderId, volume : Nat, price : Float, expectedAccountRevision, auctionNewRuntime)
+    let ret = auction.replaceOrder(caller, #ask, orderId, volume : Nat, price : Float, expectedAccountRevision, auctionRuntime)
     |> R.toUpper(_);
     await* drainPushNotifications();
     ret;
@@ -1068,7 +1053,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     orderCancellationCounter.add(1);
     Array.tabulate<UpperResult<ICRC84Auction.CancellationResult, ICRC84Auction.CancelOrderError>>(
       orderIds.size(),
-      func(i) = auction.cancelOrder(caller, #ask, orderIds[i], expectedAccountRevision, auctionNewRuntime) |> ICRC84Auction.mapCancelOrderResult(_, getIcrc1Ledger),
+      func(i) = auction.cancelOrder(caller, #ask, orderIds[i], expectedAccountRevision, auctionRuntime) |> ICRC84Auction.mapCancelOrderResult(_, getIcrc1Ledger),
     );
   };
 
@@ -1180,7 +1165,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   public shared ({ caller }) func wipeOrders() : async () {
     await* assertAdminAccess(caller);
     for (p in auction.users.usersLookup.keys()) {
-      ignore auction.manageOrders(p, ?#all(null), [], null, auctionNewRuntime);
+      ignore auction.manageOrders(p, ?#all(null), [], null, auctionRuntime);
     };
   };
 
@@ -1241,18 +1226,18 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
       vetKey := null;
     };
     let newSwapRates : List.List<(Auction.AssetId, Float)> = List.empty();
-    newSwapRates.add((quoteAssetId, 1.0));
+    newSwapRates.add((auction.quoteAssetId, 1.0));
     var nextAssetId = 0;
     label l for (assetId in Nat.range(startIndex, assets.size())) {
-      if (assetId == quoteAssetId) continue l;
+      if (assetId == auction.quoteAssetId) continue l;
       nextAssetId := assetId + 1;
       if (auction.nDarkOrderBooks(assetId) > 0) {
         switch (cryptoCanisterId, vetKey) {
-          case (?ccid, ?vk) await* auction.decryptDarkOrderBooks(assetId, ccid, vk);
+          case (?ccid, ?vk) await* Auction.decryptDarkOrderBooks(auction, assetId, ccid, vk);
           case (?ccid, null) {
             try {
               let vk = await* E.decryptVetKey(ccid, Text.encodeUtf8(Nat.toText(nextSessionTimestamp)));
-              await* auction.decryptDarkOrderBooks(assetId, ccid, vk);
+              await* Auction.decryptDarkOrderBooks(auction, assetId, ccid, vk);
               vetKey := ?vk;
             } catch (err) {
               Prim.debugPrint("Cannot decrypt vetkey: " # Error.message(err));
@@ -1261,7 +1246,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
           case (null, _) Prim.debugPrint("Cannot decrypt dark order books: crypto canister id not set");
         };
       };
-      auction.processAsset(assetId);
+      auction.processAsset(assetId, auctionRuntime);
       if (Prim.performanceCounter(0) > startInstructions + BID_PROCESSING_INSTRUCTIONS_THRESHOLD) break l;
     };
     if (startIndex == 0) {
@@ -1316,7 +1301,6 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
         symbol = x.symbol;
       }
     );
-    auctionData := auction.share();
   };
 
   // A timer for consolidating backlog subaccounts, runs each minute at 30th second

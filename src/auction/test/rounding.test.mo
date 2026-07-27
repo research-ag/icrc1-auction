@@ -3,6 +3,8 @@ import Int "mo:core/Int";
 import Prim "mo:prim";
 import Principal "mo:core/Principal";
 
+import Auction "../src/lib";
+
 import { init; createFt } "./test.util";
 
 do {
@@ -44,7 +46,7 @@ do {
     case (_) assert false;
   };
 
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
 
   let ?priceHistoryItem = auction.getPriceHistory([ft], #desc, false).next() else Prim.trap("");
   assert priceHistoryItem.3 == 4_000; // volume
@@ -101,7 +103,7 @@ do {
     case (#ok _) ();
     case (_) assert false;
   };
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
   let ?priceHistoryItem = auction.getPriceHistory([ft], #desc, false).next() else Prim.trap("");
   assert priceHistoryItem.3 == askVolume;
   assert Float.abs(priceHistoryItem.4 - bidPrice) < 0.000000000000001;

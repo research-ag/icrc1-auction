@@ -1,13 +1,15 @@
 import Nat "mo:core/Nat";
 import Prim "mo:prim";
 
+import Auction "../src/lib";
+
 import { init; createFt; generateUsers } "./test.util";
 
 do {
   Prim.debugPrint("should be able to place both bid and ask on the same asset...");
   let (auction, runtime, user) = init(0, 3, 5);
   let ft = createFt(auction);
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
   ignore auction.appendCredit(user, 0, 500_000_000);
   ignore auction.appendCredit(user, ft, 500_000_000);
   switch (auction.placeOrder(user, #bid, ft, #delayed, 2_000, 250, null, runtime)) {
@@ -26,7 +28,7 @@ do {
   Prim.debugPrint("should return error when placing ask with lower price than own bid price for the same asset...");
   let (auction, runtime, user) = init(0, 3, 5);
   let ft = createFt(auction);
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
   ignore auction.appendCredit(user, 0, 500_000_000);
   ignore auction.appendCredit(user, ft, 500_000_000);
   let orderId = switch (auction.placeOrder(user, #bid, ft, #delayed, 2_000, 250, null, runtime)) {
@@ -45,7 +47,7 @@ do {
   Prim.debugPrint("should return error when placing bid with higher price than own ask price for the same asset...");
   let (auction, runtime, user) = init(0, 3, 5);
   let ft = createFt(auction);
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
   ignore auction.appendCredit(user, 0, 500_000_000);
   ignore auction.appendCredit(user, ft, 500_000_000);
   let orderId = switch (auction.placeOrder(user, #ask, ft, #delayed, 2_000_000, 200, null, runtime)) {
@@ -64,7 +66,7 @@ do {
   Prim.debugPrint("should return conflict error when placing both conflicting orders in one call");
   let (auction, runtime, user) = init(0, 3, 5);
   let ft = createFt(auction);
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
   ignore auction.appendCredit(user, 0, 500_000_000);
   ignore auction.appendCredit(user, ft, 500_000_000);
   switch (
@@ -90,7 +92,7 @@ do {
   Prim.debugPrint("should place conflicting order if cancel old one in the same call");
   let (auction, runtime, user) = init(0, 3, 5);
   let ft = createFt(auction);
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
   ignore auction.appendCredit(user, 0, 500_000_000);
   ignore auction.appendCredit(user, ft, 500_000_000);
   let orderId = switch (auction.placeOrder(user, #ask, ft, #delayed, 2_000_000, 200, null, runtime)) {

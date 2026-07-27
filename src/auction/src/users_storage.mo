@@ -15,9 +15,9 @@ module {
   public type UsersStorage = T.UsersStorage;
 
   public func empty() : UsersStorage = {
-    var usersList = List.empty();
-    var usersLookup = Map.empty();
-    var participantsArchive = Map.empty();
+    usersList = List.empty();
+    usersLookup = Map.empty();
+    participantsArchive = Map.empty();
     var participantsArchiveSize = 0;
 
     var quoteSurplus = 0;

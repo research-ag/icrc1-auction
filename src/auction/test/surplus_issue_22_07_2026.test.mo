@@ -1,6 +1,8 @@
 import Nat "mo:core/Nat";
 import Prim "mo:prim";
 
+import Auction "../src/lib";
+
 import { init; createFt; generateUsers } "./test.util";
 
 // This issue happens because of float precision error.
@@ -43,7 +45,7 @@ do {
 
     ignore auction.placeOrder(users[3], #ask, 1, #delayed, 5_000_000_000_000_000_000, 1_000_000.0, null, runtime);
 
-    auction.processAsset(1);
+    auction.processAsset(1, runtime);
 
     // expect assertion quoteSurplus >= 0 to not be failed
   };

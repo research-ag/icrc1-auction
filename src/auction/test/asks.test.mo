@@ -1,6 +1,7 @@
 import Prim "mo:prim";
 import Principal "mo:core/Principal";
 
+import Auction "../src/lib";
 import AssetsStorage "../src/assets_storage";
 
 import { init; createFt } "./test.util";
@@ -76,7 +77,7 @@ do {
   Prim.debugPrint("should affect stats...");
   let (auction, runtime, user) = init(0, 3, 5);
   let ft = createFt(auction);
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
   ignore auction.appendCredit(user, ft, 500_000_000);
 
   let buyer = Principal.fromText("khppa-evswo-bmx2f-4o7bj-4t6ai-burgf-ued7b-vpduu-6fgxt-ajby6-iae");
@@ -87,7 +88,7 @@ do {
   assert auction.assets.getAsset(ft).asks.delayed.size == 1;
   assert auction.assets.getAsset(ft).asks.delayed.totalVolume == 2000000;
 
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
 
   assert auction.getOrders(user, #ask, ?ft).size() == 0;
   assert auction.assets.getAsset(ft).asks.delayed.size == 0;
@@ -189,7 +190,7 @@ do {
   Prim.debugPrint("should fulfil the only ask...");
   let (auction, runtime, user) = init(0, 3, 5);
   let ft = createFt(auction);
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
   ignore auction.appendCredit(user, ft, 500_000_000);
 
   switch (auction.placeOrder(user, #ask, ft, #delayed, 100_000_000, 3, null, runtime)) {
@@ -205,7 +206,7 @@ do {
     case (_) assert false;
   };
 
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
 
   // test that ask disappeared
   assert auction.getOrders(user, #ask, ?ft).size() == 0;
@@ -241,7 +242,7 @@ do {
   let newSeller = Principal.fromText("nzps2-uu3wh-igtli-u3b5o-zonzp-42qv4-lwfdr-fxex3-jnyki-hjvnv-5ae");
   ignore auction.appendCredit(newSeller, ft, 500_000_000);
 
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
 
   assert auction.getOrders(lowSeller, #ask, ?ft).size() == 0;
   assert auction.getOrders(mediumSeller, #ask, ?ft).size() == 1;
@@ -252,7 +253,7 @@ do {
 
   // allow one additional ask to be fulfilled
   ignore auction.placeOrder(buyer, #bid, ft, #delayed, 1_500_000, 500, null, runtime);
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
 
   assert auction.getOrders(mediumSeller, #ask, ?ft).size() == 0;
   assert auction.getOrders(highSeller, #ask, ?ft).size() == 1;
@@ -263,7 +264,7 @@ do {
 
   // allow one additional ask to be fulfilled
   ignore auction.placeOrder(buyer, #bid, ft, #delayed, 1_500_000, 500, null, runtime);
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
 
   // new seller joined later, but should be fulfilled since priority greater than priority of high seller
   assert auction.getOrders(newSeller, #ask, ?ft).size() == 0;
@@ -272,7 +273,7 @@ do {
 
   // allow one additional ask to be fulfilled
   ignore auction.placeOrder(buyer, #bid, ft, #delayed, 1_500_000, 500, null, runtime);
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
 
   // finally high ask will be fulfilled
   assert auction.getOrders(highSeller, #ask, ?ft).size() == 0;

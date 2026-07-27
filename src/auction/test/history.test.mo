@@ -2,6 +2,8 @@ import Iter "mo:core/Iter";
 import Prim "mo:prim";
 import Principal "mo:core/Principal";
 
+import Auction "../src/lib";
+
 import { init; createFt } "./test.util";
 
 do {
@@ -23,9 +25,9 @@ do {
   ignore auction.placeOrder(user, #bid, ft1, #delayed, 1_000, 100_000, null, runtime);
   ignore auction.placeOrder(user, #bid, ft2, #delayed, 1_000, 100_000, null, runtime);
 
-  auction.processAsset(ft1);
-  auction.processAsset(ft2);
-  auction.processAsset(ft3);
+  auction.processAsset(ft1, runtime);
+  auction.processAsset(ft2, runtime);
+  auction.processAsset(ft3, runtime);
 
   let history = Iter.toArray(auction.getPriceHistory([], #asc, false));
   assert history.size() == 3;
@@ -59,9 +61,9 @@ do {
   ignore auction.placeOrder(user, #bid, ft1, #delayed, 1_000, 100_000, null, runtime);
   ignore auction.placeOrder(user, #bid, ft2, #delayed, 1_000, 100_000, null, runtime);
 
-  auction.processAsset(ft1);
-  auction.processAsset(ft2);
-  auction.processAsset(ft3);
+  auction.processAsset(ft1, runtime);
+  auction.processAsset(ft2, runtime);
+  auction.processAsset(ft3, runtime);
 
   let history = Iter.toArray(auction.getPriceHistory([], #desc, false));
   assert history.size() == 3;
@@ -95,9 +97,9 @@ do {
   ignore auction.placeOrder(user, #bid, ft1, #delayed, 1_000, 100_000, null, runtime);
   ignore auction.placeOrder(user, #bid, ft2, #delayed, 1_000, 100_000, null, runtime);
 
-  auction.processAsset(ft1);
-  auction.processAsset(ft2);
-  auction.processAsset(ft3);
+  auction.processAsset(ft1, runtime);
+  auction.processAsset(ft2, runtime);
+  auction.processAsset(ft3, runtime);
 
   let history = Iter.toArray(auction.getPriceHistory([], #desc, true));
   assert history.size() == 2;
@@ -126,8 +128,8 @@ do {
   ignore auction.placeOrder(user, #bid, ft1, #delayed, 1_000, 100_000, null, runtime);
   ignore auction.placeOrder(user, #bid, ft2, #delayed, 1_000, 100_000, null, runtime);
 
-  auction.processAsset(ft1);
-  auction.processAsset(ft2);
+  auction.processAsset(ft1, runtime);
+  auction.processAsset(ft2, runtime);
 
   let history = Iter.toArray(auction.getTransactionHistory(user, [], #asc));
   assert history[0].3 == ft1;
@@ -151,8 +153,8 @@ do {
   ignore auction.placeOrder(user, #bid, ft1, #delayed, 1_000, 100_000, null, runtime);
   ignore auction.placeOrder(user, #bid, ft2, #delayed, 1_000, 100_000, null, runtime);
 
-  auction.processAsset(ft1);
-  auction.processAsset(ft2);
+  auction.processAsset(ft1, runtime);
+  auction.processAsset(ft2, runtime);
 
   let history = Iter.toArray(auction.getTransactionHistory(user, [], #desc));
   assert history[0].3 == ft2;

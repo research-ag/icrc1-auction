@@ -10,11 +10,15 @@ module {
   public type AssetId = Nat;
   public type OrderId = Nat;
 
-  public type AuctionNew = {
+  public type Auction = {
     quoteAssetId : AssetId;
     settings : AuctionSettings;
 
-    users : List.List<User>;
+    assets : AssetsStorage;
+    users : UsersStorage;
+
+    var ordersCounter : Nat;
+    var sessionsCounter : Nat;
   };
 
   public type AuctionSettings = {
@@ -108,10 +112,9 @@ module {
   };
 
   public type UsersStorage = {
-    // TODO remove var from list and maps
-    var usersList : List.List<User>;
-    var usersLookup : Map.Map<Principal, Nat>;
-    var participantsArchive : Map.Map<Principal, { lastOrderPlacement : Nat64 }>;
+    usersList : List.List<User>;
+    usersLookup : Map.Map<Principal, Nat>;
+    participantsArchive : Map.Map<Principal, { lastOrderPlacement : Nat64 }>;
 
     var participantsArchiveSize : Nat;
 
@@ -120,9 +123,8 @@ module {
   };
 
   public type AssetsStorage = {
-    // TODO remove var-s here
-    var assets : List.List<Asset>;
-    var history : {
+    assets : List.List<Asset>;
+    history : {
       immediate : CircularBuffer.CircularBuffer<PriceHistoryItem>;
       delayed : List.List<PriceHistoryItem>;
     };
@@ -131,6 +133,37 @@ module {
   public type PriceHistoryItem = (timestamp : Nat64, sessionNumber : Nat, assetId : AssetId, volume : Nat, price : Float);
   public type DepositHistoryItem = (timestamp : Nat64, kind : { #deposit; #withdrawal }, assetId : AssetId, volume : Nat);
   public type TransactionHistoryItem = (timestamp : Nat64, sessionNumber : Nat, kind : { #ask; #bid }, assetId : AssetId, volume : Nat, price : Float);
+
+  public type CancellationAction = {
+    #all : ?[AssetId];
+    #orders : [{ #ask : OrderId; #bid : OrderId }];
+  };
+
+  public type PlaceOrderAction = {
+    #ask : (assetId : AssetId, orderBookType : OrderBookType, volume : Nat, price : Float);
+    #bid : (assetId : AssetId, orderBookType : OrderBookType, volume : Nat, price : Float);
+  };
+
+  public type CancellationResult = (OrderId, assetId : AssetId, orderBookType : OrderBookType, volume : Nat, price : Float);
+  public type PlaceOrderResult = (OrderId, { #placed; #executed : [(price : Float, volume : Nat)] });
+
+  public type InternalCancelOrderError = {
+    #UnknownOrder;
+  };
+  public type InternalPlaceOrderError = {
+    #ConflictingOrder : ({ #ask; #bid }, ?OrderId);
+    #NoCredit;
+    #TooLowOrder;
+    #UnknownAsset;
+    #PriceDigitsOverflow : { maxDigits : Nat };
+    #VolumeStepViolated : { baseVolumeStep : Nat };
+  };
+
+  public type OrderManagementError = {
+    #AccountRevisionMismatch;
+    #cancellation : { index : Nat; error : InternalCancelOrderError };
+    #placement : { index : Nat; error : InternalPlaceOrderError };
+  };
 
   public type PushNotification = {
     #orderFulfilled : {
@@ -141,14 +174,6 @@ module {
       quoteVolume : Nat;
       isPartial : Bool;
     };
-  };
-
-  // stable data types
-  public type StableDataV5 = {
-    assets : AssetsStorage;
-    users : UsersStorage;
-    orders : { globalCounter : Nat };
-    sessions : { counter : Nat; };
   };
 
 };
