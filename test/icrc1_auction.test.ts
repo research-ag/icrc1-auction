@@ -1,20 +1,20 @@
-import { Actor, createIdentity, PocketIc } from '@dfinity/pic';
+import { Actor, createIdentity, PocketIc, type Identity } from '@dfinity/pic';
 
 import {
   _SERVICE as LService,
   idlFactory as L_IDL,
   init as lInit,
-} from '../declarations/icrc1_ledger_mock/icrc1_ledger_mock.did';
+} from '../frontend/src/bindings/declarations/icrc1_ledger_mock.did.js';
 import {
   _SERVICE as AService,
   AuctionQuerySelection,
   idlFactory as A_IDL,
   init as aInit,
-} from '../declarations/icrc1_auction/icrc1_auction_development.did';
-import { _SERVICE as CService, idlFactory as C_IDL, init as cInit } from '../declarations/crypto/crypto.did';
+} from '../frontend/src/bindings/declarations/icrc1_auction.did.js';
+import { _SERVICE as CService, idlFactory as C_IDL, init as cInit } from '../frontend/src/bindings/declarations/crypto.did.js';
 import { IDL } from '@dfinity/candid';
 import { resolve } from 'node:path';
-import { Principal } from '@icp-sdk/core/principal';
+import { Principal } from '@dfinity/principal';
 import { readFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { Identity } from '@icp-sdk/core/agent';
@@ -83,6 +83,10 @@ describe('ICRC1 Auction', () => {
     return (await auction.icrc84_query([token]))[0][1].credit;
   };
 
+  const sortByPrincipal = <T>(arr: [Principal, T][]) => {
+    return [...arr].sort((a, b) => a[0].toText().localeCompare(b[0].toText()));
+  };
+
   const auctionQueryEmpty: AuctionQuerySelection = {
     bids: [],
     credits: [],
@@ -131,7 +135,7 @@ describe('ICRC1 Auction', () => {
 
     const setupLedgerCanister = () =>
       pic.setupCanister({
-        wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_ledger_mock/icrc1_ledger_mock.wasm'),
+        wasm: resolve(__dirname, '../.mops/.build/icrc1_ledger_mock.wasm'),
         arg: IDL.encode(lInit({ IDL }), [[], []]),
         sender: controller.getPrincipal(),
         idlFactory: L_IDL,
@@ -153,7 +157,7 @@ describe('ICRC1 Auction', () => {
     ledger2.setIdentity(user);
 
     f = await pic.setupCanister({
-      wasm: resolve(__dirname, '../.dfx/local/canisters/crypto_mock/crypto_mock.wasm'),
+      wasm: resolve(__dirname, '../target/wasm32-unknown-unknown/release/crypto_mock.wasm'),
       arg: IDL.encode(cInit({ IDL }), ['123qwe']),
       sender: controller.getPrincipal(),
       idlFactory: C_IDL,
@@ -162,7 +166,7 @@ describe('ICRC1 Auction', () => {
     cryptoCanister = f.actor as any;
 
     f = await pic.setupCanister({
-      wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction_development/icrc1_auction_development.wasm'),
+      wasm: resolve(__dirname, '../.mops/.build/icrc1_auction_development.wasm'),
       arg: IDL.encode(aInit({ IDL }), [[quoteLedgerPrincipal], [admin.getPrincipal()], [cryptoCanisterId]]),
       sender: controller.getPrincipal(),
       idlFactory: A_IDL,
@@ -205,7 +209,7 @@ describe('ICRC1 Auction', () => {
       await expect(
         pic.installCode({
           canisterId: p,
-          wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction_development/icrc1_auction_development.wasm'),
+          wasm: resolve(__dirname, '../.mops/.build/icrc1_auction_development.wasm'),
           arg: IDL.encode(aInit({ IDL }), [[], [], []]),
           sender: controller.getPrincipal(),
         }),
@@ -222,7 +226,7 @@ describe('ICRC1 Auction', () => {
     test('should upgrade canister without arguments', async () => {
       await pic.upgradeCanister({
         canisterId: auctionPrincipal,
-        wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction_development/icrc1_auction_development.wasm'),
+        wasm: resolve(__dirname, '../.mops/.build/icrc1_auction_development.wasm'),
         arg: IDL.encode(aInit({ IDL }), [[], [], []]),
         sender: controller.getPrincipal(),
       });
@@ -236,7 +240,7 @@ describe('ICRC1 Auction', () => {
       const fakeLedger = createIdentity('fakeLedger');
       await pic.upgradeCanister({
         canisterId: auctionPrincipal,
-        wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction_development/icrc1_auction_development.wasm'),
+        wasm: resolve(__dirname, '../.mops/.build/icrc1_auction_development.wasm'),
         arg: IDL.encode(aInit({ IDL }), [[fakeLedger.getPrincipal()], [], []]),
         sender: controller.getPrincipal(),
       });
@@ -296,7 +300,7 @@ describe('ICRC1 Auction', () => {
 
       await pic.upgradeCanister({
         canisterId: auctionPrincipal,
-        wasm: resolve(__dirname, '../.dfx/local/canisters/icrc1_auction_development/icrc1_auction_development.wasm'),
+        wasm: resolve(__dirname, '../.mops/.build/icrc1_auction_development.wasm'),
         arg: IDL.encode(aInit({ IDL }), [[], [], []]),
         sender: controller.getPrincipal(),
       });
@@ -982,21 +986,25 @@ describe('ICRC1 Auction', () => {
         reversed_history: [true],
       });
 
-      expect(res.credits).toEqual([
-        [quoteLedgerPrincipal, { total: 651500000n, locked: 150000000n, available: 501500000n }],
+      expect(sortByPrincipal(res.credits)).toEqual(
+        sortByPrincipal([
+          [quoteLedgerPrincipal, { total: 651500000n, locked: 150000000n, available: 501500000n }],
         [ledger1Principal, { total: 499998500n, locked: 1500n, available: 499997000n }],
-      ]);
+      ]),
+      );
       expect(res.asks).toEqual([
         [3n, { icrc1Ledger: ledger1Principal, orderBookType: { delayed: null }, volume: 1500n, price: 102000 }],
       ]);
       expect(res.bids).toEqual([
         [0n, { icrc1Ledger: ledger1Principal, orderBookType: { delayed: null }, volume: 1500n, price: 100000 }],
       ]);
-      expect(res.session_numbers).toEqual([
-        [quoteLedgerPrincipal, 2n],
-        [ledger1Principal, 2n],
-        [ledger2Principal, 2n],
-      ]);
+      expect(sortByPrincipal(res.session_numbers)).toEqual(
+        sortByPrincipal([
+          [quoteLedgerPrincipal, 2n],
+          [ledger1Principal, 2n],
+          [ledger2Principal, 2n],
+        ]),
+      );
       expect(res.transaction_history).toHaveLength(1);
       expect(res.transaction_history[0][1]).toEqual(1n);
       expect(res.transaction_history[0][2]).toEqual({ ask: null });
@@ -1024,32 +1032,36 @@ describe('ICRC1 Auction', () => {
       expect(res.deposit_history[1][2]).toEqual(quoteLedgerPrincipal);
       expect(res.deposit_history[1][3]).toEqual(500000000n);
 
-      expect(res.order_book_info).toEqual([
-        [
-          ledger1Principal,
-          {
-            clearing: { noMatch: null },
-            maxBidPrice: [100000],
-            minAskPrice: [102000],
-            totalAskVolume: 1500n,
-            totalBidVolume: 1500n,
-          },
-        ],
-        [
-          ledger2Principal,
-          {
-            clearing: { noMatch: null },
-            maxBidPrice: [],
-            minAskPrice: [],
-            totalAskVolume: 0n,
-            totalBidVolume: 0n,
-          },
-        ],
-      ]);
-      expect(res.immediate_order_book_info).toEqual([
-        [ledger1Principal, { maxBidPrice: [], minAskPrice: [], totalAskVolume: 0n, totalBidVolume: 0n }],
-        [ledger2Principal, { maxBidPrice: [], minAskPrice: [], totalAskVolume: 0n, totalBidVolume: 0n }],
-      ]);
+      expect(sortByPrincipal(res.order_book_info)).toEqual(
+        sortByPrincipal([
+          [
+            ledger1Principal,
+            {
+              clearing: { noMatch: null },
+              maxBidPrice: [100000],
+              minAskPrice: [102000],
+              totalAskVolume: 1500n,
+              totalBidVolume: 1500n,
+            },
+          ],
+          [
+            ledger2Principal,
+            {
+              clearing: { noMatch: null },
+              maxBidPrice: [],
+              minAskPrice: [],
+              totalAskVolume: 0n,
+              totalBidVolume: 0n,
+            },
+          ],
+        ]),
+      );
+      expect(sortByPrincipal(res.immediate_order_book_info)).toEqual(
+        sortByPrincipal([
+          [ledger1Principal, { maxBidPrice: [], minAskPrice: [], totalAskVolume: 0n, totalBidVolume: 0n }],
+          [ledger2Principal, { maxBidPrice: [], minAskPrice: [], totalAskVolume: 0n, totalBidVolume: 0n }],
+        ]),
+      );
     });
     test('should public info to not registered user', async () => {
       await prepareDeposit(user);

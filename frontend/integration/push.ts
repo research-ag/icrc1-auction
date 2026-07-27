@@ -38,19 +38,15 @@ export const useUpdateUserSettings = () => {
   const { enqueueSnackbar } = useSnackbar();
   const { identity } = useIdentity();
   const principalText = identity?.getPrincipal?.().toText?.();
-  return useMutation(
-    (pushNotificationsEnabled: boolean) =>
-      auction.updateUserSettings({ pushNotificationsEnabled: [pushNotificationsEnabled] }),
-    {
-      onSuccess: () => {
-        // Invalidate settings for the current principal only
-        queryClient.invalidateQueries(['userSettings', principalText]);
-      },
-      onError: (err: unknown) => {
-        enqueueSnackbar(`Failed to update user settings: ${err}`, { variant: 'error' });
-      },
+  return useMutation((pushNotificationsEnabled: boolean) => auction.updateUserSettings({ pushNotificationsEnabled }), {
+    onSuccess: () => {
+      // Invalidate settings for the current principal only
+      queryClient.invalidateQueries(['userSettings', principalText]);
     },
-  );
+    onError: (err: unknown) => {
+      enqueueSnackbar(`Failed to update user settings: ${err}`, { variant: 'error' });
+    },
+  });
 };
 
 export const useWebPush = () => {

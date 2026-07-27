@@ -39,8 +39,8 @@ const DepositHistoryTable = () => {
                 <td>
                   <InfoItem content={getInfo(ledger).symbol} withCopy={true} />
                 </td>
-                <td style={{ color: 'withdrawal' in kind ? 'red' : 'green' }}>
-                  {('withdrawal' in kind ? '-' : '+') + displayWithDecimals(volume, getInfo(ledger).decimals)}
+                <td style={{ color: kind === 'withdrawal' ? 'red' : 'green' }}>
+                  {(kind === 'withdrawal' ? '-' : '+') + displayWithDecimals(volume, getInfo(ledger).decimals)}
                 </td>
               </tr>
             );

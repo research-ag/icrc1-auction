@@ -1,33 +1,29 @@
-import { HttpAgent, Identity } from '@icp-sdk/core/agent';
-import { canisterId as CRYPTO_CANISTER_ID, createActor as createCryptoActor } from '../../declarations/crypto';
+import { Identity } from '@icp-sdk/core/agent';
+import { safeGetCanisterEnv } from '@icp-sdk/core/agent/canister-env';
+import { createActor as createCryptoActor } from '@declarations/crypto';
 import { DerivedKeyMaterial, DerivedPublicKey, EncryptedVetKey, TransportSecretKey } from '@dfinity/vetkeys';
 
 const AES_GCM_DOMAIN = 'icrc1-auction-aes-gcm';
 
 const kmCache = new Map<string, Promise<DerivedKeyMaterial>>();
 
-async function getAgent(identity: Identity): Promise<HttpAgent> {
-  const agent = HttpAgent.createSync({ identity });
-  if (process.env.DFX_NETWORK !== 'ic') {
-    try {
-      await agent.fetchRootKey();
-    } catch (_e) {
-      // pass
-    }
-  }
-  return agent;
-}
-
 export async function getDerivedKeyMaterial(identity: Identity): Promise<DerivedKeyMaterial | null> {
   const principalText = identity.getPrincipal().toText();
+  const canisterEnv = safeGetCanisterEnv();
+  const CRYPTO_CANISTER_ID = canisterEnv?.['PUBLIC_CANISTER_ID:crypto'];
   if (!CRYPTO_CANISTER_ID) return null;
 
   if (!kmCache.has(principalText)) {
     kmCache.set(
       principalText,
       (async () => {
-        const agent = await getAgent(identity);
-        const crypto = createCryptoActor(CRYPTO_CANISTER_ID, { agent });
+        const crypto = createCryptoActor(CRYPTO_CANISTER_ID, {
+          agentOptions: {
+            identity,
+            host: window.location.origin,
+            rootKey: canisterEnv?.IC_ROOT_KEY,
+          },
+        });
 
         const dpkBytes = new Uint8Array(await crypto.get_ibe_public_key());
         const dpk = DerivedPublicKey.deserialize(dpkBytes);

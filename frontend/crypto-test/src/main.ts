@@ -1,4 +1,4 @@
-import { createActor } from '../../../declarations/crypto';
+import { createActor } from '@declarations/crypto';
 import { DerivedPublicKey, IbeCiphertext, IbeIdentity, IbeSeed } from '@dfinity/vetkeys';
 
 function $(id: string): HTMLElement {

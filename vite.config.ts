@@ -1,7 +1,7 @@
 /// <reference types="vitest" />
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
-import environment from 'vite-plugin-environment';
+import { icpBindgen } from '@icp-sdk/bindgen/plugins/vite';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import dotenv from 'dotenv';
 
@@ -23,7 +23,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:4943',
+        target: 'http://127.0.0.1:8000',
         changeOrigin: true,
       },
     },
@@ -31,7 +31,17 @@ export default defineConfig({
   plugins: [
     react(),
     tsconfigPaths(),
-    environment('all', { prefix: 'CANISTER_' }),
-    environment('all', { prefix: 'DFX_' }),
+    icpBindgen({
+      didFile: 'did/icrc1_auction.did',
+      outDir: 'frontend/src/bindings',
+    }),
+    icpBindgen({
+      didFile: '.mops/.build/icrc1_ledger_mock.did',
+      outDir: 'frontend/src/bindings',
+    }),
+    icpBindgen({
+      didFile: 'crypto_canister/crypto.did',
+      outDir: 'frontend/src/bindings',
+    }),
   ],
 });

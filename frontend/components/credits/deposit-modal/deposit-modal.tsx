@@ -92,7 +92,7 @@ const DepositModal = ({ isOpen, onClose }: AddModalProps) => {
     handleSubmit,
     control,
     reset: resetForm,
-  } = useForm<AllowanceFormValues>({
+  } = useForm<DepositFormValues>({
     defaultValues,
     resolver: zodResolver(schema),
     mode: 'onChange',
@@ -155,7 +155,7 @@ const DepositModal = ({ isOpen, onClose }: AddModalProps) => {
         token: p,
         amount,
         owner: icrc1Account.owner,
-        subaccount: icrc1Account.subaccount || null,
+        subaccount: icrc1Account.subaccount ?? null,
       },
       {
         onSuccess: () => {
@@ -178,11 +178,11 @@ const DepositModal = ({ isOpen, onClose }: AddModalProps) => {
   const subaccount = usePrincipalToSubaccount(identity.getPrincipal());
   const btcAddr = useBtcAddress(identity.getPrincipal());
 
-  const subaccountToText = (subaccount: [] | [Uint8Array | number[]] | undefined) => {
-    if (!subaccount || !subaccount[0]) return '';
+  const subaccountToText = (subaccount: Uint8Array | null | undefined) => {
+    if (!subaccount) return '';
     return (
       '[0x' +
-      Array.from(subaccount[0])
+      Array.from(subaccount)
         .map(x => (x < 16 ? '0' : '') + x.toString(16))
         .join(' ') +
       ']'

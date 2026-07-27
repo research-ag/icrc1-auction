@@ -56,11 +56,12 @@ const CreditsTable = () => {
         </thead>
         <tbody>
           {(credits ?? []).map(([ledger, credit], i) => {
+            const c = credit as { total: bigint; locked: bigint; available: bigint };
             return (
               <tr key={i}>
                 <td>{symbols && <InfoItem content={getTokenInfo(ledger).symbol} withCopy={true} />}</td>
-                <td>{displayWithDecimals(credit.available, getTokenInfo(ledger).decimals, 6)}</td>
-                <td>{displayWithDecimals(credit.total, getTokenInfo(ledger).decimals, 6)}</td>
+                <td>{displayWithDecimals(c.available, getTokenInfo(ledger).decimals, 6)}</td>
+                <td>{displayWithDecimals(c.total, getTokenInfo(ledger).decimals, 6)}</td>
                 <td>
                   {getTokenInfo(ledger).symbol === 'ckBTC' && (
                     <Button

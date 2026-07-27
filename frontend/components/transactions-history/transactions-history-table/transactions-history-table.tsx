@@ -43,7 +43,7 @@ const TransactionsHistoryTable = () => {
               <tr key={String(ts)}>
                 <td>{String(new Date(Number(ts) / 1_000_000))}</td>
                 <td>{String(sessionNumber)}</td>
-                <td>{'ask' in kind ? 'Ask' : 'Bid'}</td>
+                <td>{kind === 'ask' ? 'Ask' : 'Bid'}</td>
                 <td>
                   <InfoItem content={getInfo(ledger).symbol} withCopy={true} />
                 </td>
