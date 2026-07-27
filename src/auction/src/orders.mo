@@ -15,7 +15,8 @@ import List "mo:core/List";
 
 import Account "./account";
 import AuctionRuntime "./runtime";
-import Assets "./assets";
+import AssetsStorage "./assets_storage";
+import Asset "./asset";
 import C "./constants";
 import User "./user";
 import UsersStorage "./users_storage";
@@ -60,7 +61,7 @@ module {
   /// helper class to work with all orders of given asset
   public class OrderBookExecutionService(
     service : OrdersService,
-    assetInfo : T.AssetInfo,
+    asset : T.Asset,
     orderBookType : {
       #immediate;
       #combined : { encryptedOrdersQueue : PureList.List<T.Order> };
@@ -71,15 +72,15 @@ module {
       switch (orderBookType) {
         // Note: for immediate order book we always take only the first entry, because clearing happens for each ask-bid pair separately
         case (#immediate) {
-          service.assetOrderBook(assetInfo, #immediate).queue
+          service.assetOrderBook(asset, #immediate).queue
           |> PureList.values(_)
           |> Iter.take(_, 1)
           |> Iter.map<(T.OrderId, T.Order), (?T.OrderId, T.Order)>(_, func(oid, o) = (?oid, o));
         };
         case (#combined { encryptedOrdersQueue }) {
 
-          var delayedCursor = service.assetOrderBook(assetInfo, #delayed).queue;
-          var immediateCursor = service.assetOrderBook(assetInfo, #immediate).queue;
+          var delayedCursor = service.assetOrderBook(asset, #delayed).queue;
+          var immediateCursor = service.assetOrderBook(asset, #immediate).queue;
           var encryptedCursor = encryptedOrdersQueue;
 
           object {
@@ -134,34 +135,34 @@ module {
     public func nextOrder() : ?(?T.OrderId, T.Order) = toIter().next();
 
     public func fulfilOrder(sessionNumber : Nat, orderId : ?T.OrderId, order : T.Order, maxVolume : Nat, price : Float) : (volume : Nat, quoteVol : Nat, isPartial : Bool) {
-      service.fulfil(assetInfo, sessionNumber, orderId, order, maxVolume, price);
+      service.fulfil(asset, sessionNumber, orderId, order, maxVolume, price);
     };
 
     public func totalVolume() : Nat {
       switch (orderBookType) {
-        case (#immediate) service.assetOrderBook(assetInfo, #immediate).totalVolume;
-        case (#combined _) service.assetOrderBook(assetInfo, #delayed).totalVolume + service.assetOrderBook(assetInfo, #immediate).totalVolume;
+        case (#immediate) service.assetOrderBook(asset, #immediate).totalVolume;
+        case (#combined _) service.assetOrderBook(asset, #delayed).totalVolume + service.assetOrderBook(asset, #immediate).totalVolume;
       };
     };
   };
 
   /// A class with functionality to operate on all orders of the given type across the auction
   class OrdersService(
-    assets : Assets.Assets,
+    assets : AssetsStorage.AssetsStorage,
     users : UsersStorage.UsersStorage,
     quoteAssetId : T.AssetId,
     minQuoteVolume : Nat,
-    minAskVolume : (T.AssetId, T.AssetInfo) -> Int,
+    minAskVolume : (T.AssetId, T.Asset) -> Int,
     kind_ : { #ask; #bid },
   ) = self {
 
     public func createOrderBookExecutionService(
-      assetInfo : T.AssetInfo,
+      asset : T.Asset,
       orderBookType : {
         #immediate;
         #combined : { encryptedOrdersQueue : PureList.List<T.Order> };
       },
-    ) : OrderBookExecutionService = OrderBookExecutionService(self, assetInfo, orderBookType);
+    ) : OrderBookExecutionService = OrderBookExecutionService(self, asset, orderBookType);
 
     public let kind : { #ask; #bid } = kind_;
 
@@ -194,7 +195,7 @@ module {
     };
 
     // validation
-    public func isOrderLow(orderAssetId : T.AssetId, orderAssetInfo : T.AssetInfo, volume : Nat, price : Float) : Bool = switch (kind) {
+    public func isOrderLow(orderAssetId : T.AssetId, orderAssetInfo : T.Asset, volume : Nat, price : Float) : Bool = switch (kind) {
       case (#ask) price <= 0.0 or volume < minAskVolume(orderAssetId, orderAssetInfo);
       case (#bid) denominateVolumeInQuoteAsset(volume, price) < minQuoteVolume;
     };
@@ -204,21 +205,21 @@ module {
       case (#bid) oppositeOrderPrice <= orderPrice;
     };
 
-    public func assetOrderBook(assetInfo : T.AssetInfo, orderBookType : T.OrderBookType) : T.AssetOrderBook = assets.getOrderBook(assetInfo, kind, orderBookType);
+    public func assetOrderBook(asset : T.Asset, orderBookType : T.OrderBookType) : T.AssetOrderBook = asset.getOrderBook(kind, orderBookType);
 
-    public func place(user : T.User, accountToCharge : T.Account, assetInfo : T.AssetInfo, orderId : T.OrderId, order : T.Order) : Nat {
+    public func place(user : T.User, accountToCharge : T.Account, asset : T.Asset, orderId : T.OrderId, order : T.Order) : Nat {
       // charge user credits
       let (success, _) = accountToCharge.lockCredit(srcVolume(order.volume, order.price));
       assert success;
       // insert into order lists
       user.putOrder(kind, orderId, order);
-      assets.putOrder(assetInfo, kind, orderId, order);
+      asset.putOrder(kind, orderId, order);
     };
 
     public func cancel(user : T.User, orderId : T.OrderId) : ?T.Order {
       // find and remove from order lists
       let ?existingOrder = user.deleteOrder(kind, orderId) else return null;
-      assets.getAsset(existingOrder.assetId) |> assets.deleteOrder(_, kind, existingOrder.orderBookType, orderId);
+      assets.getAsset(existingOrder.assetId) |> _.deleteOrder(kind, existingOrder.orderBookType, orderId);
       // return deposit to user
       let ?sourceAcc = user.getAccount(srcAssetId(existingOrder.assetId)) else Prim.trap("Can never happen");
       let (success, _) = sourceAcc.unlockCredit(srcVolume(existingOrder.volume, existingOrder.price));
@@ -229,7 +230,7 @@ module {
 
     // bid: source = quote, dest = base
     // ask: source = base, dest = quote
-    public func fulfil(assetInfo : T.AssetInfo, sessionNumber : Nat, orderId : ?T.OrderId, order : T.Order, maxVolume : Nat, price : Float) : (volume : Nat, quoteVol : Nat, isPartial : Bool) {
+    public func fulfil(asset : T.Asset, sessionNumber : Nat, orderId : ?T.OrderId, order : T.Order, maxVolume : Nat, price : Float) : (volume : Nat, quoteVol : Nat, isPartial : Bool) {
       let ?sourceAcc = users.atIndex(order.userId).getAccount(srcAssetId(order.assetId)) else Prim.trap("Can never happen");
 
       switch (orderId) {
@@ -252,10 +253,10 @@ module {
         case (?oid) {
           if (isPartial) {
             sourceAcc.lockCredit(srcVolume(order.volume - baseVolume, order.price)) |> (assert _.0); // re-lock credit
-            assets.deductOrderVolume(assetInfo, kind, order, baseVolume); // shrink order
+            asset.deductOrderVolume(kind, order, baseVolume); // shrink order
           } else {
             users.atIndex(order.userId).deleteOrder(kind, oid) |> (ignore _); // delete order
-            assets.deleteOrder(assetInfo, kind, order.orderBookType, oid); // delete order
+            asset.deleteOrder(kind, order.orderBookType, oid); // delete order
           };
         };
         case (null) {};
@@ -277,15 +278,15 @@ module {
       };
 
       if (not isPartial) {
-        assetInfo.totalExecutedOrders += 1;
+        asset.totalExecutedOrders += 1;
       };
 
       let user = users.atIndex(order.userId);
       user.accountRevision += 1;
       user.loyaltyPoints += C.LOYALTY_REWARD.ORDER_EXECUTION + quoteVolume / C.LOYALTY_REWARD.ORDER_VOLUME_DIVISOR;
       switch (kind) {
-        case (#ask) assetInfo.totalExecutedVolumeQuote += quoteVolume;
-        case (#bid) assetInfo.totalExecutedVolumeBase += baseVolume;
+        case (#ask) asset.totalExecutedVolumeQuote += quoteVolume;
+        case (#bid) asset.totalExecutedVolumeBase += baseVolume;
       };
 
       (baseVolume, quoteVolume, isPartial);
@@ -293,14 +294,14 @@ module {
   };
 
   public class Orders(
-    assets : Assets.Assets,
+    assets : AssetsStorage.AssetsStorage,
     users : UsersStorage.UsersStorage,
     quoteAssetId : T.AssetId,
     settings : {
       volumeStepLog10 : Nat; // 3 will make volume step 1000 (denominated in quote token)
       minVolumeSteps : Nat; // == minVolume / volumeStep
       priceMaxDigits : Nat;
-      minAskVolume : (T.AssetId, T.AssetInfo) -> Int;
+      minAskVolume : (T.AssetId, T.Asset) -> Int;
     },
   ) {
 
@@ -511,10 +512,10 @@ module {
         if (assetId == quoteAssetId or assetId >= assets.nAssets()) return #err(#placement({ index = i; error = #UnknownAsset }));
 
         // validate order volume and price
-        let assetInfo = assets.getAsset(assetId);
+        let asset = assets.getAsset(assetId);
         let ?price = roundPriceDigits(rawPrice) else return #err(#placement({ index = i; error = #PriceDigitsOverflow({ maxDigits = priceMaxDigits }) }));
 
-        if (ordersService.isOrderLow(assetId, assetInfo, volume, price)) return #err(#placement({ index = i; error = #TooLowOrder }));
+        if (ordersService.isOrderLow(assetId, asset, volume, price)) return #err(#placement({ index = i; error = #TooLowOrder }));
 
         let baseVolumeStep = getBaseVolumeStep(price);
         if (volume % baseVolumeStep != 0) return #err(#placement({ index = i; error = #VolumeStepViolated({ baseVolumeStep }) }));
@@ -582,7 +583,7 @@ module {
         placementCommitActions[i] := func() {
           let orderId = ordersCounter;
           ordersCounter += 1;
-          switch (order.orderBookType, ordersService.place(user, chargeAcc, assetInfo, orderId, order)) {
+          switch (order.orderBookType, ordersService.place(user, chargeAcc, asset, orderId, order)) {
             case (#immediate, 0) {
               let ?executeFunc = executeImmediateOrderBooks else Prim.trap("execute function was not set");
               let executionResults = executeFunc(order.assetId, ordersService.kind);
@@ -683,14 +684,14 @@ module {
       for (i in placements.keys()) {
         let (assetId, data) = placements[i];
         let asset = assets.getAsset(assetId);
-        ignore assets.putDarkOrderBook(asset, p, data);
+        ignore asset.putDarkOrderBook(p, data);
         let oldValue = user.putDarkOrderBook(assetId, data);
         ret[i] := oldValue;
       };
       #ok(VarArray.toArray(ret));
     };
 
-    public func processDarkOrderBooks(assetId : T.AssetId, asset : T.AssetInfo) : (asks : PureList.List<T.Order>, bids : PureList.List<T.Order>) {
+    public func processDarkOrderBooks(assetId : T.AssetId, asset : T.Asset) : (asks : PureList.List<T.Order>, bids : PureList.List<T.Order>) {
       if (asset.darkOrderBooks.encrypted.isEmpty()) return (null, null);
       let ?decryptedOrderBooks = asset.darkOrderBooks.decrypted else Prim.trap("Dark order books were not decrypted");
       var asksQueue : PureList.List<T.Order> = null;

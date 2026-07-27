@@ -23,7 +23,8 @@ import CircularBuffer "./models/circular_buffer";
 import Account "./account";
 import AuctionRuntime "./runtime";
 import AssetOrderBook "./asset_order_book";
-import Assets "./assets";
+import Asset "./asset";
+import AssetsStorage "./assets_storage";
 import C "./constants";
 import E "./encryption";
 import Orders "./orders";
@@ -47,7 +48,7 @@ module {
   };
 
   public func defaultStableData() : T.StableDataV5 = {
-    assets = List.empty();
+    assets = AssetsStorage.empty();
     orders = { globalCounter = 0 };
     sessions = {
       counter = 0;
@@ -120,7 +121,7 @@ module {
       volumeStepLog10 : Nat; // 3 will make volume step 1000 (denominated in quote token)
       minVolumeSteps : Nat; // == minVolume / volumeStep
       priceMaxDigits : Nat;
-      minAskVolume : (AssetId, T.AssetInfo) -> Int;
+      minAskVolume : (AssetId, T.Asset) -> Int;
       performanceCounter : Nat32 -> Nat64;
     },
   ) {
@@ -129,7 +130,7 @@ module {
     public var sessionsCounter = 0;
 
     public let users = UsersStorage.empty();
-    public let assets = Assets.Assets();
+    public let assets = AssetsStorage.empty();
     public let orders = Orders.Orders(
       assets,
       users,
@@ -345,7 +346,7 @@ module {
     };
 
     public func listAssetOrders(assetId : AssetId, kind : { #ask; #bid }, orderBookType : T.OrderBookType) : [(OrderId, T.Order)] {
-      let orderBook = assets.getAsset(assetId) |> assets.getOrderBook(_, kind, orderBookType);
+      let orderBook = assets.getAsset(assetId).getOrderBook(kind, orderBookType);
       let queueIter = PureList.values(orderBook.queue);
       Array.tabulate<(OrderId, T.Order)>(
         orderBook.size,
@@ -472,17 +473,7 @@ module {
 
     // ============= system interface =============
     public func share() : T.StableDataV5 = {
-      assets = assets.assets.map<T.AssetInfo, T.StableAssetInfoV3>(
-        func(x) = {
-          lastRate = x.lastRate;
-          lastImmediateRate = x.lastImmediateRate;
-          immediateExecutionsCounter = x.immediateExecutionsCounter;
-          lastProcessingInstructions = x.lastProcessingInstructions;
-          totalExecutedVolumeBase = x.totalExecutedVolumeBase;
-          totalExecutedVolumeQuote = x.totalExecutedVolumeQuote;
-          totalExecutedOrders = x.totalExecutedOrders;
-        }
-      );
+      assets = assets;
       orders = {
         globalCounter = orders.ordersCounter;
       };
@@ -497,59 +488,19 @@ module {
     };
 
     public func unshare(data : T.StableDataV5) {
-      // we can't overwrite users completely, as this reference is shared to other places. Instead, monkey-patch it for now
+      // we can't overwrite users and assets completely, as these references are shared to other places. Instead, monkey-patch for now
       users.usersList := data.users.usersList;
       users.usersLookup := data.users.usersLookup;
       users.participantsArchive := data.users.participantsArchive;
       users.participantsArchiveSize := data.users.participantsArchiveSize;
       users.quoteSurplus := data.users.quoteSurplus;
 
-      assets.assets := data.assets.map<T.StableAssetInfoV3, T.AssetInfo>(
-        func(x) = {
-          asks = {
-            delayed = AssetOrderBook.nil(#ask);
-            immediate = AssetOrderBook.nil(#ask);
-          };
-          bids = {
-            delayed = AssetOrderBook.nil(#bid);
-            immediate = AssetOrderBook.nil(#bid);
-          };
-          darkOrderBooks = {
-            var encrypted = Map.empty();
-            var decrypted = null;
-          };
-          var lastRate = x.lastRate;
-          var lastImmediateRate = x.lastImmediateRate;
-          var immediateExecutionsCounter = x.immediateExecutionsCounter;
-          var lastProcessingInstructions = x.lastProcessingInstructions;
-          var totalExecutedVolumeBase = x.totalExecutedVolumeBase;
-          var totalExecutedVolumeQuote = x.totalExecutedVolumeQuote;
-          var totalExecutedOrders = x.totalExecutedOrders;
-          var sessionsCounter = data.sessions.counter;
-        }
-      );
+      assets.assets := data.assets.assets;
+      assets.history := data.assets.history;
 
       orders.ordersCounter := data.orders.globalCounter;
 
       sessionsCounter := data.sessions.counter;
-
-      if (data.sessions.history.immediate.capacity == assets.IMMEDIATE_BUFFER_CAPACITY) {
-        assets.history.immediate := data.sessions.history.immediate;
-      };
-      assets.history.delayed := data.sessions.history.delayed;
-
-      for ((p, idx) in users.usersLookup.entries()) {
-        let u = users.atIndex(idx);
-        for ((oid, order) in u.asks.map.entries()) {
-          ignore assets.putOrder(assets.getAsset(order.assetId), #ask, oid, order);
-        };
-        for ((oid, order) in u.bids.map.entries()) {
-          ignore assets.putOrder(assets.getAsset(order.assetId), #bid, oid, order);
-        };
-        for ((assetId, data) in u.darkOrderBooks.entries()) {
-          ignore assets.putDarkOrderBook(assets.getAsset(assetId), p, ?data);
-        };
-      };
     };
     // ============= system interface =============
   };

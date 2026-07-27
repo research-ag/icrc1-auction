@@ -2,6 +2,7 @@ import Array "mo:core/Array";
 import Nat8 "mo:core/Nat8";
 import Principal "mo:core/Principal";
 
+import AssetsStorage "../src/assets_storage";
 import Auction "../src/lib";
 import AuctionRuntime "../src/runtime";
 

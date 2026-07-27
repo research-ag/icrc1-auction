@@ -1,6 +1,8 @@
 import Prim "mo:prim";
 import Principal "mo:core/Principal";
 
+import AssetsStorage "../src/assets_storage";
+
 import { init; createFt } "./test.util";
 
 do {

@@ -8,7 +8,7 @@ module {
   public class AuctionRuntime(
     _auction : T.AuctionNew,
     _settings : {
-      minAskVolume : (T.AssetId, T.AssetInfo) -> Int;
+      minAskVolume : (T.AssetId, T.Asset) -> Int;
       performanceCounter : Nat32 -> Nat64;
     },
   ) {

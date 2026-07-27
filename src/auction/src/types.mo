@@ -61,7 +61,7 @@ module {
     var map : Map.Map<OrderId, Order>;
   };
 
-  public type AssetInfo = {
+  public type Asset = {
     asks : {
       immediate : AssetOrderBook;
       delayed : AssetOrderBook;
@@ -114,9 +114,18 @@ module {
     var participantsArchive : Map.Map<Principal, { lastOrderPlacement : Nat64 }>;
 
     var participantsArchiveSize : Nat;
-    
+
     // TODO move this to a different place
     var quoteSurplus : Nat;
+  };
+
+  public type AssetsStorage = {
+    // TODO remove var-s here
+    var assets : List.List<Asset>;
+    var history : {
+      immediate : CircularBuffer.CircularBuffer<PriceHistoryItem>;
+      delayed : List.List<PriceHistoryItem>;
+    };
   };
 
   public type PriceHistoryItem = (timestamp : Nat64, sessionNumber : Nat, assetId : AssetId, volume : Nat, price : Float);
@@ -136,7 +145,7 @@ module {
 
   // stable data types
   public type StableDataV5 = {
-    assets : List.List<StableAssetInfoV3>;
+    assets : AssetsStorage;
     orders : { globalCounter : Nat };
     sessions : {
       counter : Nat;
@@ -146,16 +155,6 @@ module {
       };
     };
     users : UsersStorage;
-  };
-
-  public type StableAssetInfoV3 = {
-    lastRate : Float;
-    lastImmediateRate : Float;
-    immediateExecutionsCounter : Nat;
-    lastProcessingInstructions : Nat;
-    totalExecutedVolumeBase : Nat;
-    totalExecutedVolumeQuote : Nat;
-    totalExecutedOrders : Nat;
   };
 
 };

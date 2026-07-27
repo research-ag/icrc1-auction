@@ -26,6 +26,7 @@ import PtHttp "mo:promtracker/mixins/http";
 import TokenHandler "mo:token-handler";
 import M "migration_types";
 
+import AssetsStorage "./auction/src/assets_storage";
 import Auction "./auction/src";
 import AuctionRuntime "./auction/src/runtime";
 import UsersStorage "./auction/src/users_storage";
@@ -1174,18 +1175,6 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     await* assertAdminAccess(caller);
     let res = await* registerAsset_(ledger, minAskVolume);
     R.toUpper(res);
-  };
-
-  public shared ({ caller }) func wipePriceHistory(icrc1Ledger : Principal) : async () {
-    await* assertAdminAccess(caller);
-    let ?assetId = getAssetId(icrc1Ledger) else throw Error.reject("Unknown asset");
-    let newHistory : List.List<Auction.PriceHistoryItem> = List.empty();
-    for (x in auction.assets.history.delayed.values()) {
-      if (x.2 != assetId) {
-        newHistory.add(x);
-      };
-    };
-    auction.assets.history.delayed := newHistory;
   };
 
   public shared ({ caller }) func wipeOrders() : async () {
