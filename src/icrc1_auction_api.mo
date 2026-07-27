@@ -24,7 +24,6 @@ import PT "mo:promtracker";
 import { Counter; Gauge } "mo:promtracker";
 import PtHttp "mo:promtracker/mixins/http";
 import TokenHandler "mo:token-handler";
-import M "migration_types";
 
 import AssetsStorage "./auction/src/assets_storage";
 import Auction "./auction/src";
@@ -50,12 +49,6 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   // ensure compliance to ICRC84 standart.
   // actor won't compile in case of type mismatch here
   transient let _ : ICRC84.ICRC84 = self;
-
-  let quoteLedgerPrincipal : Principal = U.requireMsg(quoteLedger_, "Quote ledger principal not provided");
-  var assetsData : List.List<StableAssetInfoV1> = List.empty();
-
-  let tokenHandlersJournal : List.List<(ledger : Principal, p : Principal, logEvent : TokenHandler.LogEvent)> = List.empty();
-  var consolidationTimerEnabled : Bool = true;
 
   // constants
   transient let AUCTION_INTERVAL_SECONDS : Nat64 = 1800;
@@ -95,13 +88,6 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     ledgerPrincipal : Principal;
     minAskVolume : Nat;
     handler : TokenHandler.TokenHandler;
-    symbol : Text;
-    decimals : Nat;
-  };
-  type StableAssetInfoV1 = {
-    ledgerPrincipal : Principal;
-    minAskVolume : Nat;
-    handler : M.StableTokenHandlerData;
     symbol : Text;
     decimals : Nat;
   };
@@ -228,15 +214,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     } or CyclesLedgerWithdrawError;
   };
 
-  type TokenHandlerContext = {
-    api : TokenHandler.LedgerAPI;
-    ownPrincipal : Principal;
-    assertInvariant : () -> Bool;
-    onFeeChanged : (oldFee : Nat, newFee : Nat) -> ();
-    log : (Principal, TokenHandler.LogEvent) -> ();
-  };
-
-  func getTokenHandlerContext(ledgerPrincipal : Principal) : TokenHandlerContext {
+  func getTokenHandlerContext(ledgerPrincipal : Principal) : TokenHandler.TokenHandlerContext {
     {
       api = TokenHandler.buildLedgerApi(ledgerPrincipal);
       ownPrincipal = Principal.fromActor(self);
@@ -246,28 +224,9 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     };
   };
 
-  func createAssetInfo_(ledgerPrincipal : Principal, minAskVolume : Nat, decimals : Nat, symbol : Text, tokenHandlerState : ?M.StableTokenHandlerData) : AssetInfo {
-    let handler = switch (tokenHandlerState) {
-      case (?s) s;
-      case (null) TokenHandler.new({
-        ownPrincipal = Principal.fromActor(self);
-        initialFee = 0;
-        triggerOnNotifications = true;
-      });
-    };
-    {
-      ledgerPrincipal;
-      minAskVolume;
-      handler;
-      symbol;
-      decimals;
-    };
-  };
-
-  transient let assets : List.List<AssetInfo> = assetsData.map<StableAssetInfoV1, AssetInfo>(
-    func(x) = createAssetInfo_(x.ledgerPrincipal, x.minAskVolume, x.decimals, x.symbol, ?x.handler)
-  );
-
+  let tokenHandlersJournal : List.List<(ledger : Principal, p : Principal, logEvent : TokenHandler.LogEvent)> = List.empty();
+  var consolidationTimerEnabled : Bool = true;
+  let assets : List.List<AssetInfo> = List.empty();
   let auction : Auction.Auction = Auction.new(
     0,
     {
@@ -293,8 +252,11 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   private func registerAsset_(ledgerPrincipal : Principal, minAskVolume : Nat) : async* R.Result<Nat, RegisterAssetError> {
     let id = assets.size();
     assert id == auction.assets.nAssets();
-    if (id == 0 and not Principal.equal(ledgerPrincipal, quoteLedgerPrincipal)) {
-      Prim.trap("Cannot register another token before registering quote");
+    if (id == 0) {
+      let quoteLedgerPrincipal = U.requireMsg(quoteLedger_, "Quote ledger principal not provided");
+      if (ledgerPrincipal != quoteLedgerPrincipal) {
+        Prim.trap("Cannot register another token before registering quote");
+      };
     };
     let canister = actor (Principal.toText(ledgerPrincipal)) : (actor { icrc1_decimals : () -> async Nat8; icrc1_symbol : () -> async Text });
     let decimalsCall = canister.icrc1_decimals();
@@ -305,7 +267,17 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     if (assets.any<AssetInfo>(func(a) = Principal.equal(ledgerPrincipal, a.ledgerPrincipal))) {
       return #err(#AlreadyRegistered);
     };
-    createAssetInfo_(ledgerPrincipal, minAskVolume, decimals, symbol, null) |> assets.add<AssetInfo>(_);
+    assets.add({
+      ledgerPrincipal;
+      minAskVolume;
+      handler = TokenHandler.new({
+        ownPrincipal = Principal.fromActor(self);
+        initialFee = 0;
+        triggerOnNotifications = true;
+      });
+      symbol;
+      decimals;
+    });
     auction.registerAssets(1);
     registerAssetMetrics_(id);
     #ok(id);
@@ -678,7 +650,10 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     };
   };
 
-  public shared query func getQuoteLedger() : async Principal = async quoteLedgerPrincipal;
+  public shared query func getQuoteLedger() : async Principal {
+    let ?quoteAsset = assets.get(0) else throw Error.reject("Not initialized");
+    quoteAsset.ledgerPrincipal;
+  };
   public shared query func nextSession() : async {
     timestamp : Nat;
     counter : Nat;
@@ -700,8 +675,10 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
   };
 
   public shared query func indicativeStats(icrc1Ledger : Principal) : async Auction.OrderBookInfo {
-    if (icrc1Ledger == quoteLedgerPrincipal) throw Error.reject("Unknown asset");
     let ?assetId = getAssetId(icrc1Ledger) else throw Error.reject("Unknown asset");
+    if (assetId == 0) {
+      throw Error.reject("Unknown asset");
+    };
     auction.orderBookInfo(assetId, auctionRuntime);
   };
 
@@ -1291,18 +1268,6 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     };
   };
 
-  system func preupgrade() {
-    assetsData := assets.map<AssetInfo, StableAssetInfoV1>(
-      func(x) = {
-        ledgerPrincipal = x.ledgerPrincipal;
-        minAskVolume = x.minAskVolume;
-        handler = x.handler;
-        decimals = x.decimals;
-        symbol = x.symbol;
-      }
-    );
-  };
-
   // A timer for consolidating backlog subaccounts, runs each minute at 30th second
   transient let consolidationSchedule = Scheduler.Scheduler(
     60,
@@ -1353,6 +1318,7 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
     ignore Timer.setTimer<system>(
       #seconds(0),
       func() : async () {
+        let quoteLedgerPrincipal = U.requireMsg(quoteLedger_, "Quote ledger principal not provided");
         ignore U.requireOk(await* registerAsset_(quoteLedgerPrincipal, 0));
       },
     );

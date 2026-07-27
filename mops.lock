@@ -1,12 +1,12 @@
 {
   "version": 3,
-  "mopsTomlDepsHash": "8d2b8a5b3fa08e7690330ee92fc05582e7e2370c17e32911067329a23a199ced",
+  "mopsTomlDepsHash": "b66e1026f68c886809a91339206a5658b9866432176db045cdf0b1d5f3e32609",
   "deps": {
     "core": "2.6.0",
     "bitcoin": "0.2.1",
     "sha2": "0.1.14",
     "icrc-84": "0.1.4",
-    "token-handler": "https://github.com/research-ag/token-handler#11c3350038bbe9675aecca59302e761b85faf80c",
+    "token-handler": "https://github.com/research-ag/token-handler#04fedaeaa56534d5e565ff47fab93d8b22f6df33",
     "ckbtc-address": "0.0.2",
     "auction": "3.0.5",
     "promtracker": "1.0.1",
