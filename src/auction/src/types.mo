@@ -146,15 +146,9 @@ module {
   // stable data types
   public type StableDataV5 = {
     assets : AssetsStorage;
-    orders : { globalCounter : Nat };
-    sessions : {
-      counter : Nat;
-      history : {
-        immediate : CircularBuffer.CircularBuffer<PriceHistoryItem>;
-        delayed : List.List<PriceHistoryItem>;
-      };
-    };
     users : UsersStorage;
+    orders : { globalCounter : Nat };
+    sessions : { counter : Nat; };
   };
 
 };

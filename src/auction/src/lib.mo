@@ -50,13 +50,7 @@ module {
   public func defaultStableData() : T.StableDataV5 = {
     assets = AssetsStorage.empty();
     orders = { globalCounter = 0 };
-    sessions = {
-      counter = 0;
-      history = {
-        immediate = CircularBuffer.new(1);
-        delayed = List.empty<T.PriceHistoryItem>();
-      };
-    };
+    sessions = { counter = 0; };
     users = UsersStorage.empty();
   };
   public type StableDataV5 = T.StableDataV5;
