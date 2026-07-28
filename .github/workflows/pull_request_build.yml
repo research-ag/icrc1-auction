@@ -42,6 +42,11 @@ jobs:
       - name: Make sure moc is installed
         run: mops toolchain bin moc || mops toolchain use moc latest
 
+      - name: Install Rust toolchain
+        run: |
+          rustup show
+          rustup target add wasm32-unknown-unknown
+
       - name: Start local network
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
