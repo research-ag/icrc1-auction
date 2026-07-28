@@ -44,8 +44,20 @@ jobs:
 
       - name: Install Rust toolchain
         run: |
+          # Pre-install the pinned toolchain and wasm target serially, before
+          # `icp deploy` builds the `crypto` and `crypto_mock` Rust packages in
+          # parallel. Otherwise both cargo invocations trigger a concurrent
+          # rustup download of the same toolchain and race on
+          # ~/.rustup/downloads, failing with
+          # "could not rename 'downloaded' file ... No such file or directory".
+          # The retry loop also guards against transient download hiccups that
+          # produce the same rename error on a single run.
+          for i in 1 2 3 4 5; do
+            rustup toolchain install 1.86.0 --profile minimal --target wasm32-unknown-unknown && break
+            echo "rustup toolchain install failed (attempt $i), retrying in 10s..."
+            sleep 10
+          done
           rustup show
-          rustup target add wasm32-unknown-unknown
 
       - name: Start local network
         env:
