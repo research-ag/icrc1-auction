@@ -1315,10 +1315,10 @@ persistent actor class Icrc1AuctionAPI(quoteLedger_ : ?Principal, adminPrincipal
 
   // If assets are empty, register quote asset
   if (assets.size() == 0) {
+    let quoteLedgerPrincipal = U.requireMsg(quoteLedger_, "Quote ledger principal not provided");
     ignore Timer.setTimer<system>(
       #seconds(0),
       func() : async () {
-        let quoteLedgerPrincipal = U.requireMsg(quoteLedger_, "Quote ledger principal not provided");
         ignore U.requireOk(await* registerAsset_(quoteLedgerPrincipal, 0));
       },
     );
