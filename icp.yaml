@@ -8,12 +8,11 @@ canisters:
     init_args: '(opt "MCK_1", opt 6 : opt nat8)'
 
   - name: icrc1_ledger_mock_2
-    build:
-      steps:
-        - type: script
-          commands:
-            - cp .mops/.build/icrc1_ledger_mock.wasm "$ICP_WASM_OUTPUT_PATH"
-            - ic-wasm "$ICP_WASM_OUTPUT_PATH" -o "$ICP_WASM_OUTPUT_PATH" metadata candid:service -f .mops/.build/icrc1_ledger_mock.did -v public --keep-name-section
+    recipe:
+      type: "@dfinity/motoko@v5.0.0"
+      configuration:
+        shrink: true
+        compress: true
     init_args: '(opt "MCK_2", opt 2 : opt nat8)'
 
   - name: frontend

@@ -9,7 +9,8 @@
   "scripts": {
     "create": "icp deploy",
     "dev:frontend": "vite --port 3993 --host",
-    "build:frontend": "rm -rf ./dist/ && tsc && vite build",
+    "generate:bindings": "icp-bindgen --did did/icrc1_auction.did --out frontend/src/bindings && icp-bindgen --did .mops/.build/icrc1_ledger_mock.did --out frontend/src/bindings && icp-bindgen --did crypto_canister/crypto.did --out frontend/src/bindings",
+    "build:frontend": "rm -rf ./dist/ && npm run generate:bindings && tsc && vite build",
     "dev:crypto-test": "vite --config vite.crypto-test.config.ts --port 4001 --host",
     "format": "prettier --write '**/*.{mo,json,md,ts,tsx,js}'",
     "format:check": "prettier --check '**/*.{mo,json,md,ts,tsx,js}'",
