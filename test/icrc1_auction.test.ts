@@ -11,7 +11,11 @@ import {
   idlFactory as A_IDL,
   init as aInit,
 } from '../frontend/src/bindings/declarations/icrc1_auction.did.js';
-import { _SERVICE as CService, idlFactory as C_IDL, init as cInit } from '../frontend/src/bindings/declarations/crypto.did.js';
+import {
+  _SERVICE as CService,
+  idlFactory as C_IDL,
+  init as cInit,
+} from '../frontend/src/bindings/declarations/crypto.did.js';
 import { IDL } from '@dfinity/candid';
 import { resolve } from 'node:path';
 import { Principal } from '@dfinity/principal';
@@ -989,8 +993,8 @@ describe('ICRC1 Auction', () => {
       expect(sortByPrincipal(res.credits)).toEqual(
         sortByPrincipal([
           [quoteLedgerPrincipal, { total: 651500000n, locked: 150000000n, available: 501500000n }],
-        [ledger1Principal, { total: 499998500n, locked: 1500n, available: 499997000n }],
-      ]),
+          [ledger1Principal, { total: 499998500n, locked: 1500n, available: 499997000n }],
+        ]),
       );
       expect(res.asks).toEqual([
         [3n, { icrc1Ledger: ledger1Principal, orderBookType: { delayed: null }, volume: 1500n, price: 102000 }],
