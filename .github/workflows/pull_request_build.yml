@@ -43,7 +43,14 @@ jobs:
         run: mops toolchain bin moc || mops toolchain use moc latest
 
       - name: Start local network
-        run: icp network start -d
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for i in 1 2 3 4 5; do
+            icp network start -d && break
+            echo "icp network start failed (attempt $i), retrying in 10s..."
+            sleep 10
+          done
 
       - name: Build canisters and prepare tests
         run: |
