@@ -134,9 +134,35 @@ module {
 
     public let kind : { #ask; #bid } = kind_;
 
-    func denominateVolumeInQuoteAsset(volume : Nat, unitPrice : Float) : Nat = unitPrice * Int.toFloat(volume)
-    |> (switch (kind) { case (#ask) Float.floor(_); case (#bid) Float.ceil(_) })
-    |> Int.abs(Float.toInt(_));
+    func denominateVolumeInQuoteAsset(volume : Nat, unitPrice : Float) : Nat {
+      if (kind == #ask) {
+        // the precision problem: intToFloat always rounds up, so we need to shift the volume to the right until it fits into 53 bits, then denominate, then shift back
+        var high = Prim.shiftRight(volume, 53);
+        var shift : Nat32 = 0;
+        var fixedVolume = volume;
+        while (high != 0) {
+          high := Prim.shiftRight(high, 1);
+          shift += 1;
+        };
+        if (shift > 0) {
+          fixedVolume := Prim.shiftRight(volume, shift);
+        };
+
+        var denominatedVolume = unitPrice * Int.toFloat(fixedVolume)
+        |> Float.floor(_)
+        |> Int.abs(Float.toInt(_));
+
+        if (shift > 0) {
+          Prim.shiftLeft(denominatedVolume, shift);
+        } else {
+          denominatedVolume;
+        };
+      } else {
+        unitPrice * Int.toFloat(volume)
+        |> Float.ceil(_)
+        |> Int.abs(Float.toInt(_));
+      };
+    };
 
     // returns asset id, which will be debited from user upon placing order
     public func srcAssetId(orderAssetId : T.AssetId) : T.AssetId = switch (kind) {
