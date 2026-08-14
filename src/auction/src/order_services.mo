@@ -23,6 +23,7 @@ import UsersStorage "./users_storage";
 import T "./types";
 import AssetOrderBook "asset_order_book";
 import PriorityQueue "./models/priority_queue";
+import U "./utils";
 
 module {
 
@@ -136,31 +137,9 @@ module {
 
     func denominateVolumeInQuoteAsset(volume : Nat, unitPrice : Float) : Nat {
       if (kind == #ask) {
-        // the precision problem: intToFloat always rounds up, so we need to shift the volume to the right until it fits into 53 bits, then denominate, then shift back
-        var high = Prim.shiftRight(volume, 53);
-        var shift : Nat32 = 0;
-        var fixedVolume = volume;
-        while (high != 0) {
-          high := Prim.shiftRight(high, 1);
-          shift += 1;
-        };
-        if (shift > 0) {
-          fixedVolume := Prim.shiftRight(volume, shift);
-        };
-
-        var denominatedVolume = unitPrice * Int.toFloat(fixedVolume)
-        |> Float.floor(_)
-        |> Int.abs(Float.toInt(_));
-
-        if (shift > 0) {
-          Prim.shiftLeft(denominatedVolume, shift);
-        } else {
-          denominatedVolume;
-        };
+        U.multiplyNatByFloatMin(volume, unitPrice);
       } else {
-        unitPrice * Int.toFloat(volume)
-        |> Float.ceil(_)
-        |> Int.abs(Float.toInt(_));
+        U.multiplyNatByFloatMax(volume, unitPrice);
       };
     };
 
@@ -237,7 +216,7 @@ module {
 
       // source and destination volumes
       let srcVol = switch (isPartial, kind) {
-        case (true, #bid) price * Int.toFloat(baseVolume) |> Float.floor(_) |> Int.abs(Float.toInt(_));
+        case (true, #bid) U.multiplyNatByFloatMin(baseVolume, price);
         case (_) srcVolume(baseVolume, price);
       };
       let destVol = destVolume(baseVolume, price);
