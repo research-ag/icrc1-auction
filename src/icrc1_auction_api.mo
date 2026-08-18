@@ -24,6 +24,7 @@ import PT "mo:promtracker";
 import { Counter; Gauge } "mo:promtracker";
 import PtHttp "mo:promtracker/mixins/http";
 import TokenHandler "mo:token-handler";
+import Scheduler "mo:motoko-scheduler";
 
 import AssetsStorage "./auction/src/assets_storage";
 import Auction "./auction/src";
@@ -36,7 +37,6 @@ import AdminsMixin "./mixins/admins_mixin";
 import BtcHandler "./btc_handler";
 import FloatUtils "./utils/float";
 import NotificationDelegate "./notification_delegate";
-import Scheduler "./utils/scheduler";
 import TextUtils "./utils/text";
 import U "./utils";
 

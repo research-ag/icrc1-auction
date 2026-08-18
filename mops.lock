@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "mopsTomlDepsHash": "4beac4ef0ef8f200530aa13dbb67ab2b6b185eae63490678704ff2bd14edd01b",
+  "mopsTomlDepsHash": "9b51862e54ec956938089e9227959194b2386899901b4661cc0af9ab9cb38c17",
   "deps": {
     "core": "2.6.0",
     "bitcoin": "0.2.1",
@@ -11,6 +11,7 @@
     "auction": "3.0.5",
     "promtracker": "1.0.1",
     "safe-financial-math": "https://github.com/research-ag/safe-financial-math#master@bec0451c10a13e5820dfdac91c4633cdee503ec5",
+    "motoko-scheduler": "https://github.com/research-ag/motoko-scheduler#master@88bafb53eec6e31939c26b80d09c29d35fe6f643",
     "bench-helper": "0.0.3"
   },
   "hashes": {
