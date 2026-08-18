@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "mopsTomlDepsHash": "b66e1026f68c886809a91339206a5658b9866432176db045cdf0b1d5f3e32609",
+  "mopsTomlDepsHash": "4beac4ef0ef8f200530aa13dbb67ab2b6b185eae63490678704ff2bd14edd01b",
   "deps": {
     "core": "2.6.0",
     "bitcoin": "0.2.1",
@@ -10,6 +10,7 @@
     "ckbtc-address": "0.0.2",
     "auction": "3.0.5",
     "promtracker": "1.0.1",
+    "safe-financial-math": "https://github.com/research-ag/safe-financial-math#master@bec0451c10a13e5820dfdac91c4633cdee503ec5",
     "bench-helper": "0.0.3"
   },
   "hashes": {
