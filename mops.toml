@@ -11,6 +11,7 @@ motoko-scheduler = "https://github.com/research-ag/motoko-scheduler#master@88baf
 
 [toolchain]
 moc = "1.11.1"
+pocket-ic = "15.0.0"
 
 [moc]
 args = [ "--legacy-persistence" ]
