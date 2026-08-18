@@ -23,8 +23,6 @@ import { init; createFt; generateUsers } "./test.util";
 // [5_000_000_000_000_000_452_984_832, 1_666_666_666_666_666_638_704_640]
 // see that values were drifted in a different ways, and now auction pays bidder more than it takes out from askers
 // https://embed.smartcontracts.org/motoko/g/FK6mnf2Kx8ezkHNZUjicMNZMBHQhjErqRqnige6nF46qTDprXydsYobV9zR7PyUX4w7nfYshLQDryzsjZUqSkEeESMj2aPef2A6Nv38NXuoji78AnENqJxhSqn9X1qcjj6Z3sWUDqxi2VqpjnMjukyTo3xkUVtAnjVC5Yq8BbNhyPqDZB1HXmhvd2SUTSi98vr4TCYsrS2SsV8CN2bmHvenw5WFCnFVBk6EUDRheQ9a3LPJ62S9yw6giYjSVyDS2inwfM?lines=13
-
-// TODO uncomment this test and fix
 do {
   Prim.debugPrint("surplus issue test 22.07.2026 ...");
 

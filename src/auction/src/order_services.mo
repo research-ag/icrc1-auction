@@ -216,7 +216,7 @@ module {
 
       // source and destination volumes
       let srcVol = switch (isPartial, kind) {
-        case (true, #bid) multiplyNatByFloatMin(baseVolume, price);
+        case (true, #bid) multiplyNatByFloatMax(baseVolume, price);
         case (_) srcVolume(baseVolume, price);
       };
       let destVol = destVolume(baseVolume, price);
