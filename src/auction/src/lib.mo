@@ -19,6 +19,7 @@ import PureList "mo:core/pure/List";
 import R "mo:core/Result";
 
 import CircularBuffer "./models/circular_buffer";
+import DecimalNat "mo:safe-financial-math/DecimalNat";
 
 import Account "./account";
 import AuctionRuntime "./runtime";
@@ -153,9 +154,9 @@ module {
       if (quoteSurplus > 0) {
         self.users.quoteSurplus += quoteSurplus;
       };
-      assetInfo.lastRate := price;
+      assetInfo.lastRate := price.toFloat();
     };
-    self.assets.pushToHistory(#delayed, (Prim.time(), self.sessionsCounter, assetId, volume, price));
+    self.assets.pushToHistory(#delayed, (Prim.time(), self.sessionsCounter, assetId, volume, price.toFloat()));
     assetInfo.lastProcessingInstructions := Nat64.toNat(runtime.runtimeSettings.performanceCounter(0) - startInstructions);
     assetInfo.sessionsCounter := self.sessionsCounter + 1;
   };
@@ -167,12 +168,12 @@ module {
     let (price, volume) = Processor.clearAuction(asksOrderBook, bidsOrderBook);
     {
       clearing = if (volume > 0) {
-        #match({ price; volume });
+        #match({ price = price.toFloat(); volume });
       } else {
         #noMatch;
       };
-      maxBidPrice = bidsOrderBook.nextOrder() |> Option.map<(?T.OrderId, T.Order), Float>(_, func(b) = b.1.price);
-      minAskPrice = asksOrderBook.nextOrder() |> Option.map<(?T.OrderId, T.Order), Float>(_, func(b) = b.1.price);
+      maxBidPrice = bidsOrderBook.nextOrder() |> Option.map<(?T.OrderId, T.Order), Float>(_, func(b) = b.1.price.toFloat());
+      minAskPrice = asksOrderBook.nextOrder() |> Option.map<(?T.OrderId, T.Order), Float>(_, func(b) = b.1.price.toFloat());
       totalBidVolume = bidsOrderBook.totalVolume();
       totalAskVolume = asksOrderBook.totalVolume();
     };
@@ -183,8 +184,8 @@ module {
     let asksOrderBook = runtime.asks.createOrderBookExecutionService(assetInfo, #immediate);
     let bidsOrderBook = runtime.bids.createOrderBookExecutionService(assetInfo, #immediate);
     {
-      maxBidPrice = bidsOrderBook.nextOrder() |> Option.map<(?T.OrderId, T.Order), Float>(_, func(b) = b.1.price);
-      minAskPrice = asksOrderBook.nextOrder() |> Option.map<(?T.OrderId, T.Order), Float>(_, func(b) = b.1.price);
+      maxBidPrice = bidsOrderBook.nextOrder() |> Option.map<(?T.OrderId, T.Order), Float>(_, func(b) = b.1.price.toFloat());
+      minAskPrice = asksOrderBook.nextOrder() |> Option.map<(?T.OrderId, T.Order), Float>(_, func(b) = b.1.price.toFloat());
       totalBidVolume = bidsOrderBook.totalVolume();
       totalAskVolume = asksOrderBook.totalVolume();
     };

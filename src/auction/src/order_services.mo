@@ -13,7 +13,7 @@ import Map "mo:core/Map";
 import VarArray "mo:core/VarArray";
 import List "mo:core/List";
 
-import { multiplyNatByFloatMin; multiplyNatByFloatMax } "mo:safe-financial-math";
+import DecimalNat "mo:safe-financial-math/DecimalNat";
 
 import Account "./account";
 import AssetsStorage "./assets_storage";
@@ -103,7 +103,7 @@ module {
 
     public func nextOrder() : ?(?T.OrderId, T.Order) = toIter().next();
 
-    public func fulfilOrder(sessionNumber : Nat, orderId : ?T.OrderId, order : T.Order, maxVolume : Nat, price : Float) : (volume : Nat, quoteVol : Nat, isPartial : Bool) {
+    public func fulfilOrder(sessionNumber : Nat, orderId : ?T.OrderId, order : T.Order, maxVolume : Nat, price : DecimalNat.DecimalNat) : (volume : Nat, quoteVol : Nat, isPartial : Bool) {
       service.fulfil(asset, sessionNumber, orderId, order, maxVolume, price);
     };
 
@@ -135,11 +135,12 @@ module {
 
     public let kind : { #ask; #bid } = kind_;
 
-    func denominateVolumeInQuoteAsset(volume : Nat, unitPrice : Float) : Nat {
+    func denominateVolumeInQuoteAsset(volume : Nat, unitPrice : DecimalNat.DecimalNat) : Nat {
+      let res = unitPrice.mul(DecimalNat.new(volume, 0));
       if (kind == #ask) {
-        multiplyNatByFloatMin(volume, unitPrice);
+        res.floor();
       } else {
-        multiplyNatByFloatMax(volume, unitPrice);
+        res.ceil();
       };
     };
 
@@ -150,7 +151,7 @@ module {
     };
 
     // returns amount to debit from "srcAssetId" account
-    public func srcVolume(volume : Nat, price : Float) : Nat = switch (kind) {
+    public func srcVolume(volume : Nat, price : DecimalNat.DecimalNat) : Nat = switch (kind) {
       case (#ask) volume;
       case (#bid) denominateVolumeInQuoteAsset(volume, price);
     };
@@ -162,20 +163,20 @@ module {
     };
 
     // returns amount to credit to "destAssetId" account
-    public func destVolume(volume : Nat, price : Float) : Nat = switch (kind) {
+    public func destVolume(volume : Nat, price : DecimalNat.DecimalNat) : Nat = switch (kind) {
       case (#ask) denominateVolumeInQuoteAsset(volume, price);
       case (#bid) volume;
     };
 
     // validation
-    public func isOrderLow(orderAssetId : T.AssetId, orderAssetInfo : T.Asset, volume : Nat, price : Float) : Bool = switch (kind) {
-      case (#ask) price <= 0.0 or volume < minAskVolume(orderAssetId, orderAssetInfo);
+    public func isOrderLow(orderAssetId : T.AssetId, orderAssetInfo : T.Asset, volume : Nat, price : DecimalNat.DecimalNat) : Bool = switch (kind) {
+      case (#ask) volume < minAskVolume(orderAssetId, orderAssetInfo);
       case (#bid) denominateVolumeInQuoteAsset(volume, price) < minQuoteVolume;
     };
 
-    public func isOppositeOrderConflicts(orderPrice : Float, oppositeOrderPrice : Float) : Bool = switch (kind) {
-      case (#ask) oppositeOrderPrice >= orderPrice;
-      case (#bid) oppositeOrderPrice <= orderPrice;
+    public func isOppositeOrderConflicts(orderPrice : DecimalNat.DecimalNat, oppositeOrderPrice : DecimalNat.DecimalNat) : Bool = switch (kind) {
+      case (#ask) oppositeOrderPrice.compare(orderPrice) != #less;
+      case (#bid) oppositeOrderPrice.compare(orderPrice) != #greater;
     };
 
     public func assetOrderBook(asset : T.Asset, orderBookType : T.OrderBookType) : T.AssetOrderBook = asset.getOrderBook(kind, orderBookType);
@@ -203,7 +204,7 @@ module {
 
     // bid: source = quote, dest = base
     // ask: source = base, dest = quote
-    public func fulfil(asset : T.Asset, sessionNumber : Nat, orderId : ?T.OrderId, order : T.Order, maxVolume : Nat, price : Float) : (volume : Nat, quoteVol : Nat, isPartial : Bool) {
+    public func fulfil(asset : T.Asset, sessionNumber : Nat, orderId : ?T.OrderId, order : T.Order, maxVolume : Nat, price : DecimalNat.DecimalNat) : (volume : Nat, quoteVol : Nat, isPartial : Bool) {
       let ?sourceAcc = users.atIndex(order.userId).getAccount(srcAssetId(order.assetId)) else Prim.trap("Can never happen");
 
       switch (orderId) {
@@ -216,7 +217,7 @@ module {
 
       // source and destination volumes
       let srcVol = switch (isPartial, kind) {
-        case (true, #bid) multiplyNatByFloatMax(baseVolume, price);
+        case (true, #bid) price.mul(DecimalNat.new(baseVolume, 0)).floor();
         case (_) srcVolume(baseVolume, price);
       };
       let destVol = destVolume(baseVolume, price);
@@ -243,7 +244,7 @@ module {
       let acc = users.atIndex(order.userId).getOrCreateAccount(destAssetId(order.assetId));
       ignore acc.appendCredit(destVol);
 
-      List.add(users.atIndex(order.userId).transactionHistory, (Prim.time(), sessionNumber, kind, order.assetId, baseVolume, price));
+      List.add(users.atIndex(order.userId).transactionHistory, (Prim.time(), sessionNumber, kind, order.assetId, baseVolume, price.toFloat()));
 
       let quoteVolume = switch (kind) {
         case (#ask) destVol;

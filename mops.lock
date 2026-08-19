@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "mopsTomlDepsHash": "2b3cc8b27497b14f7da34386c098203179fd8c7b47e846f505f87242f79a7327",
+  "mopsTomlDepsHash": "68118dd88cf906d7dc381d0c957470d7e88498a933516c86377426ce0a0a24d5",
   "deps": {
     "core": "2.6.0",
     "bitcoin": "0.2.1",
@@ -10,7 +10,7 @@
     "ckbtc-address": "0.0.2",
     "auction": "3.0.5",
     "promtracker": "1.0.1",
-    "safe-financial-math": "https://github.com/research-ag/safe-financial-math#master@3dfd34cd829b9e3d320738c3b74e4bf2014595e5",
+    "safe-financial-math": "https://github.com/research-ag/safe-financial-math#master@1e7f56f66a5778eed7f4d0d33aaa6994f629089e",
     "motoko-scheduler": "https://github.com/research-ag/motoko-scheduler#master@88bafb53eec6e31939c26b80d09c29d35fe6f643",
     "bench-helper": "0.0.3"
   },

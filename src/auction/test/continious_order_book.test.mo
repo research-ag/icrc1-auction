@@ -4,6 +4,8 @@ import Principal "mo:core/Principal";
 
 import Auction "../src/lib";
 
+import DecimalNat "mo:safe-financial-math/DecimalNat";
+
 import U "../../utils";
 import { init; createFt } "./test.util";
 
@@ -108,7 +110,7 @@ do {
   };
   let ?order = auction.getOrder(buyer, #bid, oid) else Prim.trap("order not found");
   assert order.volume == 1_000;
-  assert order.price == 18_000;
+  assert order.price.round() == 18_000;
 
   assert auction.getOrders(seller0, #ask, ?ft).size() == 0;
   assert auction.getOrders(seller1, #ask, ?ft).size() == 0;

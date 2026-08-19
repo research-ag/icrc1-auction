@@ -2,6 +2,8 @@ import Float "mo:core/Float";
 import PureList "mo:core/pure/List";
 import O "mo:core/Order";
 
+import DecimalNat "mo:safe-financial-math/DecimalNat";
+
 import T "./types";
 import PriorityQueue "./models/priority_queue";
 
@@ -25,8 +27,8 @@ module OrderBook {
   };
 
   public func comparePriority(kind : { #ask; #bid }) : (a : (OrderId, Order), b : (OrderId, Order)) -> O.Order = switch (kind) {
-    case (#ask) func(a : (OrderId, Order), b : (OrderId, Order)) = Float.compare(b.1.price, a.1.price);
-    case (#bid) func(a : (OrderId, Order), b : (OrderId, Order)) = Float.compare(a.1.price, b.1.price);
+    case (#ask) func(a : (OrderId, Order), b : (OrderId, Order)) = DecimalNat.compare(b.1.price, a.1.price);
+    case (#bid) func(a : (OrderId, Order), b : (OrderId, Order)) = DecimalNat.compare(a.1.price, b.1.price);
   };
 
   public func insert(self : AssetOrderBook, orderId : OrderId, order : Order) : Nat {

@@ -4,6 +4,8 @@ import Principal "mo:core/Principal";
 import Auction "../src/lib";
 import AssetsStorage "../src/assets_storage";
 
+import DecimalNat "mo:safe-financial-math/DecimalNat";
+
 import { init; createFt } "./test.util";
 
 do {
@@ -68,7 +70,7 @@ do {
   let asks = auction.getOrders(user, #ask, ?ft);
   assert asks.size() == 1;
   assert asks[0].1.assetId == ft;
-  assert asks[0].1.price == 10;
+  assert asks[0].1.price.round() == 10;
   assert asks[0].1.volume == 2_000_000;
   assert auction.getCredit(user, ft).available == 498_000_000; // available deposit went down
 };
@@ -182,7 +184,7 @@ do {
   let asks = auction.getOrders(user, #ask, ?ft);
   assert asks.size() == 1;
   assert asks[0].1.assetId == ft;
-  assert asks[0].1.price == 125_000;
+  assert asks[0].1.price.round() == 125_000;
   assert asks[0].1.volume == 125_000_000;
 };
 

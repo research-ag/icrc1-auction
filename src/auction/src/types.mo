@@ -1,10 +1,16 @@
 import List "mo:core/List";
 import Map "mo:core/Map";
+import Int "mo:core/Int";
+import Float "mo:core/Float";
+
+import DecimalNat "mo:safe-financial-math/DecimalNat";
 
 import CircularBuffer "./models/circular_buffer";
 import PriorityQueue "./models/priority_queue";
 
 module {
+
+  public func priceToDecimal(price : Float) : DecimalNat.DecimalNat = DecimalNat.new(Int.abs(Float.toInt(Float.floor(price * 100_000_000.0))), 8);
 
   public type UserId = Nat;
   public type AssetId = Nat;
@@ -41,7 +47,7 @@ module {
     userId : UserId;
     assetId : AssetId;
     orderBookType : OrderBookType;
-    price : Float;
+    price : DecimalNat.DecimalNat;
     var volume : Nat;
   };
 

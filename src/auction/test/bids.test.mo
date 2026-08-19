@@ -4,6 +4,8 @@ import Principal "mo:core/Principal";
 import Auction "../src/lib";
 import AssetsStorage "../src/assets_storage";
 
+import DecimalNat "mo:safe-financial-math/DecimalNat";
+
 import { init; createFt } "./test.util";
 
 do {
@@ -71,7 +73,7 @@ do {
   };
   let bids = auction.getOrders(user, #bid, ?ft);
   assert bids.size() == 1;
-  assert bids[0].1.price == 1_000;
+  assert bids[0].1.price.round() == 1_000;
   assert bids[0].1.volume == 2_000;
   assert auction.getCredit(user, 0).available == 498_000_000;
 };
@@ -199,7 +201,7 @@ do {
   let bids = auction.getOrders(user, #bid, ?ft);
   assert bids.size() == 1;
   assert bids[0].0 == orderId;
-  assert bids[0].1.price == 125_000;
+  assert bids[0].1.price.round() == 125_000;
   assert bids[0].1.volume == 2_000;
 };
 
@@ -346,7 +348,7 @@ do {
   // check bid. Volume should be lowered by 500
   let bids = auction.getOrders(user3, #bid, ?ft);
   assert bids.size() == 1;
-  assert bids[0].1.price == 100_000;
+  assert bids[0].1.price.round() == 100_000;
   assert bids[0].1.volume == 1_000;
   // check that partial bid recorded in history
   let ?historyItem = auction.getTransactionHistory(user3, [ft], #desc).next() else Prim.trap("");

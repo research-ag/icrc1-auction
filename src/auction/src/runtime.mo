@@ -15,6 +15,8 @@ import Prim "mo:prim";
 
 import PriorityQueue "./models/priority_queue";
 
+import DecimalNat "mo:safe-financial-math/DecimalNat";
+
 import Account "./account";
 import Asset "./asset";
 import AssetsStorage "./assets_storage";
@@ -87,11 +89,11 @@ module {
           if (quoteSurplus > 0) {
             auction.users.quoteSurplus += quoteSurplus;
           };
-          ret.add((price, volume, fulfilledOrders));
+          ret.add((price.toFloat(), volume, fulfilledOrders));
           let executionsCounter = assetInfo.immediateExecutionsCounter;
           assetInfo.immediateExecutionsCounter += 1;
-          auction.assets.pushToHistory(#immediate, (Prim.time(), executionsCounter, assetId, volume, price));
-          assetInfo.lastImmediateRate := price;
+          auction.assets.pushToHistory(#immediate, (Prim.time(), executionsCounter, assetId, volume, price.toFloat()));
+          assetInfo.lastImmediateRate := price.toFloat();
         };
         ret.toArray();
       }
@@ -194,7 +196,7 @@ module {
             let ret : List.List<T.CancellationResult> = List.empty();
             for (orderId in userOrderBook.map.keys().toArray().values()) {
               let ?order = ordersService.cancel(user, orderId) else Prim.trap("Can never happen");
-              ret.add((orderId, order.assetId, order.orderBookType, order.volume, order.price));
+              ret.add((orderId, order.assetId, order.orderBookType, order.volume, order.price.toFloat()));
             };
             ret.toArray();
           },
@@ -218,7 +220,7 @@ module {
             let ret : List.List<T.CancellationResult> = List.empty();
             for (orderId in orderIds.values()) {
               let ?order = ordersService.cancel(user, orderId) else Prim.trap("Can never happen");
-              ret.add((orderId, order.assetId, order.orderBookType, order.volume, order.price));
+              ret.add((orderId, order.assetId, order.orderBookType, order.volume, order.price.toFloat()));
             };
             List.toArray(ret);
           },
@@ -258,7 +260,7 @@ module {
               cancellationCommitActions,
               func() {
                 let ?order = ordersService.cancel(user, orderId) else return [];
-                [(orderId, order.assetId, order.orderBookType, order.volume, order.price)];
+                [(orderId, order.assetId, order.orderBookType, order.volume, order.price.toFloat())];
               },
             );
             assetIdSet.add(oldOrder.assetId, i);
@@ -278,11 +280,12 @@ module {
 
         // validate order volume and price
         let asset = auction.assets.getAsset(assetId);
-        let ?price = roundPriceDigits(rawPrice) else return #err(#placement({ index = i; error = #PriceDigitsOverflow({ maxDigits = priceMaxDigits }) }));
+        let ?priceF = roundPriceDigits(rawPrice) else return #err(#placement({ index = i; error = #PriceDigitsOverflow({ maxDigits = priceMaxDigits }) }));
+        let price = T.priceToDecimal(priceF);
 
         if (ordersService.isOrderLow(assetId, asset, volume, price)) return #err(#placement({ index = i; error = #TooLowOrder }));
 
-        let baseVolumeStep = getBaseVolumeStep(price);
+        let baseVolumeStep = getBaseVolumeStep(priceF);
         if (volume % baseVolumeStep != 0) return #err(#placement({ index = i; error = #VolumeStepViolated({ baseVolumeStep }) }));
 
         // validate user credit
@@ -478,7 +481,7 @@ module {
             userId = userIndex;
             assetId;
             orderBookType = #delayed;
-            price;
+            price = T.priceToDecimal(price);
             var volume = volume;
           };
           let lockVolume = ordersService.srcVolume(order.volume, order.price);
@@ -504,11 +507,11 @@ module {
           if (not lockSuccess) continue il;
           switch (kind) {
             case (#ask) {
-              let (queueUpd, _) = asksQueue.insert(order, func(a, b) = Float.compare(b.price, a.price));
+              let (queueUpd, _) = asksQueue.insert(order, func(a, b) = DecimalNat.compare(b.price, a.price));
               asksQueue := queueUpd;
             };
             case (#bid) {
-              let (queueUpd, _) = bidsQueue.insert(order, func(a, b) = Float.compare(a.price, b.price));
+              let (queueUpd, _) = bidsQueue.insert(order, func(a, b) = DecimalNat.compare(a.price, b.price));
               bidsQueue := queueUpd;
             };
           };

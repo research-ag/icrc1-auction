@@ -3,6 +3,8 @@ import Int "mo:core/Int";
 import Prim "mo:prim";
 import Principal "mo:core/Principal";
 
+import { multiplyNatByFloatMax } "mo:safe-financial-math";
+
 import Auction "../src/lib";
 
 import { init; createFt } "./test.util";
@@ -84,9 +86,7 @@ do {
   let askVolume = 1_000_000_000_000;
   let askPrice = 0.0000000022790000000000002;
 
-  func denominateVolumeInQuoteAsset(volume : Nat, unitPrice : Float) : Nat = unitPrice * Int.toFloat(volume)
-  |> Float.ceil(_)
-  |> Int.abs(Float.toInt(_));
+  func denominateVolumeInQuoteAsset(volume : Nat, unitPrice : Float) : Nat = multiplyNatByFloatMax(volume, unitPrice);
 
   ignore auction.appendCredit(user, 0, denominateVolumeInQuoteAsset(bidVolume, bidPrice));
   let oid = switch (auction.placeOrder(user, #bid, ft, #delayed, bidVolume, bidPrice, null, runtime)) {
@@ -96,6 +96,8 @@ do {
       0;
     };
   };
+
+  Prim.trap("debug: user credit: " # debug_show auction.getCredit(user, 0));
 
   assert auction.getCredit(user, 0).locked == denominateVolumeInQuoteAsset(bidVolume, bidPrice);
 
