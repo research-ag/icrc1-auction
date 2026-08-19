@@ -6,7 +6,7 @@ token-handler = "https://github.com/research-ag/token-handler#04fedaeaa56534d5e5
 ckbtc-address = "0.0.2"
 auction = "3.0.5"
 promtracker = "1.0.1"
-safe-financial-math = "https://github.com/research-ag/safe-financial-math#master@bec0451c10a13e5820dfdac91c4633cdee503ec5"
+safe-financial-math = "https://github.com/research-ag/safe-financial-math#master@3dfd34cd829b9e3d320738c3b74e4bf2014595e5"
 motoko-scheduler = "https://github.com/research-ag/motoko-scheduler#master@88bafb53eec6e31939c26b80d09c29d35fe6f643"
 
 [toolchain]
