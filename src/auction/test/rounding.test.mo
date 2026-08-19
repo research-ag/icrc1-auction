@@ -97,8 +97,6 @@ do {
     };
   };
 
-  Prim.trap("debug: user credit: " # debug_show auction.getCredit(user, 0));
-
   assert auction.getCredit(user, 0).locked == denominateVolumeInQuoteAsset(bidVolume, bidPrice);
 
   switch (auction.placeOrder(seller, #ask, ft, #delayed, askVolume, askPrice, null, runtime)) {

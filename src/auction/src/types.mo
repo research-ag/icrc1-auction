@@ -10,7 +10,9 @@ import PriorityQueue "./models/priority_queue";
 
 module {
 
-  public func priceToDecimal(price : Float) : DecimalNat.DecimalNat = DecimalNat.new(Int.abs(Float.toInt(Float.floor(price * 100_000_000.0))), 8);
+  public func priceToDecimal(price : Float) : DecimalNat.DecimalNat {
+    DecimalNat.new(Int.abs(Float.toInt(Float.floor(price * 1_000_000_000_000.0))), 12);
+  };
 
   public type UserId = Nat;
   public type AssetId = Nat;
