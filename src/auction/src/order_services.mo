@@ -13,7 +13,7 @@ import Map "mo:core/Map";
 import VarArray "mo:core/VarArray";
 import List "mo:core/List";
 
-import { multiplyNatByFloatMin; multiplyNatByFloatMax } "mo:safe-financial-math";
+import { multiplyNatByFloatMinSafe; multiplyNatByFloatMaxSafe } "mo:safe-financial-math";
 
 import Account "./account";
 import AssetsStorage "./assets_storage";
@@ -137,9 +137,9 @@ module {
 
     func denominateVolumeInQuoteAsset(volume : Nat, unitPrice : Float) : Nat {
       if (kind == #ask) {
-        multiplyNatByFloatMin(volume, unitPrice);
+        multiplyNatByFloatMinSafe(volume, unitPrice);
       } else {
-        multiplyNatByFloatMax(volume, unitPrice);
+        multiplyNatByFloatMaxSafe(volume, unitPrice);
       };
     };
 
@@ -216,7 +216,7 @@ module {
 
       // source and destination volumes
       let srcVol = switch (isPartial, kind) {
-        case (true, #bid) multiplyNatByFloatMax(baseVolume, price);
+        case (true, #bid) multiplyNatByFloatMaxSafe(baseVolume, price);
         case (_) srcVolume(baseVolume, price);
       };
       let destVol = destVolume(baseVolume, price);
