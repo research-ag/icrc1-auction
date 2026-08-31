@@ -49,10 +49,7 @@ const schema = zod.object({
 });
 
 const DarkOrdersModal = ({ isOpen, onClose, editLedger, editOrders }: DarkOrdersModalProps) => {
-  const defaultValues: FormValues = useMemo(
-    () => ({ symbol: '', rows: [{ kind: 'bid', volume: '', price: '' }] }),
-    [],
-  );
+  const defaultValues: FormValues = useMemo(() => ({ symbol: '', rows: [{ kind: 'bid', volume: '', price: '' }] }), []);
 
   const { control, handleSubmit, reset, watch } = useForm<FormValues>({
     defaultValues,
@@ -88,9 +85,14 @@ const DarkOrdersModal = ({ isOpen, onClose, editLedger, editOrders }: DarkOrders
     if (editLedger) {
       const mapItem = (symbols || []).find(([p]) => p.toText() === editLedger.toText());
       const symbol = mapItem ? mapItem[1].symbol : '';
-      const mappedRows: OrderRow[] = editOrders && editOrders.length > 0
-        ? editOrders.map(o => ({ kind: o.kind as 'ask' | 'bid', volume: o.volume.toString(), price: o.price.toString() }))
-        : [{ kind: 'bid', volume: '', price: '' }];
+      const mappedRows: OrderRow[] =
+        editOrders && editOrders.length > 0
+          ? editOrders.map(o => ({
+              kind: o.kind as 'ask' | 'bid',
+              volume: o.volume.toString(),
+              price: o.price.toString(),
+            }))
+          : [{ kind: 'bid', volume: '', price: '' }];
       reset({ symbol, rows: mappedRows });
     } else {
       reset(defaultValues);
@@ -145,8 +147,7 @@ const DarkOrdersModal = ({ isOpen, onClose, editLedger, editOrders }: DarkOrders
                     onBlur={field.onBlur}
                     name={field.name}
                     disabled={!!editLedger}
-                    placeholder="Select token"
-                  >
+                    placeholder="Select token">
                     {(symbols || [])
                       .filter(([p, s]) => p.toText() !== (quoteLedger?.toText() || ''))
                       .map(([p, s]) => (
@@ -177,22 +178,36 @@ const DarkOrdersModal = ({ isOpen, onClose, editLedger, editOrders }: DarkOrders
 
                 <FormControl>
                   <FormLabel>Volume</FormLabel>
-                  <Controller control={control} name={`rows.${i}.volume` as any} render={({ field }) => <Input {...field} />} />
+                  <Controller
+                    control={control}
+                    name={`rows.${i}.volume` as any}
+                    render={({ field }) => <Input {...field} />}
+                  />
                 </FormControl>
 
                 <FormControl>
                   <FormLabel>Price</FormLabel>
-                  <Controller control={control} name={`rows.${i}.price` as any} render={({ field }) => <Input {...field} />} />
+                  <Controller
+                    control={control}
+                    name={`rows.${i}.price` as any}
+                    render={({ field }) => <Input {...field} />}
+                  />
                 </FormControl>
 
-                <Button variant="outlined" color="danger" onClick={() => removeRow(i)} disabled={(rows || []).length <= 1}>
+                <Button
+                  variant="outlined"
+                  color="danger"
+                  onClick={() => removeRow(i)}
+                  disabled={(rows || []).length <= 1}>
                   Remove
                 </Button>
               </Box>
             ))}
 
             <Box>
-              <Button variant="outlined" onClick={addRow}>Add order</Button>
+              <Button variant="outlined" onClick={addRow}>
+                Add order
+              </Button>
             </Box>
 
             {!!error && <ErrorAlert errorMessage={(error as Error).message} />}

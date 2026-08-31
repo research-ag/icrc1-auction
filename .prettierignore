@@ -1,0 +1,14 @@
+.mops/
+.icp/
+mops.lock
+node_modules/
+package-lock.json
+.dfx/
+build/
+dist/
+target/
+canister_ids.json
+declarations/
+out/
+skills-lock.json
+.agents

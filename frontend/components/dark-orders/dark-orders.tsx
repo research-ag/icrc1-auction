@@ -61,15 +61,18 @@ const DarkOrders = () => {
       const scaleExp = quoteDecimals - baseDecimals;
       const scaleDiv = Math.pow(10, scaleExp);
       const volDiv = Math.pow(10, baseDecimals);
-      return text.split(';').filter(Boolean).map(part => {
-        const [k, vStr, pStr] = part.split(':');
-        const kind = (k === 'ask' ? 'ask' : 'bid') as 'ask' | 'bid';
-        const vInt = Number(vStr);
-        const pInt = Number(pStr);
-        const volume = isFinite(vInt) ? vInt / volDiv : 0;
-        const price = isFinite(pInt) ? pInt / scaleDiv : 0;
-        return { kind, volume, price };
-      });
+      return text
+        .split(';')
+        .filter(Boolean)
+        .map(part => {
+          const [k, vStr, pStr] = part.split(':');
+          const kind = (k === 'ask' ? 'ask' : 'bid') as 'ask' | 'bid';
+          const vInt = Number(vStr);
+          const pInt = Number(pStr);
+          const volume = isFinite(vInt) ? vInt / volDiv : 0;
+          const price = isFinite(pInt) ? pInt / scaleDiv : 0;
+          return { kind, volume, price };
+        });
     } catch (_) {
       return [];
     }
@@ -79,16 +82,18 @@ const DarkOrders = () => {
   useEffect(() => {
     const run = async () => {
       const qd = getQuoteDecimals();
-      const list = await Promise.all((darkBooks ?? []).map(async ([ledger, enc]) => {
-        const info = getInfo(ledger);
-        const localEnc = new Uint8Array(Object.values(enc[0]));
-        let plain = await decryptWithVetKD(identity, localEnc);
-        if (!plain) {
-          plain = localEnc;
-        }
-        const orders = parseOrdersFromBytes(plain, info.decimals, qd);
-        return { ledger, symbol: info.symbol, orders };
-      }));
+      const list = await Promise.all(
+        (darkBooks ?? []).map(async ([ledger, enc]) => {
+          const info = getInfo(ledger);
+          const localEnc = new Uint8Array(Object.values(enc[0]));
+          let plain = await decryptWithVetKD(identity, localEnc);
+          if (!plain) {
+            plain = localEnc;
+          }
+          const orders = parseOrdersFromBytes(plain, info.decimals, qd);
+          return { ledger, symbol: info.symbol, orders };
+        }),
+      );
       setTableRows(list);
     };
     run().catch(() => setTableRows([]));
@@ -99,49 +104,59 @@ const DarkOrders = () => {
       <Box sx={{ width: '100%', overflow: 'auto' }}>
         <Table>
           <colgroup>
-            <col style={{ width: '150px' }}/>
-            <col style={{ width: '150px' }}/>
-            <col/>
-            <col style={{ width: '160px' }}/>
+            <col style={{ width: '150px' }} />
+            <col style={{ width: '150px' }} />
+            <col />
+            <col style={{ width: '160px' }} />
           </colgroup>
           <thead>
-          <tr>
-            <th>Token symbol</th>
-            <th>Ledger Principal</th>
-            <th>Orders</th>
-            <th></th>
-          </tr>
+            <tr>
+              <th>Token symbol</th>
+              <th>Ledger Principal</th>
+              <th>Orders</th>
+              <th></th>
+            </tr>
           </thead>
           <tbody>
-          {tableRows.map(({ ledger, symbol, orders }, i) => (
-            <tr key={i}>
-              <td><InfoItem content={symbol} withCopy={true}/></td>
-              <td><Typography level="body-sm">{ledger.toText()}</Typography></td>
-              <td>
-                {orders.length === 0 ? (
-                  <Typography level="body-sm" color="neutral">No orders</Typography>
-                ) : (
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                    {orders.map((o, idx) => (
-                      <Typography key={idx} level="body-sm">
-                        {o.kind.toUpperCase()} {o.volume} @ {o.price}
-                      </Typography>
-                    ))}
+            {tableRows.map(({ ledger, symbol, orders }, i) => (
+              <tr key={i}>
+                <td>
+                  <InfoItem content={symbol} withCopy={true} />
+                </td>
+                <td>
+                  <Typography level="body-sm">{ledger.toText()}</Typography>
+                </td>
+                <td>
+                  {orders.length === 0 ? (
+                    <Typography level="body-sm" color="neutral">
+                      No orders
+                    </Typography>
+                  ) : (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                      {orders.map((o, idx) => (
+                        <Typography key={idx} level="body-sm">
+                          {o.kind.toUpperCase()} {o.volume} @ {o.price}
+                        </Typography>
+                      ))}
+                    </Box>
+                  )}
+                </td>
+                <td>
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <Button size="sm" onClick={() => openEdit(ledger)}>
+                      Edit
+                    </Button>
+                    <Button size="sm" color="danger" onClick={() => deleteBook(ledger)}>
+                      Remove
+                    </Button>
                   </Box>
-                )}
-              </td>
-              <td>
-                <Box sx={{ display: 'flex', gap: 1 }}>
-                  <Button size="sm" onClick={() => openEdit(ledger)}>Edit</Button>
-                  <Button size="sm" color="danger" onClick={() => deleteBook(ledger)}>Remove</Button>
-                </Box>
-              </td>
-            </tr>
-          ))}
+                </td>
+              </tr>
+            ))}
           </tbody>
         </Table>
       </Box>
-      <DarkOrdersModal isOpen={isModalOpen} onClose={closeModal} editLedger={editLedger} editOrders={editOrders}/>
+      <DarkOrdersModal isOpen={isModalOpen} onClose={closeModal} editLedger={editLedger} editOrders={editOrders} />
     </PageTemplate>
   );
 };

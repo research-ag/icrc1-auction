@@ -1,31 +1,33 @@
-import Iter "mo:base/Iter";
+import Iter "mo:core/Iter";
 import Prim "mo:prim";
-import Principal "mo:base/Principal";
+import Principal "mo:core/Principal";
+
+import Auction "../src/lib";
 
 import { init; createFt } "./test.util";
 
 do {
   Prim.debugPrint("should return price history with ascending order...");
-  let (auction, user) = init(0, 3, 5);
+  let (auction, runtime, user) = init(0, 3, 5);
   let seller = Principal.fromText("ocqy6-3dphi-xgf54-vkr2e-lk4oz-3exc6-446gr-5e72g-bsdfo-4nzrm-hqe");
 
   let ft1 = createFt(auction);
   ignore auction.appendCredit(seller, ft1, 500_000_000);
-  ignore auction.placeOrder(seller, #ask, ft1, #delayed, 1_000, 100_000, null);
+  ignore auction.placeOrder(seller, #ask, ft1, #delayed, 1_000, 100_000, null, runtime);
 
   let ft2 = createFt(auction);
   ignore auction.appendCredit(seller, ft2, 500_000_000);
-  ignore auction.placeOrder(seller, #ask, ft2, #delayed, 1_000, 100_000, null);
+  ignore auction.placeOrder(seller, #ask, ft2, #delayed, 1_000, 100_000, null, runtime);
 
   let ft3 = createFt(auction);
 
   ignore auction.appendCredit(user, 0, 500_000_000);
-  ignore auction.placeOrder(user, #bid, ft1, #delayed, 1_000, 100_000, null);
-  ignore auction.placeOrder(user, #bid, ft2, #delayed, 1_000, 100_000, null);
+  ignore auction.placeOrder(user, #bid, ft1, #delayed, 1_000, 100_000, null, runtime);
+  ignore auction.placeOrder(user, #bid, ft2, #delayed, 1_000, 100_000, null, runtime);
 
-  auction.processAsset(ft1);
-  auction.processAsset(ft2);
-  auction.processAsset(ft3);
+  auction.processAsset(ft1, runtime);
+  auction.processAsset(ft2, runtime);
+  auction.processAsset(ft3, runtime);
 
   let history = Iter.toArray(auction.getPriceHistory([], #asc, false));
   assert history.size() == 3;
@@ -42,26 +44,26 @@ do {
 
 do {
   Prim.debugPrint("should return price history with descending order...");
-  let (auction, user) = init(0, 3, 5);
+  let (auction, runtime, user) = init(0, 3, 5);
   let seller = Principal.fromText("ocqy6-3dphi-xgf54-vkr2e-lk4oz-3exc6-446gr-5e72g-bsdfo-4nzrm-hqe");
 
   let ft1 = createFt(auction);
   ignore auction.appendCredit(seller, ft1, 500_000_000);
-  ignore auction.placeOrder(seller, #ask, ft1, #delayed, 1_000, 100_000, null);
+  ignore auction.placeOrder(seller, #ask, ft1, #delayed, 1_000, 100_000, null, runtime);
 
   let ft2 = createFt(auction);
   ignore auction.appendCredit(seller, ft2, 500_000_000);
-  ignore auction.placeOrder(seller, #ask, ft2, #delayed, 1_000, 100_000, null);
+  ignore auction.placeOrder(seller, #ask, ft2, #delayed, 1_000, 100_000, null, runtime);
 
   let ft3 = createFt(auction);
 
   ignore auction.appendCredit(user, 0, 500_000_000);
-  ignore auction.placeOrder(user, #bid, ft1, #delayed, 1_000, 100_000, null);
-  ignore auction.placeOrder(user, #bid, ft2, #delayed, 1_000, 100_000, null);
+  ignore auction.placeOrder(user, #bid, ft1, #delayed, 1_000, 100_000, null, runtime);
+  ignore auction.placeOrder(user, #bid, ft2, #delayed, 1_000, 100_000, null, runtime);
 
-  auction.processAsset(ft1);
-  auction.processAsset(ft2);
-  auction.processAsset(ft3);
+  auction.processAsset(ft1, runtime);
+  auction.processAsset(ft2, runtime);
+  auction.processAsset(ft3, runtime);
 
   let history = Iter.toArray(auction.getPriceHistory([], #desc, false));
   assert history.size() == 3;
@@ -78,26 +80,26 @@ do {
 
 do {
   Prim.debugPrint("should filter price history...");
-  let (auction, user) = init(0, 3, 5);
+  let (auction, runtime, user) = init(0, 3, 5);
   let seller = Principal.fromText("ocqy6-3dphi-xgf54-vkr2e-lk4oz-3exc6-446gr-5e72g-bsdfo-4nzrm-hqe");
 
   let ft1 = createFt(auction);
   ignore auction.appendCredit(seller, ft1, 500_000_000);
-  ignore auction.placeOrder(seller, #ask, ft1, #delayed, 1_000, 100_000, null);
+  ignore auction.placeOrder(seller, #ask, ft1, #delayed, 1_000, 100_000, null, runtime);
 
   let ft2 = createFt(auction);
   ignore auction.appendCredit(seller, ft2, 500_000_000);
-  ignore auction.placeOrder(seller, #ask, ft2, #delayed, 1_000, 100_000, null);
+  ignore auction.placeOrder(seller, #ask, ft2, #delayed, 1_000, 100_000, null, runtime);
 
   let ft3 = createFt(auction);
 
   ignore auction.appendCredit(user, 0, 500_000_000);
-  ignore auction.placeOrder(user, #bid, ft1, #delayed, 1_000, 100_000, null);
-  ignore auction.placeOrder(user, #bid, ft2, #delayed, 1_000, 100_000, null);
+  ignore auction.placeOrder(user, #bid, ft1, #delayed, 1_000, 100_000, null, runtime);
+  ignore auction.placeOrder(user, #bid, ft2, #delayed, 1_000, 100_000, null, runtime);
 
-  auction.processAsset(ft1);
-  auction.processAsset(ft2);
-  auction.processAsset(ft3);
+  auction.processAsset(ft1, runtime);
+  auction.processAsset(ft2, runtime);
+  auction.processAsset(ft3, runtime);
 
   let history = Iter.toArray(auction.getPriceHistory([], #desc, true));
   assert history.size() == 2;
@@ -111,23 +113,23 @@ do {
 
 do {
   Prim.debugPrint("should return transaction history with ascending order...");
-  let (auction, user) = init(0, 3, 5);
+  let (auction, runtime, user) = init(0, 3, 5);
   let seller = Principal.fromText("ocqy6-3dphi-xgf54-vkr2e-lk4oz-3exc6-446gr-5e72g-bsdfo-4nzrm-hqe");
 
   let ft1 = createFt(auction);
   ignore auction.appendCredit(seller, ft1, 500_000_000);
-  ignore auction.placeOrder(seller, #ask, ft1, #delayed, 1_000, 100_000, null);
+  ignore auction.placeOrder(seller, #ask, ft1, #delayed, 1_000, 100_000, null, runtime);
 
   let ft2 = createFt(auction);
   ignore auction.appendCredit(seller, ft2, 500_000_000);
-  ignore auction.placeOrder(seller, #ask, ft2, #delayed, 1_000, 100_000, null);
+  ignore auction.placeOrder(seller, #ask, ft2, #delayed, 1_000, 100_000, null, runtime);
 
   ignore auction.appendCredit(user, 0, 500_000_000);
-  ignore auction.placeOrder(user, #bid, ft1, #delayed, 1_000, 100_000, null);
-  ignore auction.placeOrder(user, #bid, ft2, #delayed, 1_000, 100_000, null);
+  ignore auction.placeOrder(user, #bid, ft1, #delayed, 1_000, 100_000, null, runtime);
+  ignore auction.placeOrder(user, #bid, ft2, #delayed, 1_000, 100_000, null, runtime);
 
-  auction.processAsset(ft1);
-  auction.processAsset(ft2);
+  auction.processAsset(ft1, runtime);
+  auction.processAsset(ft2, runtime);
 
   let history = Iter.toArray(auction.getTransactionHistory(user, [], #asc));
   assert history[0].3 == ft1;
@@ -136,23 +138,23 @@ do {
 
 do {
   Prim.debugPrint("should return transaction history with descending order...");
-  let (auction, user) = init(0, 3, 5);
+  let (auction, runtime, user) = init(0, 3, 5);
   let seller = Principal.fromText("ocqy6-3dphi-xgf54-vkr2e-lk4oz-3exc6-446gr-5e72g-bsdfo-4nzrm-hqe");
 
   let ft1 = createFt(auction);
   ignore auction.appendCredit(seller, ft1, 500_000_000);
-  ignore auction.placeOrder(seller, #ask, ft1, #delayed, 1_000, 100_000, null);
+  ignore auction.placeOrder(seller, #ask, ft1, #delayed, 1_000, 100_000, null, runtime);
 
   let ft2 = createFt(auction);
   ignore auction.appendCredit(seller, ft2, 500_000_000);
-  ignore auction.placeOrder(seller, #ask, ft2, #delayed, 1_000, 100_000, null);
+  ignore auction.placeOrder(seller, #ask, ft2, #delayed, 1_000, 100_000, null, runtime);
 
   ignore auction.appendCredit(user, 0, 500_000_000);
-  ignore auction.placeOrder(user, #bid, ft1, #delayed, 1_000, 100_000, null);
-  ignore auction.placeOrder(user, #bid, ft2, #delayed, 1_000, 100_000, null);
+  ignore auction.placeOrder(user, #bid, ft1, #delayed, 1_000, 100_000, null, runtime);
+  ignore auction.placeOrder(user, #bid, ft2, #delayed, 1_000, 100_000, null, runtime);
 
-  auction.processAsset(ft1);
-  auction.processAsset(ft2);
+  auction.processAsset(ft1, runtime);
+  auction.processAsset(ft2, runtime);
 
   let history = Iter.toArray(auction.getTransactionHistory(user, [], #desc));
   assert history[0].3 == ft2;

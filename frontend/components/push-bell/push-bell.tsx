@@ -27,23 +27,23 @@ const PushBell = ({ sx }: PushBellProps) => {
         color={uiLoading ? 'neutral' : colorByState(effectiveEnabled)}
         disabled={uiLoading || identity.getPrincipal().isAnonymous() || !('Notification' in window)}
         onClick={() => setOpen(true)}
-        sx={{ position: 'relative', ...sx }}
-      >
-        {uiLoading ? (
-          <CircularProgress size="sm" thickness={3}/>
-        ) : (
-          <Notifications/>
-        )}
+        sx={{ position: 'relative', ...sx }}>
+        {uiLoading ? <CircularProgress size="sm" thickness={3} /> : <Notifications />}
       </IconButton>
       <Modal open={open} onClose={() => setOpen(false)}>
         <ModalDialog sx={{ width: 'calc(100% - 50px)', maxWidth: '520px' }}>
-          <ModalClose/>
-          <Typography level="h4" sx={{ mb: 1 }}>Push notifications</Typography>
+          <ModalClose />
+          <Typography level="h4" sx={{ mb: 1 }}>
+            Push notifications
+          </Typography>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Typography level="body-sm">Permission:</Typography>
-              <Chip size="sm"
-                    color={status.permission === 'granted' ? 'success' : status.permission === 'denied' ? 'danger' : 'neutral'}>
+              <Chip
+                size="sm"
+                color={
+                  status.permission === 'granted' ? 'success' : status.permission === 'denied' ? 'danger' : 'neutral'
+                }>
                 {status.permission}
               </Chip>
             </Box>
@@ -71,8 +71,12 @@ const PushBell = ({ sx }: PushBellProps) => {
               </Typography>
             )}
             <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
-              <Button size="sm" color="success" loading={loading} onClick={() => enable()}>Enable</Button>
-              <Button size="sm" color="neutral" loading={loading} onClick={() => disable()}>Disable</Button>
+              <Button size="sm" color="success" loading={loading} onClick={() => enable()}>
+                Enable
+              </Button>
+              <Button size="sm" color="neutral" loading={loading} onClick={() => disable()}>
+                Disable
+              </Button>
             </Box>
           </Box>
         </ModalDialog>

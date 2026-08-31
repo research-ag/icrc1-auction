@@ -7,7 +7,7 @@ import { Box, Button, FormControl, FormLabel, Input, Modal, ModalClose, ModalDia
 import { useTokenInfoMap, useWithdrawCredit } from '@fe/integration';
 import ErrorAlert from '../../../components/error-alert';
 import { enqueueSnackbar } from 'notistack';
-import { validatePrincipal } from "@fe/utils";
+import { validatePrincipal } from '@fe/utils';
 
 interface WithdrawCreditFormValues {
   amount: number;
@@ -26,9 +26,7 @@ const schema = zod.object({
     .string()
     .min(0)
     .refine(value => !isNaN(Number(value))),
-  owner: zod
-    .string()
-    .refine(value => value === '' || validatePrincipal(value)),
+  owner: zod.string().refine(value => value === '' || validatePrincipal(value)),
   subaccount: zod.string(),
 });
 
@@ -87,7 +85,7 @@ const WithdrawCreditModal = ({ isOpen, onClose, ledger }: WithdrawCreditModalPro
         ledger,
         subaccount,
         owner: data.owner === '' ? undefined : data.owner,
-        amount: Math.round(data.amount * Math.pow(10, decimals))
+        amount: Math.round(data.amount * Math.pow(10, decimals)),
       },
       {
         onSuccess: () => {
@@ -105,7 +103,7 @@ const WithdrawCreditModal = ({ isOpen, onClose, ledger }: WithdrawCreditModalPro
   return (
     <Modal open={isOpen} onClose={onClose}>
       <ModalDialog sx={{ width: 'calc(100% - 50px)', maxWidth: '450px' }}>
-        <ModalClose/>
+        <ModalClose />
         <Typography level="h4">Withdraw credit (ledger {ledger})</Typography>
         <form onSubmit={handleSubmit(submit)} autoComplete="off">
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -164,7 +162,7 @@ const WithdrawCreditModal = ({ isOpen, onClose, ledger }: WithdrawCreditModalPro
               )}
             />
           </Box>
-          {!!error && <ErrorAlert errorMessage={(error as Error).message}/>}
+          {!!error && <ErrorAlert errorMessage={(error as Error).message} />}
           <Button
             sx={{ marginTop: 2 }}
             variant="solid"

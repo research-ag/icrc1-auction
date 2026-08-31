@@ -3,11 +3,26 @@ on:
   pull_request:
     types: [synchronize, opened, reopened, ready_for_review, unlabeled]
 
-env:
-  dfx_version: 0.29.0
-
 jobs:
+  fmt:
+    name: Formatting Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: latest
+
+      - name: Prettier Check
+        run: |
+          npm install prettier prettier-plugin-motoko --no-save
+          npx prettier --plugin prettier-plugin-motoko --check '**/*.{mo,json,md,ts,tsx,js}'
+
   build:
+    name: Build and Test
     runs-on: ubuntu-22.04
 
     steps:
@@ -20,20 +35,44 @@ jobs:
       - name: Install mops
         uses: ZenVoich/setup-mops@v1.3.1
 
-      - name: Install dfx
-        uses: dfinity/setup-dfx@main
+      - name: Install icp
+        run: |
+          npm install -g @icp-sdk/icp-cli @icp-sdk/ic-wasm
 
       - name: Make sure moc is installed
         run: mops toolchain bin moc || mops toolchain use moc latest
 
-      - name: Start local dfx
-        run: dfx start --host 127.0.0.1:4943 --background
+      - name: Install Rust toolchain
+        run: |
+          # Pre-install the pinned toolchain and wasm target serially, before
+          # `icp deploy` builds the `crypto` and `crypto_mock` Rust packages in
+          # parallel. Otherwise both cargo invocations trigger a concurrent
+          # rustup download of the same toolchain and race on
+          # ~/.rustup/downloads, failing with
+          # "could not rename 'downloaded' file ... No such file or directory".
+          # The retry loop also guards against transient download hiccups that
+          # produce the same rename error on a single run.
+          for i in 1 2 3 4 5; do
+            rustup toolchain install 1.86.0 --profile minimal --target wasm32-unknown-unknown && break
+            echo "rustup toolchain install failed (attempt $i), retrying in 10s..."
+            sleep 10
+          done
+          rustup show
+
+      - name: Start local network
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for i in 1 2 3 4 5; do
+            icp network start -d && break
+            echo "icp network start failed (attempt $i), retrying in 10s..."
+            sleep 10
+          done
 
       - name: Build canisters and prepare tests
         run: |
           npm i
           npm run create
-          npm run setup
 
       - name: Run mops tests
         run: |
@@ -43,22 +82,21 @@ jobs:
         run: |
           npm run test
 
-      - name: Stop local dfx
-        run: dfx stop
+      - name: Stop local network
+        run: icp network stop
 
       - name: Make bin directory
         run: mkdir -p /home/runner/bin
 
       - name: Get didc
         run: |
-          release=$(curl --silent "https://api.github.com/repos/dfinity/candid/releases/latest" | awk -F\" '/tag_name/ { print $4 }')  	
           release=2025-07-29
           curl -fsSL https://github.com/dfinity/candid/releases/download/$release/didc-linux64 > /home/runner/bin/didc
           chmod +x /home/runner/bin/didc
           echo "/home/runner/bin" >> $GITHUB_PATH
 
       - name: Check implementation against public did file
-        run: didc check .dfx/local/canisters/icrc1_auction_development/icrc1_auction_development.did did/icrc1_auction.did
+        run: didc check .mops/.build/icrc1_auction_development.did did/icrc1_auction.did
 
       - name: Check public did file against icrc84 standard
         run: didc check did/icrc1_auction.did $(ls -d .mops/icrc-84*)/icrc-84.did

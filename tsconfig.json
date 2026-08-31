@@ -18,8 +18,8 @@
     "types": ["vite/client", "jest", "node"],
     "baseUrl": "./",
     "paths": {
-      "@declarations": ["./declarations"],
-      "@declarations/*": ["./declarations/*"],
+      "@declarations": ["./frontend/src/bindings"],
+      "@declarations/*": ["./frontend/src/bindings/*"],
       "@fe": ["./frontend"],
       "@fe/*": ["./frontend/*"]
     }

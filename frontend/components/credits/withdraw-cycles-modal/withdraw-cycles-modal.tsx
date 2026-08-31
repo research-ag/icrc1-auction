@@ -6,7 +6,7 @@ import { Box, Button, FormControl, FormLabel, Input, Modal, ModalClose, ModalDia
 
 import { useWithdrawCycles } from '@fe/integration';
 import ErrorAlert from '../../../components/error-alert';
-import { validatePrincipal } from "@fe/utils";
+import { validatePrincipal } from '@fe/utils';
 
 interface WithdrawCyclesFormValues {
   amount: number;
@@ -23,9 +23,7 @@ const schema = zod.object({
     .string()
     .min(0)
     .refine(value => !isNaN(Number(value))),
-  to: zod
-    .string()
-    .refine(value => value === '' || validatePrincipal(value)),
+  to: zod.string().refine(value => value === '' || validatePrincipal(value)),
 });
 
 const WithdrawCyclesModal = ({ isOpen, onClose }: WithdrawCyclesModalProps) => {
@@ -51,7 +49,6 @@ const WithdrawCyclesModal = ({ isOpen, onClose }: WithdrawCyclesModalProps) => {
 
   const { mutate: withdraw, error, isLoading, reset: resetApi } = useWithdrawCycles();
 
-
   const submit: SubmitHandler<WithdrawCyclesFormValues> = data => {
     withdraw(
       { to: data.to, amount: Math.round(data.amount * Math.pow(10, 12)) },
@@ -71,7 +68,7 @@ const WithdrawCyclesModal = ({ isOpen, onClose }: WithdrawCyclesModalProps) => {
   return (
     <Modal open={isOpen} onClose={onClose}>
       <ModalDialog sx={{ width: 'calc(100% - 50px)', maxWidth: '450px' }}>
-        <ModalClose/>
+        <ModalClose />
         <Typography level="h4">Withdraw cycles directly</Typography>
         <form onSubmit={handleSubmit(submit)} autoComplete="off">
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -112,7 +109,7 @@ const WithdrawCyclesModal = ({ isOpen, onClose }: WithdrawCyclesModalProps) => {
               )}
             />
           </Box>
-          {!!error && <ErrorAlert errorMessage={(error as Error).message}/>}
+          {!!error && <ErrorAlert errorMessage={(error as Error).message} />}
           <Button
             sx={{ marginTop: 2 }}
             variant="solid"

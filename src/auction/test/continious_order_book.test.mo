@@ -1,16 +1,18 @@
-import Iter "mo:base/Iter";
+import Iter "mo:core/Iter";
 import Prim "mo:prim";
-import Principal "mo:base/Principal";
+import Principal "mo:core/Principal";
+
+import Auction "../src/lib";
 
 import U "../../utils";
 import { init; createFt } "./test.util";
 
 do {
   Prim.debugPrint("immediate orders should execute immediately...");
-  let (auction, buyer) = init(0, 3, 5);
+  let (auction, runtime, buyer) = init(0, 3, 5);
   let ft = createFt(auction);
   ignore auction.appendCredit(buyer, 0, 500_000_000);
-  let (_, res0) = U.requireOk(auction.placeOrder(buyer, #bid, ft, #immediate, 2_000, 15_000, null));
+  let (_, res0) = U.requireOk(auction.placeOrder(buyer, #bid, ft, #immediate, 2_000, 15_000, null, runtime));
   switch (res0) {
     case (#placed) {};
     case (#executed _) assert false;
@@ -33,7 +35,7 @@ do {
   let brev = auction.getAccountRevision(buyer);
   let srev = auction.getAccountRevision(buyer);
 
-  let (_, result) = U.requireOk(auction.placeOrder(seller, #ask, ft, #immediate, 2_000, 15_000, null));
+  let (_, result) = U.requireOk(auction.placeOrder(seller, #ask, ft, #immediate, 2_000, 15_000, null, runtime));
   switch (result) {
     case (#placed) assert false;
     case (#executed res) {
@@ -69,7 +71,7 @@ do {
 
 do {
   Prim.debugPrint("immediate orders execution should fulfil as many orders as possible...");
-  let (auction, buyer) = init(0, 3, 5);
+  let (auction, runtime, buyer) = init(0, 3, 5);
   let ft = createFt(auction);
   ignore auction.appendCredit(buyer, 0, 500_000_000);
 
@@ -78,12 +80,12 @@ do {
   let seller1 = Principal.fromText("dkkzx-rn4st-jpxtx-c2q6z-wy2k7-uyffr-ks7hq-azcmt-zjwxi-btxoi-mqe");
   ignore auction.appendCredit(seller1, ft, 500_000_000);
 
-  let (_, result0) = U.requireOk(auction.placeOrder(seller0, #ask, ft, #immediate, 2_000, 15_000, null));
+  let (_, result0) = U.requireOk(auction.placeOrder(seller0, #ask, ft, #immediate, 2_000, 15_000, null, runtime));
   switch (result0) {
     case (#placed) {};
     case (#executed _) assert false;
   };
-  let (_, result1) = U.requireOk(auction.placeOrder(seller1, #ask, ft, #immediate, 2_000, 16_000, null));
+  let (_, result1) = U.requireOk(auction.placeOrder(seller1, #ask, ft, #immediate, 2_000, 16_000, null, runtime));
   switch (result1) {
     case (#placed) {};
     case (#executed _) assert false;
@@ -92,7 +94,7 @@ do {
   assert auction.getOrders(seller0, #ask, ?ft).size() == 1;
   assert auction.getOrders(seller1, #ask, ?ft).size() == 1;
 
-  let (oid, result2) = U.requireOk(auction.placeOrder(buyer, #bid, ft, #immediate, 5_000, 18_000, null));
+  let (oid, result2) = U.requireOk(auction.placeOrder(buyer, #bid, ft, #immediate, 5_000, 18_000, null, runtime));
   switch (result2) {
     case (#placed) assert false;
     case (#executed res) {
@@ -114,14 +116,14 @@ do {
 
 do {
   Prim.debugPrint("delayed orders should not be fulfilled by immediate order...");
-  let (auction, buyer) = init(0, 3, 5);
+  let (auction, runtime, buyer) = init(0, 3, 5);
   let ft = createFt(auction);
   ignore auction.appendCredit(buyer, 0, 500_000_000);
-  ignore U.requireOk(auction.placeOrder(buyer, #bid, ft, #delayed, 2_000, 15_000, null));
+  ignore U.requireOk(auction.placeOrder(buyer, #bid, ft, #delayed, 2_000, 15_000, null, runtime));
 
   let seller = Principal.fromText("ocqy6-3dphi-xgf54-vkr2e-lk4oz-3exc6-446gr-5e72g-bsdfo-4nzrm-hqe");
   ignore auction.appendCredit(seller, ft, 500_000_000);
-  let (_, result) = U.requireOk(auction.placeOrder(seller, #ask, ft, #immediate, 2_000, 15_000, null));
+  let (_, result) = U.requireOk(auction.placeOrder(seller, #ask, ft, #immediate, 2_000, 15_000, null, runtime));
   switch (result) {
     case (#placed) {};
     case (#executed _) assert false;
@@ -132,38 +134,38 @@ do {
 
 do {
   Prim.debugPrint("auction run should executed immediate orders and delayed ones...");
-  let (auction, buyer) = init(0, 3, 5);
+  let (auction, runtime, buyer) = init(0, 3, 5);
   let ft = createFt(auction);
   ignore auction.appendCredit(buyer, 0, 500_000_000);
-  ignore U.requireOk(auction.placeOrder(buyer, #bid, ft, #delayed, 2_000, 15_000, null));
+  ignore U.requireOk(auction.placeOrder(buyer, #bid, ft, #delayed, 2_000, 15_000, null, runtime));
 
   let seller = Principal.fromText("ocqy6-3dphi-xgf54-vkr2e-lk4oz-3exc6-446gr-5e72g-bsdfo-4nzrm-hqe");
   ignore auction.appendCredit(seller, ft, 500_000_000);
-  ignore U.requireOk(auction.placeOrder(seller, #ask, ft, #immediate, 2_000, 15_000, null));
+  ignore U.requireOk(auction.placeOrder(seller, #ask, ft, #immediate, 2_000, 15_000, null, runtime));
 
   assert auction.getOrders(buyer, #bid, ?ft).size() == 1;
   assert auction.getOrders(seller, #ask, ?ft).size() == 1;
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
   assert auction.getOrders(buyer, #bid, ?ft).size() == 0;
   assert auction.getOrders(seller, #ask, ?ft).size() == 0;
 };
 
 do {
   Prim.debugPrint("immediate and delayed orders should preserve priority (1)...");
-  let (auction, buyer) = init(0, 3, 5);
+  let (auction, runtime, buyer) = init(0, 3, 5);
   let ft = createFt(auction);
   ignore auction.appendCredit(buyer, 0, 500_000_000);
-  ignore U.requireOk(auction.placeOrder(buyer, #bid, ft, #delayed, 2_000, 15_000, null));
+  ignore U.requireOk(auction.placeOrder(buyer, #bid, ft, #delayed, 2_000, 15_000, null, runtime));
 
   let seller0 = Principal.fromText("sqez4-4bl6d-ymcv2-npdsk-p3xpk-zlwzb-isfiz-estoh-ioiez-rogoj-yqe");
   ignore auction.appendCredit(seller0, ft, 500_000_000);
-  ignore U.requireOk(auction.placeOrder(seller0, #ask, ft, #immediate, 1_500, 14_000, null));
+  ignore U.requireOk(auction.placeOrder(seller0, #ask, ft, #immediate, 1_500, 14_000, null, runtime));
 
   let seller1 = Principal.fromText("dkkzx-rn4st-jpxtx-c2q6z-wy2k7-uyffr-ks7hq-azcmt-zjwxi-btxoi-mqe");
   ignore auction.appendCredit(seller0, ft, 500_000_000);
-  ignore U.requireOk(auction.placeOrder(seller0, #ask, ft, #delayed, 1_500, 13_000, null));
+  ignore U.requireOk(auction.placeOrder(seller0, #ask, ft, #delayed, 1_500, 13_000, null, runtime));
 
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
   // sold with price 13_000 by seller1 (delayed ask)
   assert auction.getOrders(seller0, #ask, ?ft).size() == 1;
   assert auction.getOrders(seller1, #ask, ?ft).size() == 0;
@@ -171,20 +173,20 @@ do {
 
 do {
   Prim.debugPrint("immediate and delayed orders should preserve priority (2)...");
-  let (auction, buyer) = init(0, 3, 5);
+  let (auction, runtime, buyer) = init(0, 3, 5);
   let ft = createFt(auction);
   ignore auction.appendCredit(buyer, 0, 500_000_000);
-  ignore U.requireOk(auction.placeOrder(buyer, #bid, ft, #delayed, 2_000, 15_000, null));
+  ignore U.requireOk(auction.placeOrder(buyer, #bid, ft, #delayed, 2_000, 15_000, null, runtime));
 
   let seller0 = Principal.fromText("sqez4-4bl6d-ymcv2-npdsk-p3xpk-zlwzb-isfiz-estoh-ioiez-rogoj-yqe");
   ignore auction.appendCredit(seller0, ft, 500_000_000);
-  ignore U.requireOk(auction.placeOrder(seller0, #ask, ft, #delayed, 1_500, 14_000, null));
+  ignore U.requireOk(auction.placeOrder(seller0, #ask, ft, #delayed, 1_500, 14_000, null, runtime));
 
   let seller1 = Principal.fromText("dkkzx-rn4st-jpxtx-c2q6z-wy2k7-uyffr-ks7hq-azcmt-zjwxi-btxoi-mqe");
   ignore auction.appendCredit(seller0, ft, 500_000_000);
-  ignore U.requireOk(auction.placeOrder(seller0, #ask, ft, #immediate, 1_500, 13_000, null));
+  ignore U.requireOk(auction.placeOrder(seller0, #ask, ft, #immediate, 1_500, 13_000, null, runtime));
 
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
   // sold with price 13_000 by seller1 (immediate ask)
   assert auction.getOrders(seller0, #ask, ?ft).size() == 1;
   assert auction.getOrders(seller1, #ask, ?ft).size() == 0;
@@ -192,7 +194,7 @@ do {
 
 do {
   Prim.debugPrint("immediate orders should execute against multiple opposite orders with different prices (bid case)...");
-  let (auction, buyer) = init(0, 3, 5);
+  let (auction, runtime, buyer) = init(0, 3, 5);
   let ft = createFt(auction);
   ignore auction.appendCredit(buyer, 0, 500_000_000);
 
@@ -201,12 +203,12 @@ do {
   let seller2 = Principal.fromText("dkkzx-rn4st-jpxtx-c2q6z-wy2k7-uyffr-ks7hq-azcmt-zjwxi-btxoi-mqe");
   ignore auction.appendCredit(seller2, ft, 500_000_000);
 
-  let (_, result1) = U.requireOk(auction.placeOrder(seller1, #ask, ft, #immediate, 500, 15_000, null));
+  let (_, result1) = U.requireOk(auction.placeOrder(seller1, #ask, ft, #immediate, 500, 15_000, null, runtime));
   switch (result1) {
     case (#placed) {};
     case (#executed _) assert false;
   };
-  let (_, result2) = U.requireOk(auction.placeOrder(seller2, #ask, ft, #immediate, 500, 18_000, null));
+  let (_, result2) = U.requireOk(auction.placeOrder(seller2, #ask, ft, #immediate, 500, 18_000, null, runtime));
   switch (result2) {
     case (#placed) {};
     case (#executed _) assert false;
@@ -214,7 +216,7 @@ do {
   assert auction.getOrders(seller1, #ask, ?ft).size() == 1;
   assert auction.getOrders(seller2, #ask, ?ft).size() == 1;
 
-  let (_, result3) = U.requireOk(auction.placeOrder(buyer, #bid, ft, #immediate, 1000, 20_000, null));
+  let (_, result3) = U.requireOk(auction.placeOrder(buyer, #bid, ft, #immediate, 1000, 20_000, null, runtime));
   switch (result3) {
     case (#placed) assert false;
     case (#executed res) {
@@ -259,7 +261,7 @@ do {
 
 do {
   Prim.debugPrint("immediate orders should execute against multiple opposite orders with different prices (ask case)...");
-  let (auction, seller) = init(0, 3, 5);
+  let (auction, runtime, seller) = init(0, 3, 5);
   let ft = createFt(auction);
   ignore auction.appendCredit(seller, ft, 500_000_000);
   let buyer1 = Principal.fromText("sqez4-4bl6d-ymcv2-npdsk-p3xpk-zlwzb-isfiz-estoh-ioiez-rogoj-yqe");
@@ -267,12 +269,12 @@ do {
   let buyer2 = Principal.fromText("dkkzx-rn4st-jpxtx-c2q6z-wy2k7-uyffr-ks7hq-azcmt-zjwxi-btxoi-mqe");
   ignore auction.appendCredit(buyer2, 0, 500_000_000);
 
-  let (_, result1) = U.requireOk(auction.placeOrder(buyer1, #bid, ft, #immediate, 500, 15_000, null));
+  let (_, result1) = U.requireOk(auction.placeOrder(buyer1, #bid, ft, #immediate, 500, 15_000, null, runtime));
   switch (result1) {
     case (#placed) {};
     case (#executed _) assert false;
   };
-  let (_, result2) = U.requireOk(auction.placeOrder(buyer2, #bid, ft, #immediate, 500, 18_000, null));
+  let (_, result2) = U.requireOk(auction.placeOrder(buyer2, #bid, ft, #immediate, 500, 18_000, null, runtime));
   switch (result2) {
     case (#placed) {};
     case (#executed _) assert false;
@@ -280,7 +282,7 @@ do {
   assert auction.getOrders(buyer1, #bid, ?ft).size() == 1;
   assert auction.getOrders(buyer2, #bid, ?ft).size() == 1;
 
-  let (_, result3) = U.requireOk(auction.placeOrder(seller, #ask, ft, #immediate, 1000, 14_000, null));
+  let (_, result3) = U.requireOk(auction.placeOrder(seller, #ask, ft, #immediate, 1000, 14_000, null, runtime));
   switch (result3) {
     case (#placed) assert false;
     case (#executed res) {

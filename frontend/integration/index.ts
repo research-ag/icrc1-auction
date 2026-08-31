@@ -5,10 +5,13 @@ import { useSnackbar } from 'notistack';
 import { useIdentity } from './identity';
 import { Principal } from '@icp-sdk/core/principal';
 import { useMemo } from 'react';
-import { createActor } from '@declarations/icrc1_auction';
-import { AuctionQueryResponse } from '@declarations/icrc1_auction/icrc1_auction_development.did';
+import { createActor, type Icrc1_auction } from '@declarations/icrc1_auction';
 import { createActor as createLedgerActor } from '@declarations/icrc1_ledger_mock';
-import { createActor as createCryptoActor, canisterId as CRYPTO_CANISTER_ID } from '@declarations/crypto';
+import { createActor as createCryptoActor } from '@declarations/crypto';
+import { safeGetCanisterEnv } from '@icp-sdk/core/agent/canister-env';
+
+export type AuctionQueryResponse = Awaited<ReturnType<Icrc1_auction['auction_query']>>;
+const CRYPTO_CANISTER_ID = safeGetCanisterEnv()?.['PUBLIC_CANISTER_ID:crypto'];
 import { CKBTC_MINTER_MAINNET_XPUBKEY, Minter } from '@research-ag/ckbtc-address-js';
 import { DerivedPublicKey, IbeCiphertext, IbeIdentity, IbeSeed } from '@dfinity/vetkeys';
 import { encryptWithVetKD } from '@fe/crypto/vetkd';
@@ -149,7 +152,7 @@ export const useAddAsset = () => {
       auction.registerAsset(formObj.principal, BigInt(formObj.minAskVolume)),
     {
       onSuccess: (res, { principal, minAskVolume }) => {
-        if ('Err' in res) {
+        if (res.__kind__ === 'Err') {
           enqueueSnackbar(`Failed to add ledger: ${JSON.stringify(res.Err, bigIntReplacer)}`, { variant: 'error' });
         } else {
           queryClient.invalidateQueries('assets');
@@ -187,9 +190,21 @@ export const useTokenInfoMap = () => {
     'assetInfos',
     async () => {
       const assets = queryClient.getQueryData('assets') as Principal[] | undefined;
-      const info = await Promise.all((assets || []).map(async p => createLedgerActor(p, { agentOptions: { host: 'https://icp-api.io' } }).icrc1_metadata()));
+      const info = await Promise.all(
+        (assets || []).map(async p =>
+          createLedgerActor(p.toText(), { agentOptions: { host: 'https://icp-api.io' } }).icrc1_metadata(),
+        ),
+      );
       const mapInfo = (
-        info: ['icrc1:decimals' | 'icrc1:symbol', { Nat: bigint } | { Text: string }][],
+        info: [
+          string,
+          (
+            | { __kind__: 'Int'; Int: bigint }
+            | { __kind__: 'Nat'; Nat: bigint }
+            | { __kind__: 'Blob'; Blob: Uint8Array }
+            | { __kind__: 'Text'; Text: string }
+          ),
+        ][],
       ): {
         symbol: string;
         decimals: number;
@@ -199,10 +214,10 @@ export const useTokenInfoMap = () => {
           decimals: 0,
         };
         for (const [k, v] of info) {
-          if (k === 'icrc1:decimals') {
-            ret.decimals = Number((v as any).Nat as bigint);
-          } else if (k === 'icrc1:symbol') {
-            ret.symbol = (v as any).Text;
+          if (k === 'icrc1:decimals' && v.__kind__ === 'Nat') {
+            ret.decimals = Number(v.Nat);
+          } else if (k === 'icrc1:symbol' && v.__kind__ === 'Text') {
+            ret.symbol = v.Text;
           }
         }
         return ret;
@@ -236,20 +251,13 @@ export const useAuctionQuery = () => {
     async () => {
       return replaceBigInts(
         await auction.auction_query([], {
-          asks: [true],
-          bids: [true],
-          credits: [true],
-          dark_order_books: [true],
-          session_numbers: [],
-          deposit_history: [[BigInt(10000), BigInt(0)]],
-          transaction_history: [[BigInt(10000), BigInt(0)]],
-          price_history: [],
-          immediate_price_history: [],
-          last_prices: [],
-          last_immediate_prices: [],
-          order_book_info: [],
-          immediate_order_book_info: [],
-          reversed_history: [true],
+          asks: true,
+          bids: true,
+          credits: true,
+          dark_order_books: true,
+          deposit_history: [BigInt(10000), BigInt(0)],
+          transaction_history: [BigInt(10000), BigInt(0)],
+          reversed_history: true,
         }),
       );
     },
@@ -288,7 +296,7 @@ export const useNotify = () => {
   const { enqueueSnackbar } = useSnackbar();
   return useMutation((icrc1Ledger: Principal) => auction.icrc84_notify({ token: icrc1Ledger }), {
     onSuccess: res => {
-      if ('Err' in res) {
+      if (res.__kind__ === 'Err') {
         enqueueSnackbar(`Failed to deposit: ${JSON.stringify(res.Err, bigIntReplacer)}`, { variant: 'error' });
       } else {
         queryClient.invalidateQueries('auctionQuery');
@@ -329,7 +337,7 @@ export const useBtcNotify = () => {
   const { enqueueSnackbar } = useSnackbar();
   return useMutation(() => auction.btc_notify(), {
     onSuccess: res => {
-      if ('Err' in res) {
+      if (res.__kind__ === 'Err') {
         enqueueSnackbar(`Failed to deposit: ${JSON.stringify(res.Err, bigIntReplacer)}`, { variant: 'error' });
       } else {
         queryClient.invalidateQueries('myCredits');
@@ -348,19 +356,19 @@ export const useDeposit = () => {
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
   return useMutation(
-    (arg: { token: Principal; amount: number; owner: Principal; subaccount: Uint8Array | number[] | null }) =>
+    (arg: { token: Principal; amount: number; owner: Principal; subaccount: Uint8Array | null }) =>
       auction.icrc84_deposit({
         token: arg.token,
         amount: BigInt(arg.amount),
         from: {
           owner: arg.owner,
-          subaccount: arg.subaccount ? [arg.subaccount] : [],
+          subaccount: arg.subaccount ?? undefined,
         },
-        expected_fee: [],
+        expected_fee: undefined,
       }),
     {
       onSuccess: res => {
-        if ('Err' in res) {
+        if (res.__kind__ === 'Err') {
           enqueueSnackbar(`Failed to deposit: ${JSON.stringify(res.Err, bigIntReplacer)}`, { variant: 'error' });
         } else {
           queryClient.invalidateQueries('auctionQuery');
@@ -381,23 +389,32 @@ export const usePlaceOrder = (kind: 'ask' | 'bid') => {
   return useMutation(
     (formObj: { ledger: string; volume: number; price: number; orderBookType: 'delayed' | 'immediate' }) =>
       (kind === 'bid' ? auction.placeBids : auction.placeAsks).bind(auction)(
-        [[Principal.fromText(formObj.ledger), { [formObj.orderBookType]: null } as any, BigInt(formObj.volume), Number(formObj.price)]],
-        [],
+        [
+          [
+            Principal.fromText(formObj.ledger),
+            { __kind__: formObj.orderBookType, [formObj.orderBookType]: null } as any,
+            BigInt(formObj.volume),
+            Number(formObj.price),
+          ],
+        ],
+        null,
       ),
     {
       onSuccess: ([res]) => {
-        if ('Err' in res) {
+        if (res.__kind__ === 'Err') {
           enqueueSnackbar(`Failed to place a ${kind}: ${JSON.stringify(res.Err, bigIntReplacer)}`, {
             variant: 'error',
           });
-        } else if ('Ok' in res) {
+        } else if (res.__kind__ === 'Ok') {
           queryClient.invalidateQueries('auctionQuery');
-          let orderId = res['Ok'][0];
-          if ('placed' in res['Ok'][1]) {
+          const [orderId, placeOrderResult] = res.Ok;
+          if (placeOrderResult.__kind__ === 'placed') {
             enqueueSnackbar(`${kind} placed, order ID: ${orderId}`, { variant: 'success' });
-          } else if ('executed' in res['Ok'][1]) {
-            let [price, volumeExecuted] = res['Ok'][1]['executed'][0];
-            enqueueSnackbar(`${kind} executed with price ${price}, volume executed: ${Number(volumeExecuted)}`, { variant: 'success' });
+          } else if (placeOrderResult.__kind__ === 'executed') {
+            let [price, volumeExecuted] = placeOrderResult.executed[0];
+            enqueueSnackbar(`${kind} executed with price ${price}, volume executed: ${Number(volumeExecuted)}`, {
+              variant: 'success',
+            });
           }
         }
       },
@@ -413,10 +430,10 @@ export const useCancelOrder = (kind: 'ask' | 'bid') => {
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
   return useMutation(
-    (orderId: bigint) => (kind === 'bid' ? auction.cancelBids([orderId], []) : auction.cancelAsks([orderId], [])),
+    (orderId: bigint) => (kind === 'bid' ? auction.cancelBids([orderId], null) : auction.cancelAsks([orderId], null)),
     {
       onSuccess: ([res]) => {
-        if ('Err' in res) {
+        if (res.__kind__ === 'Err') {
           enqueueSnackbar(`Failed to cancel the ${kind}: ${JSON.stringify(res.Err, bigIntReplacer)}`, {
             variant: 'error',
           });
@@ -452,20 +469,8 @@ export const usePriceHistory = (limit: number, offset: number) => {
     ['price-history', offset],
     async () => {
       const res = await auction.auction_query([], {
-        asks: [],
-        bids: [],
-        credits: [],
-        dark_order_books: [],
-        session_numbers: [],
-        deposit_history: [],
-        transaction_history: [],
-        price_history: [[BigInt(limit), BigInt(offset), false]],
-        immediate_price_history: [],
-        last_prices: [],
-        last_immediate_prices: [],
-        order_book_info: [],
-        immediate_order_book_info: [],
-        reversed_history: [true],
+        reversed_history: true,
+        price_history: [BigInt(limit), BigInt(offset), false],
       });
       return res.price_history;
     },
@@ -548,14 +553,14 @@ export const useWithdrawCredit = () => {
         token: Principal.fromText(formObj.ledger),
         to: {
           owner: formObj.owner ? Principal.fromText(formObj.owner) : identity.getPrincipal(),
-          subaccount: formObj.subaccount ? [formObj.subaccount] : [],
+          subaccount: formObj.subaccount ?? undefined,
         },
         amount: BigInt(formObj.amount),
-        expected_fee: [],
+        expected_fee: undefined,
       }),
     {
       onSuccess: res => {
-        if ('Err' in res) {
+        if (res.__kind__ === 'Err') {
           enqueueSnackbar(`Failed to withdraw credit: ${JSON.stringify(res.Err, bigIntReplacer)}`, {
             variant: 'error',
           });
@@ -630,7 +635,6 @@ export const useIsAdmin = () => {
   );
 };
 
-
 export const useListDarkOrderBooks = (auctionQueryData: AuctionQueryResponse | undefined) => {
   return useQuery(['dark-order-books', auctionQueryData], async () => auctionQueryData?.dark_order_books || [], {
     enabled: !!auctionQueryData,
@@ -663,11 +667,12 @@ export const useManageDarkOrderBook = () => {
 
       const nextSessionTimestamp = Number((await auction.nextSession()).timestamp);
       const data = await Promise.all([encryptWithVetKD(identity, raw), encryptIbe(raw, nextSessionTimestamp)]);
-      return auction.manageDarkOrderBooks([[arg.ledger, [data]]], []);
+      const encBook: [Uint8Array, Uint8Array] = data as any;
+      return auction.manageDarkOrderBooks([[arg.ledger, encBook]], null);
     },
     {
       onSuccess: res => {
-        if ('Err' in res) {
+        if (res.__kind__ === 'Err') {
           enqueueSnackbar(`Failed to set dark order book: ${JSON.stringify(res.Err, bigIntReplacer)}` as any, {
             variant: 'error',
           });
@@ -688,9 +693,9 @@ export const useDeleteDarkOrderBook = () => {
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
 
-  return useMutation((ledger: Principal) => auction.manageDarkOrderBooks([[ledger, []]], []), {
+  return useMutation((ledger: Principal) => auction.manageDarkOrderBooks([[ledger, null]], null), {
     onSuccess: res => {
-      if ('Err' in res) {
+      if (res.__kind__ === 'Err') {
         enqueueSnackbar(`Failed to remove dark order book: ${JSON.stringify(res.Err, bigIntReplacer)}` as any, {
           variant: 'error',
         });

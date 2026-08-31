@@ -211,7 +211,20 @@ type ImmediateOrderBookInfo = record {
   totalBidVolume : nat
 };
 
-service : (opt principal, opt principal) -> {
+type Request = record {
+  method : text;
+  url : text;
+  headers : vec record { text; text };
+  body : blob;
+};
+
+type Response = record {
+  status_code : nat16;
+  headers : vec record { text; text };
+  body : blob;
+};
+
+service : (opt principal, opt principal, opt principal) -> {
   // =========================================================== ICRC-84 API ===========================================================
   // helper function
   principalToSubaccount : (principal) -> (opt blob) query;
@@ -596,5 +609,7 @@ service : (opt principal, opt principal) -> {
   removeAdmin : (principal) -> ();
 
   // register new base token
-  registerAsset : (principal, nat) -> (variant { Ok : nat; Err : variant { AlreadyRegistered } })
+  registerAsset : (principal, nat) -> (variant { Ok : nat; Err : variant { AlreadyRegistered } });
+
+  http_request : (Request) -> (Response) query;
 }

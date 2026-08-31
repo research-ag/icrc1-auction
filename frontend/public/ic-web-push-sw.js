@@ -10,12 +10,15 @@ self.addEventListener('push', event => {
     const data = event.data ? event.data.json() : {};
     const title = data.title || 'Auction notification';
     const body = data.body || 'You have a new update.';
-    const options = Object.assign({
-      body,
-      icon: data.icon || '/favicon.ico',
-      badge: data.badge || '/favicon.ico',
-      data: data.data || {},
-    }, data.options || {});
+    const options = Object.assign(
+      {
+        body,
+        icon: data.icon || '/favicon.ico',
+        badge: data.badge || '/favicon.ico',
+        data: data.data || {},
+      },
+      data.options || {},
+    );
     event.waitUntil(self.registration.showNotification(title, options));
   } catch (e) {
     // If data is not JSON
@@ -33,7 +36,7 @@ self.addEventListener('notificationclick', event => {
         if (client.url === url && 'focus' in client) return client.focus();
       }
       if (clients.openWindow) return clients.openWindow(url);
-    })
+    }),
   );
 });
 

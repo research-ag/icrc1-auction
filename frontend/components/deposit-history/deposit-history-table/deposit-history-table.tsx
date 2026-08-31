@@ -11,7 +11,7 @@ const DepositHistoryTable = () => {
 
   const { data: quoteLedger } = useQuoteLedger();
   const { data: symbols } = useTokenInfoMap();
-  const getInfo = (ledger: Principal): { symbol: string, decimals: number } => {
+  const getInfo = (ledger: Principal): { symbol: string; decimals: number } => {
     const mapItem = (symbols || []).find(([p, s]) => p.toText() == ledger.toText());
     return mapItem ? mapItem[1] : { symbol: '-', decimals: 0 };
   };
@@ -20,31 +20,31 @@ const DepositHistoryTable = () => {
     <Box sx={{ width: '100%', overflow: 'auto' }}>
       <Table>
         <colgroup>
-          <col style={{ width: '290px' }}/>
-          <col style={{ width: '160px' }}/>
-          <col style={{ width: '150px' }}/>
+          <col style={{ width: '290px' }} />
+          <col style={{ width: '160px' }} />
+          <col style={{ width: '150px' }} />
         </colgroup>
         <thead>
-        <tr>
-          <th>Timestamp</th>
-          <th>Token symbol</th>
-          <th>Volume</th>
-        </tr>
+          <tr>
+            <th>Timestamp</th>
+            <th>Token symbol</th>
+            <th>Volume</th>
+          </tr>
         </thead>
         <tbody>
-        {(data ?? []).map(([ts, kind, ledger, volume]) => {
-          return (
-            <tr key={String(ts)}>
-              <td>{String(new Date(Number(ts) / 1_000_000))}</td>
-              <td>
-                <InfoItem content={getInfo(ledger).symbol} withCopy={true}/>
-              </td>
-              <td style={{ color: 'withdrawal' in kind ? 'red' : 'green' }}>
-                {('withdrawal' in kind ? '-' : '+') + displayWithDecimals(volume, getInfo(ledger).decimals)}
-              </td>
-            </tr>
-          );
-        })}
+          {(data ?? []).map(([ts, kind, ledger, volume]) => {
+            return (
+              <tr key={String(ts)}>
+                <td>{String(new Date(Number(ts) / 1_000_000))}</td>
+                <td>
+                  <InfoItem content={getInfo(ledger).symbol} withCopy={true} />
+                </td>
+                <td style={{ color: kind === 'withdrawal' ? 'red' : 'green' }}>
+                  {(kind === 'withdrawal' ? '-' : '+') + displayWithDecimals(volume, getInfo(ledger).decimals)}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </Table>
     </Box>

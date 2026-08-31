@@ -1,13 +1,15 @@
-import Float "mo:base/Float";
-import Int "mo:base/Int";
+import Float "mo:core/Float";
+import Int "mo:core/Int";
 import Prim "mo:prim";
-import Principal "mo:base/Principal";
+import Principal "mo:core/Principal";
+
+import Auction "../src/lib";
 
 import { init; createFt } "./test.util";
 
 do {
   Prim.debugPrint("rounding test: small asks vs big bid...");
-  let (auction, user) = init(0, 0, 0);
+  let (auction, runtime, user) = init(0, 0, 0);
   let ft = createFt(auction);
 
   // user places big bid, which will be fulfilled with many smaller asks
@@ -22,29 +24,29 @@ do {
   let seller4 = Principal.fromText("qo2aj-uwwcl-gw2to-zzmko-mdptl-ogqy3-ondre-dmlra-tal7p-klf4v-uae");
   ignore auction.appendCredit(seller4, ft, 1_000);
 
-  switch (auction.placeOrder(user, #bid, ft, #delayed, 4_000, 1, null)) {
+  switch (auction.placeOrder(user, #bid, ft, #delayed, 4_000, 1, null, runtime)) {
     case (#ok _) ();
     case (_) assert false;
   };
 
-  switch (auction.placeOrder(seller1, #ask, ft, #delayed, 1_000, 0.0125, null)) {
+  switch (auction.placeOrder(seller1, #ask, ft, #delayed, 1_000, 0.0125, null, runtime)) {
     case (#ok _) ();
     case (_) assert false;
   };
-  switch (auction.placeOrder(seller2, #ask, ft, #delayed, 1_000, 0.0125, null)) {
+  switch (auction.placeOrder(seller2, #ask, ft, #delayed, 1_000, 0.0125, null, runtime)) {
     case (#ok _) ();
     case (_) assert false;
   };
-  switch (auction.placeOrder(seller3, #ask, ft, #delayed, 1_000, 0.0125, null)) {
+  switch (auction.placeOrder(seller3, #ask, ft, #delayed, 1_000, 0.0125, null, runtime)) {
     case (#ok _) ();
     case (_) assert false;
   };
-  switch (auction.placeOrder(seller4, #ask, ft, #delayed, 1_000, 0.0125, null)) {
+  switch (auction.placeOrder(seller4, #ask, ft, #delayed, 1_000, 0.0125, null, runtime)) {
     case (#ok _) ();
     case (_) assert false;
   };
 
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
 
   let ?priceHistoryItem = auction.getPriceHistory([ft], #desc, false).next() else Prim.trap("");
   assert priceHistoryItem.3 == 4_000; // volume
@@ -65,13 +67,13 @@ do {
   assert auction.getCredit(seller4, 0).available == 12;
   assert auction.getCredit(seller4, ft).available == 0;
 
-  assert auction.credits.quoteSurplus == 2;
+  assert auction.users.quoteSurplus == 2;
 
 };
 
 do {
   Prim.debugPrint("rounding test: partial fulfillments should not create inaccuracy...");
-  let (auction, user) = init(0, 0, 0);
+  let (auction, runtime, user) = init(0, 0, 0);
   let ft = createFt(auction);
 
   let seller = Principal.fromText("dkkzx-rn4st-jpxtx-c2q6z-wy2k7-uyffr-ks7hq-azcmt-zjwxi-btxoi-mqe");
@@ -82,12 +84,12 @@ do {
   let askVolume = 1_000_000_000_000;
   let askPrice = 0.0000000022790000000000002;
 
-  func denominateVolumeInQuoteAsset(volume : Nat, unitPrice : Float) : Nat = unitPrice * Float.fromInt(volume)
+  func denominateVolumeInQuoteAsset(volume : Nat, unitPrice : Float) : Nat = unitPrice * Int.toFloat(volume)
   |> Float.ceil(_)
   |> Int.abs(Float.toInt(_));
 
   ignore auction.appendCredit(user, 0, denominateVolumeInQuoteAsset(bidVolume, bidPrice));
-  let oid = switch (auction.placeOrder(user, #bid, ft, #delayed, bidVolume, bidPrice, null)) {
+  let oid = switch (auction.placeOrder(user, #bid, ft, #delayed, bidVolume, bidPrice, null, runtime)) {
     case (#ok(x, _)) x;
     case (_) {
       assert false;
@@ -97,18 +99,18 @@ do {
 
   assert auction.getCredit(user, 0).locked == denominateVolumeInQuoteAsset(bidVolume, bidPrice);
 
-  switch (auction.placeOrder(seller, #ask, ft, #delayed, askVolume, askPrice, null)) {
+  switch (auction.placeOrder(seller, #ask, ft, #delayed, askVolume, askPrice, null, runtime)) {
     case (#ok _) ();
     case (_) assert false;
   };
-  auction.processAsset(ft);
+  auction.processAsset(ft, runtime);
   let ?priceHistoryItem = auction.getPriceHistory([ft], #desc, false).next() else Prim.trap("");
   assert priceHistoryItem.3 == askVolume;
-  assert Float.equalWithin(priceHistoryItem.4, bidPrice, 0.000000000000001);
+  assert Float.abs(priceHistoryItem.4 - bidPrice) < 0.000000000000001;
 
   assert auction.getCredit(user, 0).locked == denominateVolumeInQuoteAsset(bidVolume - askVolume, bidPrice);
 
-  switch (auction.cancelOrder(user, #bid, oid, null)) {
+  switch (auction.cancelOrder(user, #bid, oid, null, runtime)) {
     case (#ok _) ();
     case (x) {
       Prim.debugPrint(debug_show x);

@@ -1,7 +1,7 @@
-import Iter "mo:base/Iter";
+import Iter "mo:core/Iter";
 import Prim "mo:prim";
-import List "mo:base/List";
-import R "mo:base/Result";
+import List "mo:core/pure/List";
+import R "mo:core/Result";
 
 module {
 

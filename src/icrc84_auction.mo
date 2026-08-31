@@ -1,5 +1,5 @@
-import Array "mo:base/Array";
-import R "mo:base/Result";
+import Array "mo:core/Array";
+import R "mo:core/Result";
 
 import Auction "auction/src";
 import T "auction/src/types";

@@ -2,6 +2,7 @@ import Array "mo:core/Array";
 import Blob "mo:core/Blob";
 import Error "mo:core/Error";
 import Float "mo:core/Float";
+import Int "mo:core/Int";
 import Iter "mo:core/Iter";
 import Nat "mo:core/Nat";
 import Prim "mo:prim";
@@ -48,7 +49,7 @@ module {
         case (null) 0;
       };
       let ?priceNat = Text.split(priceText, #char '.') |> Text.join(_, "") |> Nat.fromText(_) else return null;
-      let price = Float.fromInt(priceNat) * (10 ** Float.fromInt(-priceFractionPartLength));
+      let price = Int.toFloat(priceNat) * (10 ** Int.toFloat(-priceFractionPartLength));
 
       ?{
         kind;
@@ -75,7 +76,7 @@ module {
         };
         offset += len;
       };
-      Array.fromVarArray<?Blob>(results);
+      VarArray.toArray<?Blob>(results);
     } catch (err) {
       Prim.debugPrint("Error while calling crypto canister to decrypt data: " # Error.message(err));
       return Array.tabulate<?[T.DecryptedOrderData]>(encryptedOrderBooks.size(), func(_) = null);
@@ -92,7 +93,7 @@ module {
           let ?decrypted = parseOrder(orders[i]) else return null;
           ret[i] := decrypted;
         };
-        ?Array.fromVarArray<T.DecryptedOrderData>(ret);
+        ?VarArray.toArray<T.DecryptedOrderData>(ret);
       },
     );
   };

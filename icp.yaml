@@ -1,0 +1,54 @@
+canisters:
+  - name: icrc1_ledger_mock
+    recipe:
+      type: "@dfinity/motoko@v5.0.0"
+      configuration:
+        shrink: true
+        compress: true
+    init_args: '(opt "MCK_1", opt 6 : opt nat8)'
+
+  - name: icrc1_ledger_mock_2
+    recipe:
+      type: "@dfinity/motoko@v5.0.0"
+      configuration:
+        shrink: true
+        compress: true
+    init_args: '(opt "MCK_2", opt 2 : opt nat8)'
+
+  - name: frontend
+    recipe:
+      type: "@dfinity/asset-canister@v2.2.1"
+      configuration:
+        dir: dist
+        build:
+          - npm run build:frontend
+
+  - name: icrc1_auction_development
+    recipe:
+      type: "@dfinity/motoko@v5.0.0"
+      configuration:
+        shrink: true
+        compress: true
+    init_args: '(opt principal "arufl-lyaaa-aaaao-a3n4a-cai", opt principal "2vxsx-fae", opt principal "6jrls-gqaaa-aaaao-a4pgq-cai")'
+
+  - name: crypto
+    recipe:
+      type: "@dfinity/rust@v3.3.0"
+      configuration:
+        package: crypto
+        candid: crypto_canister/crypto.did
+        shrink: true
+    init_args: '("key_1")'
+
+  - name: crypto_mock
+    recipe:
+      type: "@dfinity/rust@v3.3.0"
+      configuration:
+        package: crypto_mock
+        candid: test/mocks/crypto_canister_mock/crypto.did
+        shrink: true
+    init_args: '("test_key_1")'
+
+networks:
+  - name: local
+    mode: managed
